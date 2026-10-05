@@ -1,0 +1,31 @@
+name: Bootstrap portal source
+
+on:
+  push:
+    branches:
+      - feat/initial-portal
+    paths:
+      - ".github/workflows/bootstrap.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  expand:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Expand source archive
+        run: |
+          cat .bootstrap/portal.part{1..6} | base64 -d > /tmp/9sig-portal.tar.gz
+          tar -xzf /tmp/9sig-portal.tar.gz -C .
+          rm -rf .bootstrap
+          rm -f .github/workflows/bootstrap.yml
+      - name: Commit source tree
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Build initial 9Sig portal"
+          git push
