@@ -20,14 +20,20 @@ export async function calculateAction(strategyInstanceId:string){
   if(targetOverride[0]?.manual_value!=null) state.targetValue=String(targetOverride[0].manual_value);
 
   const exposurePositions:Array<{economicExposure:string;value:Decimal;tradingLineId?:string}>=[];
-  let dataStatus:"CURRENT"|"STALE"|"MISSING"=state.resumeNeedsReconciliation?"MISSING":"CURRENT";
-  let dataMessage=state.resumeNeedsReconciliation?"Quick resume needs a holdings reconciliation before a high-confidence action can be calculated.":undefined;
+  let dataStatus:"CURRENT"|"STALE"|"MISSING"=state.resumeNeedsReconciliation||state.unresolvedReconciliation?"MISSING":"CURRENT";
+  let dataMessage=state.resumeNeedsReconciliation?"Quick resume needs an opening holdings snapshot before a high-confidence action can be calculated.":state.unresolvedReconciliation?"An unresolved broker discrepancy must be classified before financial actions resume.":undefined;
 
   for(const [instrumentId,quantity] of folded.quantities.entries()){
     if(quantity.eq(0))continue;
-    const market=await sql.unsafe("SELECT i.economic_exposure,o.price,o.observed_at,tl.id AS trading_line_id FROM instruments i LEFT JOIN trading_lines tl ON tl.instrument_id=i.id AND tl.effective_from<=current_date AND (tl.effective_to IS NULL OR tl.effective_to>=current_date) LEFT JOIN LATERAL (SELECT price,observed_at FROM market_data_observations m WHERE m.trading_line_id=tl.id ORDER BY observed_at DESC LIMIT 1) o ON true WHERE i.id=$1 LIMIT 1",[instrumentId]);
+    const market=await sql.unsafe("SELECT i.economic_exposure,o.price,o.observed_at,o.currency AS observation_currency,tl.currency AS trading_currency,tl.id AS trading_line_id FROM instruments i LEFT JOIN trading_lines tl ON tl.instrument_id=i.id AND tl.effective_from<=current_date AND (tl.effective_to IS NULL OR tl.effective_to>=current_date) LEFT JOIN LATERAL (SELECT price,observed_at FROM market_data_observations m WHERE m.trading_line_id=tl.id ORDER BY observed_at DESC LIMIT 1) o ON true WHERE i.id=$1 LIMIT 1",[instrumentId]);
     const m=market[0];
     const priceOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key=$2 AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId,"market_price:"+instrumentId]);
+    const priceCurrency=String(m?.observation_currency??m?.trading_currency??"");
+    if(priceCurrency&&priceCurrency!==String(instance.currency)){
+      dataStatus="MISSING";
+      dataMessage="FX conversion is required for a held instrument; actions are suppressed until an explicit FX source is configured.";
+      continue;
+    }
     const manualPrice=priceOverride[0]?.manual_value==null?null:new Decimal(String(priceOverride[0].manual_value));
     if(manualPrice){
       exposurePositions.push({economicExposure:String(m?.economic_exposure??""),value:quantity.mul(manualPrice),tradingLineId:m?.trading_line_id?String(m.trading_line_id):undefined});

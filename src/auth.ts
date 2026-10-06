@@ -3,11 +3,12 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { sql } from "@/lib/db";
+import { consumeRateLimit } from "@/lib/security";
 
 const credentials = z.object({ email: z.string().email(), password: z.string().min(8).max(128) });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 12 * 60 * 60 },
   pages: { signIn: "/login" },
   providers: [
     Credentials({
@@ -15,6 +16,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(raw) {
         const parsed = credentials.safeParse(raw);
         if (!parsed.success) return null;
+        try {
+          await consumeRateLimit("login:" + parsed.data.email.toLowerCase(), 12, 15 * 60);
+        } catch {
+          return null;
+        }
         const rows = await sql.unsafe(
           "SELECT id,email,password_hash,email_verified_at,role FROM users WHERE lower(email)=lower($1) AND deleted_at IS NULL LIMIT 1",
           [parsed.data.email]
