@@ -137,7 +137,18 @@ export async function calculateAction(strategyInstanceId:string){
   await sql.unsafe("UPDATE actions SET status='SUPERSEDED',superseded_by_action_id=$1,updated_at=now() WHERE strategy_instance_id=$2 AND id<>$1 AND status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') AND action_type<>'NO_ACTION'",[actionId,strategyInstanceId]);
   const healthy=dataStatus==="CURRENT"&&proposal.actionType!=="DATA_REQUIRED";
   await sql.unsafe("UPDATE strategy_instances SET health_status=$1,updated_at=now() WHERE id=$2",[healthy?"HEALTHY":"NEEDS_ATTENTION",strategyInstanceId]);
-  if(proposal.actionType!=="NO_ACTION")await sql.unsafe("INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION',$3,$4) ON CONFLICT DO NOTHING",[instance.user_id,actionId,proposal.title,proposal.instruction]);
+  if(proposal.actionType!=="NO_ACTION"){
+    const notified=await sql.unsafe(
+      "INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION',$3,$4) ON CONFLICT DO NOTHING RETURNING id",
+      [instance.user_id,actionId,proposal.title,proposal.instruction]
+    );
+    if(notified[0]){
+      await sql.unsafe(
+        "UPDATE actions SET status='NOTIFIED',updated_at=now() WHERE id=$1 AND status='CALCULATED'",
+        [actionId]
+      );
+    }
+  }
   return {actionId,proposal,totalValue:totalValue.toString()};
 }
 
@@ -219,6 +230,10 @@ export async function executeAction(
     await tx.unsafe(
       "UPDATE actions SET status='EXECUTED',executed_at=now(),updated_at=now() WHERE id=$1",
       [actionId]
+    );
+    await tx.unsafe(
+      "INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION_EXECUTED',$3,$4) ON CONFLICT DO NOTHING",
+      [userId,actionId,"Action recorded as completed",String(action.title)]
     );
     return true;
   });
