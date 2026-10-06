@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { z } from "zod";
 import { requireUser } from "@/lib/session";
-import { sql } from "@/lib/db";
+import { sql } from "@/lib/db";\nimport { assertSameOrigin } from "@/lib/security";
 
 const schema=z.object({planSlug:z.enum(["investor","pro"]),cadence:z.enum(["monthly","annual"]),currency:z.string().length(3).optional()});
 

@@ -1,9 +1,11 @@
 import { requireUser } from "@/lib/session";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { calculateAction } from "@/lib/action-service";
+import { assertSameOrigin } from "@/lib/security";
 
-export async function POST(_request: Request, context: { params: Promise<{id:string}> }) {
+export async function POST(request: Request, context: { params: Promise<{id:string}> }) {
   try {
+    assertSameOrigin(request);
     const user = await requireUser();
     const {id} = await context.params;
     const strategy = await getStrategyForUser(user.id,id);

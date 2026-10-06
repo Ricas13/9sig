@@ -3,11 +3,13 @@ import { requireUser } from "@/lib/session";
 import { assertNotificationAllowed } from "@/lib/entitlement-service";
 import { encryptSecret } from "@/lib/crypto";
 import { sql } from "@/lib/db";
+import { assertSameOrigin } from "@/lib/security";
 
-const schema=z.object({webhook:z.string().url().refine((value)=>value.startsWith("https://discord.com/api/webhooks/") || value.startsWith("https://discordapp.com/api/webhooks/"))});
+const schema=z.object({webhook:z.string().url().refine((value)=>value.startsWith("https://discord.com/api/webhooks/")||value.startsWith("https://discordapp.com/api/webhooks/"))});
 
-export async function POST(request: Request) {
-  try {
+export async function POST(request:Request){
+  try{
+    assertSameOrigin(request);
     const user=await requireUser();
     await assertNotificationAllowed(user.id,"DISCORD");
     const input=schema.parse(await request.json());
@@ -17,10 +19,10 @@ export async function POST(request: Request) {
       [user.id,encrypted]
     );
     return Response.json({ok:true});
-  } catch(error) {
-    if(error instanceof z.ZodError) return Response.json({error:"Enter a valid Discord webhook."},{status:400});
-    const code=error instanceof Error ? error.message : "FAILED";
-    if(code==="CHANNEL_NOT_IN_PLAN") return Response.json({error:"Discord notifications are not included in your plan."},{status:403});
+  }catch(error){
+    if(error instanceof z.ZodError)return Response.json({error:"Enter a valid Discord webhook."},{status:400});
+    const code=error instanceof Error?error.message:"FAILED";
+    if(code==="CHANNEL_NOT_IN_PLAN")return Response.json({error:"Discord notifications are not included in your plan."},{status:403});
     return Response.json({error:"Could not save webhook."},{status:500});
   }
 }
