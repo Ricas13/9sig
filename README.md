@@ -16,7 +16,7 @@ Implemented foundations include authentication, Free / Investor / Pro entitlemen
 
 The active seed enables the 9Sig-family value-target engine. Fixed-allocation engines exist and are tested, but HFEA / Golden Butterfly definitions are deliberately disabled until faithful regional instruments and full multi-leg execution workflows are configured. Momentum and custom-strategy authoring are extension points, not fake features.
 
-Production market data deliberately fails closed until a licensed provider is configured. The development mock provider cannot fabricate production prices.
+Production market data uses the configured HTTPS provider adapter. If no licensed provider is configured, the application deliberately fails closed instead of fabricating prices. The development mock provider is unavailable in production.
 
 ## Stack
 
@@ -49,7 +49,7 @@ Generate an Auth.js secret using a cryptographically secure random value. APP_EN
     npm test
     npm run build
 
-CI additionally applies the migration twice to prove idempotency, seeds a fresh PostgreSQL database and runs a production dependency audit.
+CI applies migrations twice to prove idempotency, seeds a fresh PostgreSQL database, runs lint/typecheck/unit and database tests, builds production, renders public pages in mobile and desktop Chromium, and runs a high-severity production dependency audit.
 
 ## Stripe test setup
 
