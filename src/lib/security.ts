@@ -2,11 +2,28 @@ import "server-only";
 import crypto from "node:crypto";
 import { sql } from "@/lib/db";
 
+export function clientIp(request: Request) {
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || request.headers.get("x-real-ip")?.trim()
+    || "unknown";
+}
+
 export function assertSameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
   const configured = process.env.NEXT_PUBLIC_APP_URL;
-  if (!origin || !configured) return;
-  if (new URL(origin).origin !== new URL(configured).origin) throw new Error("INVALID_ORIGIN");
+  if (!configured) {
+    if (process.env.NODE_ENV === "production") throw new Error("APP_URL_NOT_CONFIGURED");
+    return;
+  }
+  const expected = new URL(configured).origin;
+  const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
+  let actual: string | null = null;
+  try {
+    actual = origin ? new URL(origin).origin : referer ? new URL(referer).origin : null;
+  } catch {
+    throw new Error("INVALID_ORIGIN");
+  }
+  if (!actual || actual !== expected) throw new Error("INVALID_ORIGIN");
 }
 
 export function hashToken(token: string) {

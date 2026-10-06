@@ -6,10 +6,11 @@ export async function requireUser() {
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
   const rows = await sql.unsafe(
-    "SELECT id,email,country,base_currency,timezone,role,anonymous_aggregate_opt_in FROM users WHERE id=$1 AND deleted_at IS NULL LIMIT 1",
+    "SELECT id,email,country,base_currency,timezone,role,anonymous_aggregate_opt_in,auth_version FROM users WHERE id=$1 AND deleted_at IS NULL LIMIT 1",
     [session.user.id]
   );
   if (!rows[0]) throw new Error("UNAUTHENTICATED");
+  if (Number(session.user.authVersion) !== Number(rows[0].auth_version)) throw new Error("SESSION_REVOKED");
   return {
     id: String(rows[0].id),
     email: String(rows[0].email),

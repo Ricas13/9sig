@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { sql } from "@/lib/db";
-import { assertSameOrigin, consumeRateLimit, hashToken, newToken } from "@/lib/security";
+import { assertSameOrigin, clientIp, consumeRateLimit, hashToken, newToken } from "@/lib/security";
 import { getEmailProvider } from "@/lib/email";
 
 const schema = z.object({
@@ -14,20 +14,23 @@ const schema = z.object({
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    await consumeRateLimit("register:" + ip, 8, 3600);
     const input = schema.parse(await request.json());
+    const email = input.email.toLowerCase();
+    await Promise.all([
+      consumeRateLimit("register-ip:" + clientIp(request), 8, 3600),
+      consumeRateLimit("register-email:" + hashToken(email), 4, 3600)
+    ]);
     const passwordHash = await bcrypt.hash(input.password, 12);
     const token = newToken();
     const tokenHash = hashToken(token);
     const verifyUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "") + "/verify-email?token=" + encodeURIComponent(token);
 
     const result = await sql.begin(async (tx) => {
-      const existing = await tx.unsafe("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1",[input.email]);
+      const existing = await tx.unsafe("SELECT id FROM users WHERE email=$1 LIMIT 1",[email]);
       if (existing[0]) throw new Error("EMAIL_IN_USE");
       const users = await tx.unsafe(
         "INSERT INTO users (email,password_hash,email_verified_at,country,base_currency) VALUES ($1,$2,$3,$4,$5) RETURNING id",
-        [input.email,passwordHash,process.env.NODE_ENV === "production" ? null : new Date(),input.country.toUpperCase(),input.baseCurrency.toUpperCase()]
+        [email,passwordHash,process.env.NODE_ENV === "production" ? null : new Date(),input.country.toUpperCase(),input.baseCurrency.toUpperCase()]
       );
       const free = await tx.unsafe("SELECT id FROM plans WHERE slug='free' LIMIT 1");
       if (!free[0]) throw new Error("FREE_PLAN_MISSING");
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
     });
 
     if (process.env.NODE_ENV === "production") {
-      const sent = await getEmailProvider().send({to:input.email,subject:"Verify your account",text:"Verify your account: " + verifyUrl});
+      const sent = await getEmailProvider().send({to:email,subject:"Verify your account",text:"Verify your account: " + verifyUrl});
       if (!sent) return Response.json({ok:true,verificationDelivery:"unavailable"},{status:202});
     }
     return Response.json({ok:true,userId:result});
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
     if (error instanceof z.ZodError) return Response.json({error:"Check your registration details."},{status:400});
     const message = error instanceof Error ? error.message : "REGISTER_FAILED";
     if (message === "RATE_LIMITED") return Response.json({error:"Too many attempts."},{status:429});
-    if (message === "EMAIL_IN_USE") return Response.json({error:"An account already exists for that email."},{status:409});
+    if (message === "EMAIL_IN_USE" || String(message).includes("users_email_lower_unique")) return Response.json({error:"An account already exists for that email."},{status:409});
     return Response.json({error:"Could not create account."},{status:500});
   }
 }
