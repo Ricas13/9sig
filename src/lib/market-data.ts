@@ -26,10 +26,12 @@ function validatedObservation(raw: unknown, provider: string): PriceObservation 
   const parsed = quoteSchema.parse(raw);
   const price = new Decimal(String(parsed.price));
   if (!price.isFinite() || price.lte(0)) throw new Error("MARKET_DATA_INVALID_PRICE");
+  const observedAt = new Date(parsed.observedAt);
+  if (observedAt.getTime() > Date.now() + 5 * 60 * 1000) throw new Error("MARKET_DATA_FUTURE_TIMESTAMP");
   return {
     price: price.toString(),
     currency: parsed.currency.toUpperCase(),
-    observedAt: new Date(parsed.observedAt),
+    observedAt,
     provider
   };
 }
