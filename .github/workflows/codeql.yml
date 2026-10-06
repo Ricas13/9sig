@@ -1,0 +1,42 @@
+name: CodeQL
+
+on:
+  push:
+    branches:
+      - main
+      - "feat/**"
+      - "fix/**"
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "17 4 * * 2"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze JavaScript/TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
+        env:
+          DATABASE_URL: postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder
+          AUTH_SECRET: codeql-only-auth-secret-codeql-only
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          APP_ENCRYPTION_KEY: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+          EMAIL_PROVIDER: mock
+          MARKET_DATA_PROVIDER: mock
+      - uses: github/codeql-action/analyze@v3
