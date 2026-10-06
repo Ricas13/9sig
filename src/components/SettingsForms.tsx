@@ -11,9 +11,9 @@ export function BillingButtons({prices,defaultCurrency}:{prices:BillingPrice[];d
   const[error,setError]=useState("");
   async function checkout(planSlug:string,cadence:"monthly"|"annual"){
     const r=await fetch("/api/billing/checkout",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({planSlug,cadence,currency})});
-    const b=await r.json();if(b.url)location.href=b.url;else setError(b.error);
+    const b=await r.json();if(b.url)window.location.assign(b.url);else setError(b.error);
   }
-  async function portal(){const r=await fetch("/api/billing/portal",{method:"POST"});const b=await r.json();if(b.url)location.href=b.url;else setError(b.error);}
+  async function portal(){const r=await fetch("/api/billing/portal",{method:"POST"});const b=await r.json();if(b.url)window.location.assign(b.url);else setError(b.error);}
   const visible=prices.filter(p=>p.currency===currency);
   return <div className="stack">
     {currencies.length>1&&<div className="field"><label>Billing currency</label><select value={currency} onChange={e=>setCurrency(e.target.value)}>{currencies.map(c=><option key={c}>{c}</option>)}</select></div>}
