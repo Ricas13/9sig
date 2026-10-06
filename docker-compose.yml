@@ -2,19 +2,27 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_USER: strategyos
-      POSTGRES_PASSWORD: strategyos
-      POSTGRES_DB: strategyos
+      POSTGRES_USER: ${POSTGRES_USER:-strategyos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strategyos}
+      POSTGRES_DB: ${POSTGRES_DB:-strategyos}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - strategyos_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-strategyos} -d ${POSTGRES_DB:-strategyos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   app:
     build: .
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     env_file:
       - .env.local
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://strategyos:strategyos@db:5432/strategyos}
     ports:
       - "3000:3000"
 volumes:
