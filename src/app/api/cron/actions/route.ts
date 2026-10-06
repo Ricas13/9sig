@@ -3,6 +3,7 @@ import { calculateAction } from "@/lib/action-service";
 import { createDeliveriesForNotification, processPendingDeliveries } from "@/lib/notification-service";
 import { rebuildAnonymousAggregates } from "@/lib/aggregate-service";
 import { refreshMarketData } from "@/lib/market-data-worker";
+import { enforceStrategyEntitlements } from "@/lib/entitlement-service";
 
 function authorized(request: Request) {
   return Boolean(process.env.CRON_SECRET) && request.headers.get("authorization") === "Bearer " + process.env.CRON_SECRET;
@@ -10,6 +11,17 @@ function authorized(request: Request) {
 
 export async function GET(request: Request) {
   if (!authorized(request)) return new Response("Unauthorized", { status: 401 });
+
+  const expiredGrace = await sql.unsafe(
+    "SELECT user_id FROM subscriptions WHERE status='PAST_DUE' AND billing_grace_until IS NOT NULL AND billing_grace_until<=now()"
+  );
+  let delinquencyEnforcements = 0;
+  for (const row of expiredGrace) {
+    try {
+      await enforceStrategyEntitlements(String(row.user_id));
+      delinquencyEnforcements += 1;
+    } catch {}
+  }
 
   const marketData = await refreshMarketData();
   const instances = await sql.unsafe("SELECT id FROM strategy_instances WHERE status='ACTIVE' ORDER BY id");
@@ -31,5 +43,13 @@ export async function GET(request: Request) {
 
   const delivered = await processPendingDeliveries(100);
   const aggregates = await rebuildAnonymousAggregates();
-  return Response.json({ ok: true, marketData, calculated, calculationFailures, delivered, aggregates });
+  return Response.json({
+    ok: true,
+    delinquencyEnforcements,
+    marketData,
+    calculated,
+    calculationFailures,
+    delivered,
+    aggregates
+  });
 }
