@@ -39,7 +39,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      - run: npm ci
       - name: Commit generated lockfile once
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/multi-strategy-saas'
         run: |
