@@ -13,6 +13,10 @@ export function getStrategyEngine(key: string) {
   return engine;
 }
 
+export function validateEngineConfig(key: string, config: Record<string, unknown>) {
+  getStrategyEngine(key).validateConfig(config);
+}
+
 export function supportedEngineKeys() {
   return [...engines.keys()];
 }

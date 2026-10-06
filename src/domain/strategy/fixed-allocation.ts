@@ -9,6 +9,24 @@ function money(v: Decimal) {
 
 export const fixedAllocationEngine: StrategyEngine = {
   key: "FIXED_ALLOCATION",
+  validateConfig(config) {
+    const allocations = (config.allocations ?? []) as Allocation[];
+    if (!Array.isArray(allocations) || allocations.length < 2) throw new Error("FIXED_ALLOCATION_REQUIRES_ALLOCATIONS");
+    const seen = new Set<string>();
+    let total = new Decimal(0);
+    for (const allocation of allocations) {
+      const exposure = String(allocation.exposure ?? "").trim();
+      const weight = new Decimal(String(allocation.weight ?? ""));
+      if (!exposure || seen.has(exposure) || !weight.isFinite() || weight.lte(0) || weight.gt(1)) throw new Error("INVALID_FIXED_ALLOCATION_CONFIG");
+      seen.add(exposure);
+      total = total.plus(weight);
+    }
+    if (total.minus(1).abs().gt("0.00000001")) throw new Error("FIXED_ALLOCATION_WEIGHTS_MUST_SUM_TO_ONE");
+    const threshold = new Decimal(String(config.rebalanceThreshold ?? "0.05"));
+    if (!threshold.isFinite() || threshold.lt(0) || threshold.gt(1)) throw new Error("INVALID_FIXED_ALLOCATION_THRESHOLD");
+    const frequency = String(config.reviewFrequency ?? "QUARTERLY");
+    if (!["MONTHLY","QUARTERLY","ANNUAL"].includes(frequency)) throw new Error("INVALID_FIXED_ALLOCATION_REVIEW_FREQUENCY");
+  },
   calculate(ctx: EngineContext): ProposedAction {
     if (ctx.dataHealth.status !== "CURRENT") {
       return {

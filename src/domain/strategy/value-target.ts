@@ -8,6 +8,20 @@ function money(v: Decimal) { return v.toDecimalPlaces(2, Decimal.ROUND_HALF_EVEN
 
 export const valueTargetEngine: StrategyEngine = {
   key: "VALUE_TARGET",
+  validateConfig(config) {
+    if (!String(config.targetExposure ?? "").trim()) throw new Error("VALUE_TARGET_REQUIRES_EXPOSURE");
+    const bounded = ["initialTargetRatio","contributionTargetRatio","maxCashUse","tolerance"] as const;
+    for (const key of bounded) {
+      const value = new Decimal(String(config[key] ?? ({initialTargetRatio:"0.60",contributionTargetRatio:"0.50",maxCashUse:"1",tolerance:"0.01"} as const)[key]));
+      if (!value.isFinite() || value.lt(0) || value.gt(1)) throw new Error("INVALID_VALUE_TARGET_CONFIG:" + key);
+    }
+    const rate = new Decimal(String(config.targetRate ?? "0"));
+    if (!rate.isFinite() || rate.lte("-1") || rate.gt("10")) throw new Error("INVALID_VALUE_TARGET_CONFIG:targetRate");
+    const frequency = String(config.reviewFrequency ?? "QUARTERLY");
+    if (!["MONTHLY","QUARTERLY","ANNUAL"].includes(frequency)) throw new Error("INVALID_VALUE_TARGET_CONFIG:reviewFrequency");
+    const cutoff = String(config.reviewCutoffLocal ?? "16:00");
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(cutoff)) throw new Error("INVALID_VALUE_TARGET_CONFIG:reviewCutoffLocal");
+  },
   calculate(ctx: EngineContext): ProposedAction {
     if (ctx.dataHealth.status !== "CURRENT") {
       return { actionType:"DATA_REQUIRED",title:"Data needs attention",instruction:ctx.dataHealth.message ?? "Current source data is not reliable enough to calculate a financial action.",explanation:[{label:"Data status",value:ctx.dataHealth.status,kind:"text"}],nextState:ctx.state,confidence:"LOW",dueAt:ctx.nextReviewAt };
