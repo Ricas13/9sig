@@ -10,7 +10,7 @@ import { nextReviewDueAt } from "@/domain/schedule";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
 export async function calculateAction(strategyInstanceId:string){
-  const rows=await sql.unsafe("SELECT i.id,i.user_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,d.engine,v.config,a.country,a.wrapper,a.currency,a.broker_name,s.state,u.timezone AS user_timezone FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN users u ON u.id=i.user_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
+  const rows=await sql.unsafe("SELECT i.id,i.user_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,v.engine_key AS engine,v.config,i.settings,a.country,a.wrapper,a.currency,a.broker_name,s.state,u.timezone AS user_timezone FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN users u ON u.id=i.user_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
   const instance=rows[0];if(!instance)throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
   const ledgerRows=await sql.unsafe("SELECT event_type,cash_amount,fee_amount,instrument_id,quantity,occurred_at,created_at FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",[strategyInstanceId]);
   const folded=foldLedger(ledgerRows.map((r)=>({eventType:String(r.event_type),cashAmount:String(r.cash_amount),feeAmount:String(r.fee_amount),instrumentId:r.instrument_id?String(r.instrument_id):null,quantity:String(r.quantity)})));
@@ -62,7 +62,7 @@ export async function calculateAction(strategyInstanceId:string){
   const contributionRows=await sql.unsafe("SELECT COALESCE(sum(cash_amount),0) AS amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' AND occurred_at>$2",[strategyInstanceId,lastReview]);
   const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0));
   const engine=getStrategyEngine(String(instance.engine));
-  let proposal=engine.calculate({strategyInstanceId,strategyVersionId:String(instance.strategy_version_id),now:new Date(),baseCurrency:String(instance.currency),cash:folded.cash,exposures:exposurePositions,contributionsSinceReview,state,config,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
+  let proposal=engine.calculate({strategyInstanceId,strategyVersionId:String(instance.strategy_version_id),now:new Date(),baseCurrency:String(instance.currency),cash:folded.cash,exposures:exposurePositions,contributionsSinceReview,state,config,settings:(instance.settings??{}) as Record<string,unknown>,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
 
   let tradingLineId:string|null=null;
   if(proposal.economicExposure&&["BUY","SELL","REBALANCE"].includes(proposal.actionType)){
