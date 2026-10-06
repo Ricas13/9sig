@@ -1,14 +1,9 @@
+import "server-only";
 import postgres from "postgres";
+import { drizzle } from "drizzle-orm/postgres-js";
 
-const globalForDb=globalThis as unknown as {sql?:ReturnType<typeof postgres>};
+const url = process.env.DATABASE_URL ?? "postgres://invalid:invalid@127.0.0.1:1/invalid";
+const client = postgres(url, { max: 10, prepare: false, idle_timeout: 20 });
 
-function makeClient() {
-  const url=process.env.DATABASE_URL ?? "postgres://invalid:invalid@127.0.0.1:1/invalid";
-  return postgres(url,{
-    max:5,idle_timeout:20,
-    ssl:process.env.NODE_ENV==="production" && process.env.DATABASE_URL ? "require" : false,
-    connect_timeout:5,
-  });
-}
-export const sql=globalForDb.sql??makeClient();
-if(process.env.NODE_ENV!=="production") globalForDb.sql=sql;
+export const db = drizzle(client);
+export { client as sql };
