@@ -174,9 +174,8 @@ export async function executeAction(
 
     if(["BUY","SELL"].includes(actionType)){
       if(!execution?.price||!action.instrument_id||!action.amount)throw new Error("EXECUTION_DETAILS_REQUIRED");
-      if(String(action.currency)!==String(action.currency??rows[0].currency)||String(action.currency)!==String(rows[0].currency)){
-        throw new Error("EXECUTION_CURRENCY_MISMATCH");
-      }
+      if(!action.trading_line_id)throw new Error("EXECUTION_TRADING_LINE_REQUIRED");
+      if(String(action.currency)!==String(rows[0].currency))throw new Error("EXECUTION_CURRENCY_MISMATCH");
 
       const ledgerRows=await tx.unsafe(
         "SELECT event_type,currency,cash_amount,fee_amount,instrument_id,trading_line_id,quantity FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",
@@ -203,7 +202,7 @@ export async function executeAction(
       });
 
       await tx.unsafe(
-        "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,trading_line_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,now(),$2,$3,$4,$5,$6,$7,$8,'USER_ENTERED','VERIFIED',$9::jsonb)",
+        "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,trading_line_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,now(),$2,$3,$4,$5,$6,$7,$8,$9,'USER_ENTERED','VERIFIED',$10::jsonb)",
         [
           action.strategy_instance_id,
           actionType,
