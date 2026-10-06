@@ -6,12 +6,11 @@ import { foldLedger } from "@/domain/ledger";
 import { getStrategyEngine } from "@/domain/strategy/registry";
 import { resolveMapping, type MappingCandidate } from "@/domain/instruments";
 import { validateExecution } from "@/domain/execution";
+import { nextReviewDueAt } from "@/domain/schedule";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
-function nextReview(start: Date, frequency: string) { const d=new Date(start); if(frequency==="MONTHLY")d.setUTCMonth(d.getUTCMonth()+1);else if(frequency==="ANNUAL")d.setUTCFullYear(d.getUTCFullYear()+1);else d.setUTCMonth(d.getUTCMonth()+3);return d; }
-
 export async function calculateAction(strategyInstanceId:string){
-  const rows=await sql.unsafe("SELECT i.id,i.user_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,d.engine,v.config,a.country,a.wrapper,a.currency,a.broker_name,s.state FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
+  const rows=await sql.unsafe("SELECT i.id,i.user_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,d.engine,v.config,a.country,a.wrapper,a.currency,a.broker_name,s.state,u.timezone AS user_timezone FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN users u ON u.id=i.user_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
   const instance=rows[0];if(!instance)throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
   const ledgerRows=await sql.unsafe("SELECT event_type,cash_amount,fee_amount,instrument_id,quantity,occurred_at,created_at FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",[strategyInstanceId]);
   const folded=foldLedger(ledgerRows.map((r)=>({eventType:String(r.event_type),cashAmount:String(r.cash_amount),feeAmount:String(r.fee_amount),instrumentId:r.instrument_id?String(r.instrument_id):null,quantity:String(r.quantity)})));
@@ -48,7 +47,17 @@ export async function calculateAction(strategyInstanceId:string){
 
   const frequency=String(config.reviewFrequency??"QUARTERLY");
   const lastReview=state.lastReviewAt?new Date(String(state.lastReviewAt)):new Date(instance.started_at);
-  const dueAt=nextReview(lastReview,frequency);
+  const reviewTimezone=String(config.reviewTimezone??instance.user_timezone??"UTC");
+  const holidayDates=Array.isArray(config.marketHolidays)?config.marketHolidays.filter((v):v is string=>typeof v==="string"):[];
+  const convention=config.businessDayConvention==="NEXT"?"NEXT":"PREVIOUS";
+  const dueAt=nextReviewDueAt({
+    lastReviewAt:lastReview,
+    frequency,
+    timeZone:reviewTimezone,
+    cutoffLocal:String(config.reviewCutoffLocal??"16:00"),
+    holidays:holidayDates,
+    convention
+  });
   const reviewDue=Boolean(state.forceReview)||new Date()>=dueAt;
   const contributionRows=await sql.unsafe("SELECT COALESCE(sum(cash_amount),0) AS amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' AND occurred_at>$2",[strategyInstanceId,lastReview]);
   const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0));
