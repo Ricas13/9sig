@@ -20,7 +20,7 @@ export function PlanEditor(){
   const[error,setError]=useState("");
   return <form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();setError("");const f=new FormData(e.currentTarget);try{await submit({
     slug:f.get("slug"),displayName:f.get("displayName"),description:f.get("description")??"",
-    monthlyPriceMinor:Math.round(Number(f.get("monthly"))*100),annualPriceMinor:Math.round(Number(f.get("annual"))*100),
+    monthlyPriceMinor:Math.round(Number(f.get("monthly"))*100),annualPriceMinor:Math.round(Number(f.get("annual"))*100),annualDiscountBps:Math.round(Number(f.get("annualDiscount")||0)*100),
     currency:f.get("currency"),supportedBillingCurrencies:String(f.get("currencies")).split(",").map(x=>x.trim()).filter(Boolean),
     maxActiveStrategies:f.get("max")===""?null:Number(f.get("max")),availableStrategyKeys:String(f.get("strategies")).split(",").map(x=>x.trim()).filter(Boolean),
     stripeMonthlyPriceId:f.get("stripeMonthly")||null,stripeAnnualPriceId:f.get("stripeAnnual")||null,
@@ -31,7 +31,7 @@ export function PlanEditor(){
       <div className="field"><label>Display name</label><input name="displayName" required placeholder="Investor"/></div>
       <div className="field full"><label>Description</label><input name="description"/></div>
       <div className="field"><label>Monthly price</label><input name="monthly" type="number" min="0" step="0.01" required/></div>
-      <div className="field"><label>Annual price</label><input name="annual" type="number" min="0" step="0.01" required/></div>
+      <div className="field"><label>Annual price</label><input name="annual" type="number" min="0" step="0.01" required/></div><div className="field"><label>Annual discount %</label><input name="annualDiscount" type="number" min="0" max="100" step="0.01" defaultValue="0"/></div>
       <div className="field"><label>Primary currency</label><input name="currency" defaultValue="GBP" maxLength={3} required/></div>
       <div className="field"><label>Supported currencies</label><input name="currencies" defaultValue="GBP" placeholder="GBP,USD,EUR"/></div>
       <div className="field"><label>Max active strategies</label><input name="max" type="number" min="1" placeholder="blank = unlimited"/></div>
@@ -90,4 +90,22 @@ export function TradingLineEditor(){
 export function FeatureFlagEditor(){
   const {submit,message}=useAdminSubmit("/api/admin/feature-flags");const[error,setError]=useState("");
   return <form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();setError("");const f=new FormData(e.currentTarget);try{await submit({key:f.get("key"),enabled:Boolean(f.get("enabled")),config:json(String(f.get("config")),{})});}catch{setError("Config must be valid JSON.");}}}><h3>Feature flag</h3><div className="form-grid"><div className="field"><label>Key</label><input name="key" required/></div><div className="field"><label><input name="enabled" type="checkbox"/> Enabled</label></div><div className="field full"><label>Config JSON</label><input name="config" defaultValue="{}"/></div></div><button className="button primary" style={{marginTop:16}}>Save flag</button>{(error||message)&&<div className={error?"error":"success"}>{error||message}</div>}</form>;
+}
+
+
+export function PlanPriceEditor(){
+  const {submit,message}=useAdminSubmit("/api/admin/plan-prices");
+  return <form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);await submit({
+    planSlug:f.get("planSlug"),currency:String(f.get("currency")).toUpperCase(),cadence:f.get("cadence"),
+    amountMinor:Math.round(Number(f.get("amount"))*100),stripePriceId:f.get("stripePriceId")||null,active:Boolean(f.get("active"))
+  });}}>
+    <h3>Plan price by currency</h3><div className="form-grid">
+      <div className="field"><label>Plan slug</label><input name="planSlug" placeholder="investor" required/></div>
+      <div className="field"><label>Currency</label><input name="currency" defaultValue="GBP" maxLength={3} required/></div>
+      <div className="field"><label>Cadence</label><select name="cadence"><option>MONTHLY</option><option>ANNUAL</option></select></div>
+      <div className="field"><label>Amount</label><input name="amount" type="number" min="0" step="0.01" required/></div>
+      <div className="field full"><label>Stripe Price ID</label><input name="stripePriceId" placeholder="price_..."/></div>
+      <div className="field"><label><input name="active" type="checkbox" defaultChecked/> Active</label></div>
+    </div><button className="button primary" style={{marginTop:16}}>Save price</button>{message&&<div className="success">{message}</div>}
+  </form>;
 }

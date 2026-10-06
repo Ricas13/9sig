@@ -61,6 +61,20 @@ export const plans = pgTable("plans", {
   ...timestamps
 });
 
+export const planPrices = pgTable("plan_prices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  planId: uuid("plan_id").notNull().references(() => plans.id, { onDelete: "cascade" }),
+  currency: text("currency").notNull(),
+  cadence: text("cadence").notNull(),
+  amountMinor: integer("amount_minor").notNull(),
+  stripePriceId: text("stripe_price_id"),
+  active: boolean("active").notNull().default(true),
+  ...timestamps
+}, (t) => [
+  uniqueIndex("plan_price_unique").on(t.planId, t.currency, t.cadence),
+  uniqueIndex("plan_price_stripe_unique").on(t.stripePriceId)
+]);
+
 export const billingWebhookEvents = pgTable("billing_webhook_events", {
   eventId: text("event_id").primaryKey(),
   eventType: text("event_type").notNull(),

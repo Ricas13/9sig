@@ -28,10 +28,8 @@ async function markWebhookEvent(eventId:string,status:"SUCCESS"|"FAILED",errorCo
 async function resolvePlanId(subscription: Stripe.Subscription) {
   const priceId=subscription.items.data[0]?.price.id;
   if(priceId){
-    const byPrice=await sql.unsafe(
-      "SELECT id FROM plans WHERE stripe_monthly_price_id=$1 OR stripe_annual_price_id=$1 LIMIT 1",
-      [priceId]
-    );
+    let byPrice=await sql.unsafe("SELECT p.id FROM plan_prices pp JOIN plans p ON p.id=pp.plan_id WHERE pp.stripe_price_id=$1 AND pp.active=true LIMIT 1",[priceId]);
+    if(!byPrice[0])byPrice=await sql.unsafe("SELECT id FROM plans WHERE stripe_monthly_price_id=$1 OR stripe_annual_price_id=$1 LIMIT 1",[priceId]);
     if(byPrice[0])return String(byPrice[0].id);
   }
   return subscription.metadata.planId||null;
