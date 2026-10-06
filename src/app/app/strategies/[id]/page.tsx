@@ -4,7 +4,7 @@ import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
-import { ContributionForm, ExecuteAction, OpeningSnapshotForm, RecalculateButton, ReconcileForm, StrategyLifecycleControls, StrategyVersionUpgrade } from "@/components/StrategyActions";
+import { CashEventForm, ContributionForm, ExecuteAction, OpeningSnapshotForm, RecalculateButton, ReconcileForm, StrategyLifecycleControls, StrategyVersionUpgrade } from "@/components/StrategyActions";
 
 export default async function StrategyPage({params}:{params:Promise<{id:string}>}){
   const user=await requireUser();
@@ -70,6 +70,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   const chartData=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
   const contributions=await sql.unsafe("SELECT occurred_at,cash_amount,provenance,confidence FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' ORDER BY occurred_at DESC LIMIT 8",[id]);
   const reconciliations=await sql.unsafe("SELECT occurred_at,expected_value,broker_reported_value,difference,reason FROM reconciliations WHERE strategy_instance_id=$1 ORDER BY occurred_at DESC LIMIT 5",[id]);
+  const cashEvents=await sql.unsafe("SELECT occurred_at,event_type,cash_amount,fee_amount,metadata FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('WITHDRAWAL','DIVIDEND','DISTRIBUTION','INTEREST','FEE','TAX') ORDER BY occurred_at DESC,created_at DESC LIMIT 12",[id]);
   const latestValue=actualPoints.at(-1);
   const explanation=Array.isArray(action?.explanation)?action.explanation:[];
   const needsOpeningSnapshot=Boolean(s.state?.resumeNeedsReconciliation);
@@ -123,7 +124,11 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
 
     <div className="detail-grid">
       <section className="glass form-card"><h3>Record contribution</h3><p className="help">A contribution is cash first. It does not imply a security purchase.</p><ContributionForm id={id}/></section>
+      <section className="glass form-card"><h3>Other cash event</h3><p className="help">Record ordinary account cash movements without misclassifying them as contributions or reconciliation drift.</p><CashEventForm id={id}/></section>
+    </div>
+    <div className="detail-grid">
       <section className="glass form-card"><h3>Reconcile to broker</h3><p className="help">Known cash differences create adjustment events. Unexplained valuation differences block new financial actions instead of rewriting history.</p><ReconcileForm id={id} expected={latestValue?Number(latestValue.value):null}/></section>
+      <section className="card"><h3>Recent cash events</h3>{cashEvents.length?cashEvents.map((event:any)=><div className="why-row" key={String(event.occurred_at)+String(event.event_type)}><span>{new Date(event.occurred_at).toLocaleDateString("en-GB")} · {String(event.event_type).replaceAll("_"," ")}</span><b>{new Intl.NumberFormat("en-GB",{style:"currency",currency:s.currency}).format(Math.abs(Number(event.cash_amount||event.fee_amount||0)))}</b></div>):<p className="help">No withdrawals, income, fees or tax recorded yet.</p>}</section>
     </div>
 
     <div className="detail-grid">

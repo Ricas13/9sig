@@ -204,3 +204,22 @@ export function StrategyVersionUpgrade({
     </form>
   </section>;
 }
+
+
+export function CashEventForm({id}:{id:string}){
+  const router=useRouter();const[message,setMessage]=useState("");
+  return <form className="form-grid" onSubmit={async(e)=>{
+    e.preventDefault();const f=new FormData(e.currentTarget);const when=String(f.get("when")||"");
+    const response=await fetch("/api/strategies/"+id+"/ledger-events",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
+      eventType:f.get("eventType"),amount:String(f.get("amount")),occurredAt:when?new Date(when).toISOString():undefined,note:f.get("note")||undefined
+    })});
+    const body=await response.json();setMessage(response.ok?"Cash event recorded.":body.error??"Could not record cash event.");
+    if(response.ok){e.currentTarget.reset();router.refresh();}
+  }}>
+    <div className="field"><label>Event</label><select name="eventType"><option>WITHDRAWAL</option><option>DIVIDEND</option><option>DISTRIBUTION</option><option>INTEREST</option><option>FEE</option><option>TAX</option></select></div>
+    <div className="field"><label>Amount</label><input name="amount" type="number" min="0.01" step="0.01" required/></div>
+    <div className="field"><label>Date & time</label><input name="when" type="datetime-local"/></div>
+    <div className="field"><label>Note (optional)</label><input name="note" maxLength={240}/></div>
+    <div className="field full"><button className="button">Record cash event</button><div className="help">Withdrawals, fees and tax reduce cash; dividends, distributions and interest increase cash. The original ledger history remains append-only.</div>{message&&<div className={message.startsWith("Cash event recorded")?"success":"error"}>{message}</div>}</div>
+  </form>;
+}
