@@ -68,7 +68,7 @@ export async function POST(request:Request){
           if(!planId)throw new Error("PLAN_NOT_RESOLVED");
           const decision=await sql.begin(async(tx)=>{
             const rows=await tx.unsafe("SELECT stripe_subscription_id FROM subscriptions WHERE user_id=$1 FOR UPDATE",[userId]);
-            if(!rows[0])throw new Error("LOCAL_SUBSCRIPTION_NOT_FOUND");
+            if(!rows[0])return {duplicate:true,orphan:true};
             const canonical=rows[0].stripe_subscription_id?String(rows[0].stripe_subscription_id):null;
             if(canonical&&canonical!==subscription.id)return {duplicate:true};
             const status=subscription.status==="active"?"ACTIVE":subscription.status==="trialing"?"TRIALING":subscription.status.toUpperCase();
@@ -80,7 +80,7 @@ export async function POST(request:Request){
             return {duplicate:false};
           });
           if(decision.duplicate){
-            if(event.type==="customer.subscription.created")duplicateSubscriptionId=subscription.id;
+            if(event.type==="customer.subscription.created"||("orphan" in decision&&decision.orphan))duplicateSubscriptionId=subscription.id;
           }else affectedUserId=userId;
         }
       }
