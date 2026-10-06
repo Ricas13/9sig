@@ -139,3 +139,32 @@ export function OpeningSnapshotForm({ id }: { id: string }) {
     {message && <div className={message.startsWith("Opening snapshot saved") ? "success" : "error"}>{message}</div>}
   </form>;
 }
+
+
+export function StrategyLifecycleControls({ id, status }: { id: string; status: string }) {
+  const router = useRouter();
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function change(next: "ACTIVE" | "PAUSED" | "CLOSED") {
+    if (next === "CLOSED" && !confirm("Close this strategy? Its history will remain, but it cannot be reopened.")) return;
+    setBusy(true);
+    setMessage("");
+    const response = await fetch("/api/strategies/" + id + "/status", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: next })
+    });
+    const body = await response.json();
+    setBusy(false);
+    setMessage(response.ok ? "Strategy status updated." : body.error ?? "Could not update status.");
+    if (response.ok) router.refresh();
+  }
+
+  return <div className="inline">
+    {status === "ACTIVE" && <button className="button" disabled={busy} onClick={() => change("PAUSED")}>Pause strategy</button>}
+    {status === "PAUSED" && <button className="button primary" disabled={busy} onClick={() => change("ACTIVE")}>Resume strategy</button>}
+    {status !== "CLOSED" && <button className="button danger" disabled={busy} onClick={() => change("CLOSED")}>Close strategy</button>}
+    {message && <span className={message.startsWith("Strategy status updated") ? "success" : "error"}>{message}</span>}
+  </div>;
+}

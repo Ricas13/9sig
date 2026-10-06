@@ -1,0 +1,31 @@
+import { z } from "zod";
+import { requireUser } from "@/lib/session";
+import { changeStrategyStatus } from "@/lib/strategy-service";
+import { calculateAction } from "@/lib/action-service";
+import { assertSameOrigin } from "@/lib/security";
+
+const schema = z.object({ status: z.enum(["ACTIVE", "PAUSED", "CLOSED"]) });
+
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    assertSameOrigin(request);
+    const user = await requireUser();
+    const { id } = await context.params;
+    const input = schema.parse(await request.json());
+    const result = await changeStrategyStatus(user.id, id, input.status);
+
+    if (result.status === "ACTIVE") {
+      try { await calculateAction(id); } catch { }
+    }
+    return Response.json({ ok: true, status: result.status });
+  } catch (error) {
+    if (error instanceof z.ZodError) return Response.json({ error: "Invalid strategy status." }, { status: 400 });
+    const code = error instanceof Error ? error.message : "FAILED";
+    if (code === "STRATEGY_INSTANCE_NOT_FOUND") return Response.json({ error: "Not found." }, { status: 404 });
+    if (code === "STRATEGY_ALREADY_CLOSED") return Response.json({ error: "A closed strategy cannot be reopened." }, { status: 409 });
+    if (code === "PLAN_STRATEGY_LIMIT" || code === "STRATEGY_NOT_IN_PLAN") {
+      return Response.json({ error: "Your current plan does not allow this strategy to be resumed." }, { status: 403 });
+    }
+    return Response.json({ error: "Could not update strategy status." }, { status: 500 });
+  }
+}

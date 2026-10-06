@@ -94,3 +94,80 @@ export async function createStrategy(userId: string, country: string, input: Cre
     return id;
   });
 }
+
+
+export async function changeStrategyStatus(
+  userId: string,
+  instanceId: string,
+  target: "ACTIVE" | "PAUSED" | "CLOSED"
+) {
+  return sql.begin(async (tx) => {
+    const userRows = await tx.unsafe("SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL FOR UPDATE", [userId]);
+    if (!userRows[0]) throw new Error("UNAUTHENTICATED");
+
+    const rows = await tx.unsafe(
+      "SELECT i.id,i.status,d.key AS strategy_key FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id WHERE i.id=$1 AND i.user_id=$2 FOR UPDATE OF i",
+      [instanceId, userId]
+    );
+    const instance = rows[0];
+    if (!instance) throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
+    const current = String(instance.status);
+
+    if (current === "CLOSED") throw new Error("STRATEGY_ALREADY_CLOSED");
+    if (target === current) return { status: current };
+
+    if (target === "ACTIVE") {
+      let planRows = await tx.unsafe(
+        "SELECT p.slug,p.max_active_strategies,p.entitlements,p.available_strategy_keys FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.user_id=$1 AND s.status IN ('FREE','ACTIVE','TRIALING','PAST_DUE') LIMIT 1",
+        [userId]
+      );
+      if (!planRows[0]) {
+        planRows = await tx.unsafe("SELECT slug,max_active_strategies,entitlements,available_strategy_keys FROM plans WHERE slug='free' LIMIT 1");
+      }
+      if (!planRows[0]) throw new Error("FREE_PLAN_MISSING");
+      const snapshot = buildEntitlementSnapshot({
+        slug: String(planRows[0].slug),
+        maxActiveStrategies: planRows[0].max_active_strategies == null ? null : Number(planRows[0].max_active_strategies),
+        entitlements: planRows[0].entitlements,
+        availableStrategyKeys: planRows[0].available_strategy_keys
+      });
+      const countRows = await tx.unsafe(
+        "SELECT count(*)::int AS count FROM strategy_instances WHERE user_id=$1 AND status='ACTIVE' AND id<>$2",
+        [userId, instanceId]
+      );
+      assertCanCreateStrategy(snapshot, Number(countRows[0]?.count ?? 0), String(instance.strategy_key));
+      await tx.unsafe(
+        "UPDATE strategy_instances SET status='ACTIVE',paused_at=NULL,health_status='NEEDS_ATTENTION',updated_at=now() WHERE id=$1",
+        [instanceId]
+      );
+      await tx.unsafe(
+        "UPDATE strategy_states SET state=jsonb_set(state,'{forceReview}','true'::jsonb,true),calculated_at=now() WHERE strategy_instance_id=$1",
+        [instanceId]
+      );
+    } else if (target === "PAUSED") {
+      await tx.unsafe(
+        "UPDATE strategy_instances SET status='PAUSED',paused_at=now(),updated_at=now() WHERE id=$1",
+        [instanceId]
+      );
+      await tx.unsafe(
+        "UPDATE actions SET status='CANCELLED',cancelled_at=now(),updated_at=now() WHERE strategy_instance_id=$1 AND status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED')",
+        [instanceId]
+      );
+    } else {
+      await tx.unsafe(
+        "UPDATE strategy_instances SET status='CLOSED',closed_at=now(),paused_at=NULL,updated_at=now() WHERE id=$1",
+        [instanceId]
+      );
+      await tx.unsafe(
+        "UPDATE actions SET status='CANCELLED',cancelled_at=now(),updated_at=now() WHERE strategy_instance_id=$1 AND status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED')",
+        [instanceId]
+      );
+    }
+
+    await tx.unsafe(
+      "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy.status-changed','strategy_instance',$2,$3::jsonb)",
+      [userId, instanceId, JSON.stringify({ from: current, to: target })]
+    );
+    return { status: target };
+  });
+}
