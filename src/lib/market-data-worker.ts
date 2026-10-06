@@ -1,6 +1,6 @@
 import "server-only";
 import { sql } from "@/lib/db";
-import { getMarketDataProvider } from "@/lib/market-data";
+import { classifyFreshness, getMarketDataProvider } from "@/lib/market-data";
 
 export async function refreshMarketData() {
   const provider = getMarketDataProvider();
@@ -44,8 +44,8 @@ export async function refreshMarketData() {
           continue;
         }
         await sql.unsafe(
-          "INSERT INTO market_data_observations (trading_line_id,observed_at,price,currency,provider,freshness) VALUES ($1,$2,$3,$4,$5,'CURRENT') ON CONFLICT (trading_line_id,observed_at,provider) DO NOTHING",
-          [line.id, observation.observedAt, observation.price, observation.currency, observation.provider]
+          "INSERT INTO market_data_observations (trading_line_id,observed_at,price,currency,provider,freshness) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (trading_line_id,observed_at,provider) DO NOTHING",
+          [line.id, observation.observedAt, observation.price, observation.currency, observation.provider, classifyFreshness(observation.observedAt)]
         );
         refreshed += 1;
       } catch (error) {
