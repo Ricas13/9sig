@@ -40,6 +40,12 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Capture generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-lock
+          path: package-lock.json
+          retention-days: 1
       - name: Migration validation
         run: |
           npm run db:migrate
