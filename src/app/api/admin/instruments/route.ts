@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { requireAdmin } from "@/lib/session";
+import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
 
 const instrument=z.object({kind:z.literal("instrument"),id:z.string().uuid().optional(),isin:z.string().nullable().optional(),providerInstrumentId:z.string().nullable().optional(),name:z.string().min(1),economicExposure:z.string().min(1),leverage:z.string(),direction:z.string().default("LONG"),fundCurrency:z.string().nullable().optional()});
@@ -8,7 +9,7 @@ const mapping=z.object({kind:z.literal("mapping"),economicExposure:z.string().mi
 const schema=z.discriminatedUnion("kind",[instrument,tradingLine,mapping]);
 
 export async function PUT(request:Request){
-  try{const admin=await requireAdmin();const p=schema.parse(await request.json());
+  try{assertSameOrigin(request);const admin=await requireAdmin();const p=schema.parse(await request.json());
     if(p.kind==="instrument"){
       if(p.id)await sql.unsafe("UPDATE instruments SET isin=$1,provider_instrument_id=$2,name=$3,economic_exposure=$4,leverage=$5,direction=$6,fund_currency=$7,updated_at=now() WHERE id=$8",[p.isin??null,p.providerInstrumentId??null,p.name,p.economicExposure,p.leverage,p.direction,p.fundCurrency??null,p.id]);
       else await sql.unsafe("INSERT INTO instruments (isin,provider_instrument_id,name,economic_exposure,leverage,direction,fund_currency) VALUES ($1,$2,$3,$4,$5,$6,$7)",[p.isin??null,p.providerInstrumentId??null,p.name,p.economicExposure,p.leverage,p.direction,p.fundCurrency??null]);

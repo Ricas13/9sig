@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { requireAdmin } from "@/lib/session";
+import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
 
 const schema=z.object({
@@ -12,8 +13,7 @@ const schema=z.object({
 });
 
 export async function PUT(request:Request){
-  try{
-    const admin=await requireAdmin();
+  try{assertSameOrigin(request);const admin=await requireAdmin();
     const p=schema.parse(await request.json());
     const plans=await sql.unsafe("SELECT id FROM plans WHERE slug=$1 LIMIT 1",[p.planSlug]);
     if(!plans[0])return Response.json({error:"Plan not found."},{status:404});

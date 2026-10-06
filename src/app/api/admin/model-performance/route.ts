@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { requireAdmin } from "@/lib/session";
+import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
 
 const rowSchema=z.object({date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),value:z.string(),benchmarkValue:z.string().nullable().optional()});
 const schema=z.object({strategyVersionId:z.string().uuid(),points:z.array(rowSchema).min(1).max(5000),source:z.string().max(80).default("ADMIN")});
 
 export async function PUT(request:Request){
-  try{
-    const admin=await requireAdmin();
+  try{assertSameOrigin(request);const admin=await requireAdmin();
     const input=schema.parse(await request.json());
     await sql.begin(async(tx)=>{
       for(const point of input.points){

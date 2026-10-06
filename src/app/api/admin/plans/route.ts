@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { requireAdmin } from "@/lib/session";
+import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
 
 const schema=z.object({
@@ -13,8 +14,7 @@ const schema=z.object({
   visible:z.boolean().default(true),archived:z.boolean().default(false),sortOrder:z.number().int().default(0)
 });
 export async function PUT(request:Request){
-  try{
-    const admin=await requireAdmin();const p=schema.parse(await request.json());
+  try{assertSameOrigin(request);const admin=await requireAdmin();const p=schema.parse(await request.json());
     await sql.unsafe(
       "INSERT INTO plans (slug,display_name,description,monthly_price_minor,annual_price_minor,annual_discount_bps,billing_currency,supported_billing_currencies,max_active_strategies,available_strategy_keys,stripe_monthly_price_id,stripe_annual_price_id,entitlements,trial_days,visible,archived,sort_order)" +
       " VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10::jsonb,$11,$12,$13::jsonb,$14,$15,$16,$17)" +
