@@ -11,6 +11,9 @@ export type MappingCandidate = {
   effectiveFrom: string;
   effectiveTo: string | null;
   tradingLineId: string;
+  tradingLineCurrency: string;
+  tradingLineEffectiveFrom: string;
+  tradingLineEffectiveTo: string | null;
 };
 
 export type ResolveRequest = {
@@ -34,6 +37,9 @@ export function resolveMapping(candidates: MappingCandidate[], request: ResolveR
     c.fidelity === "EXACT" &&
     c.effectiveFrom <= request.asOf &&
     (!c.effectiveTo || c.effectiveTo >= request.asOf) &&
+    c.tradingLineEffectiveFrom <= request.asOf &&
+    (!c.tradingLineEffectiveTo || c.tradingLineEffectiveTo >= request.asOf) &&
+    (!request.preferredCurrency || c.tradingLineCurrency === request.preferredCurrency) &&
     (!c.broker || !request.broker || c.broker.toLowerCase() === request.broker.toLowerCase())
   );
 
@@ -41,9 +47,9 @@ export function resolveMapping(candidates: MappingCandidate[], request: ResolveR
     const brokerA = a.broker && request.broker && a.broker.toLowerCase() === request.broker.toLowerCase() ? 1 : 0;
     const brokerB = b.broker && request.broker && b.broker.toLowerCase() === request.broker.toLowerCase() ? 1 : 0;
     if (brokerA !== brokerB) return brokerB - brokerA;
-    const currencyA = a.preferredCurrency === request.preferredCurrency ? 1 : 0;
-    const currencyB = b.preferredCurrency === request.preferredCurrency ? 1 : 0;
-    if (currencyA !== currencyB) return currencyB - currencyA;
+    const configuredCurrencyA = a.preferredCurrency === request.preferredCurrency ? 1 : 0;
+    const configuredCurrencyB = b.preferredCurrency === request.preferredCurrency ? 1 : 0;
+    if (configuredCurrencyA !== configuredCurrencyB) return configuredCurrencyB - configuredCurrencyA;
     return b.effectiveFrom.localeCompare(a.effectiveFrom);
   })[0] ?? null;
 }
