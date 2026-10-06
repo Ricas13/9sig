@@ -26,7 +26,7 @@ export function ExecuteAction({ action }: { action: { id: string; actionType: st
     const response = await fetch("/api/actions/" + action.id + "/execute", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ price: f.get("price") || undefined, quantity: f.get("quantity") || undefined })
+      body: JSON.stringify({ price: f.get("price") || undefined, quantity: f.get("quantity") || undefined, fee: f.get("fee") || "0" })
     });
     const body = await response.json();
     setBusy(false);
@@ -35,7 +35,7 @@ export function ExecuteAction({ action }: { action: { id: string; actionType: st
   }}>
     {needsPrice && <>
       <input name="price" type="number" min="0" step="0.000001" placeholder="Execution price" required />
-      <input name="quantity" type="number" min="0" step="0.00000001" placeholder="Quantity (optional)" />
+      <input name="quantity" type="number" min="0" step="0.00000001" placeholder="Quantity (optional)" /><input name="fee" type="number" min="0" step="0.01" defaultValue="0" placeholder="Fee" />
     </>}
     <button className="button primary" disabled={busy}>{needsPrice ? "Mark trade completed" : "Mark reviewed"}</button>
     {error && <span className="error">{error}</span>}

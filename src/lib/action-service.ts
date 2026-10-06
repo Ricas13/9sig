@@ -5,6 +5,7 @@ import { sql } from "@/lib/db";
 import { foldLedger } from "@/domain/ledger";
 import { getStrategyEngine } from "@/domain/strategy/registry";
 import { resolveMapping, type MappingCandidate } from "@/domain/instruments";
+import { validateExecution } from "@/domain/execution";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
 function nextReview(start: Date, frequency: string) { const d=new Date(start); if(frequency==="MONTHLY")d.setUTCMonth(d.getUTCMonth()+1);else if(frequency==="ANNUAL")d.setUTCFullYear(d.getUTCFullYear()+1);else d.setUTCMonth(d.getUTCMonth()+3);return d; }
@@ -83,20 +84,82 @@ export async function calculateAction(strategyInstanceId:string){
   return {actionId,proposal,totalValue:totalValue.toString()};
 }
 
-export async function executeAction(userId:string,actionId:string,execution?:{price?:string;quantity?:string}){
+export async function executeAction(
+  userId:string,
+  actionId:string,
+  execution?:{price?:string;quantity?:string;fee?:string}
+){
   return sql.begin(async(tx)=>{
-    const rows=await tx.unsafe("SELECT a.*,i.user_id,tl.instrument_id,acc.currency FROM actions a JOIN strategy_instances i ON i.id=a.strategy_instance_id LEFT JOIN trading_lines tl ON tl.id=a.trading_line_id LEFT JOIN accounts acc ON acc.id=i.account_id WHERE a.id=$1 AND i.user_id=$2 FOR UPDATE",[actionId,userId]);
-    const action=rows[0];if(!action)throw new Error("ACTION_NOT_FOUND");if(!["CALCULATED","NOTIFIED","ACKNOWLEDGED"].includes(String(action.status)))throw new Error("ACTION_NOT_EXECUTABLE");
-    if(["BUY","SELL"].includes(String(action.action_type))){
-      if(!execution?.price||!action.instrument_id)throw new Error("EXECUTION_DETAILS_REQUIRED");
-      const amount=new Decimal(String(action.amount??0));const price=new Decimal(execution.price);if(price.lte(0))throw new Error("INVALID_PRICE");
-      const qty=execution.quantity?new Decimal(execution.quantity):amount.div(price);const isSell=String(action.action_type)==="SELL";
-      await tx.unsafe("INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,unit_price,provenance,confidence,metadata) VALUES ($1,now(),$2,$3,$4,$5,$6,$7,'USER_ENTERED','VERIFIED',$8::jsonb)",[action.strategy_instance_id,isSell?"SELL":"BUY",action.currency,isSell?amount.toString():amount.neg().toString(),action.instrument_id,isSell?qty.neg().toString():qty.toString(),price.toString(),JSON.stringify({actionId})]);
-    } else if(String(action.action_type)==="REBALANCE") {
-      throw new Error("REBALANCE_TRADES_REQUIRED");
+    const rows=await tx.unsafe(
+      "SELECT a.*,i.user_id,acc.currency,tl.instrument_id FROM actions a JOIN strategy_instances i ON i.id=a.strategy_instance_id JOIN accounts acc ON acc.id=i.account_id LEFT JOIN trading_lines tl ON tl.id=a.trading_line_id WHERE a.id=$1 AND i.user_id=$2 FOR UPDATE OF a",
+      [actionId,userId]
+    );
+    const action=rows[0];
+    if(!action)throw new Error("ACTION_NOT_FOUND");
+    if(!["CALCULATED","NOTIFIED","ACKNOWLEDGED"].includes(String(action.status)))throw new Error("ACTION_NOT_EXECUTABLE");
+
+    const actionType=String(action.action_type);
+    if(["DATA_REQUIRED","NO_ACTION"].includes(actionType))throw new Error("ACTION_NOT_EXECUTABLE");
+    if(actionType==="REBALANCE")throw new Error("REBALANCE_TRADES_REQUIRED");
+
+    await tx.unsafe("SELECT id FROM strategy_instances WHERE id=$1 FOR UPDATE",[action.strategy_instance_id]);
+
+    if(["BUY","SELL"].includes(actionType)){
+      if(!execution?.price||!action.instrument_id||!action.amount)throw new Error("EXECUTION_DETAILS_REQUIRED");
+      if(String(action.currency)!==String(action.currency??rows[0].currency)||String(action.currency)!==String(rows[0].currency)){
+        throw new Error("EXECUTION_CURRENCY_MISMATCH");
+      }
+
+      const ledgerRows=await tx.unsafe(
+        "SELECT event_type,cash_amount,fee_amount,instrument_id,quantity FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",
+        [action.strategy_instance_id]
+      );
+      const position=foldLedger(ledgerRows.map((r)=>({
+        eventType:String(r.event_type),
+        cashAmount:String(r.cash_amount),
+        feeAmount:String(r.fee_amount),
+        instrumentId:r.instrument_id?String(r.instrument_id):null,
+        quantity:String(r.quantity)
+      })));
+      const held=position.quantities.get(String(action.instrument_id))??new Decimal(0);
+      const validated=validateExecution({
+        side:actionType as "BUY"|"SELL",
+        proposedAmount:String(action.amount),
+        price:execution.price,
+        quantity:execution.quantity??null,
+        fee:execution.fee??"0",
+        availableCash:position.cash,
+        heldQuantity:held
+      });
+
+      await tx.unsafe(
+        "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,now(),$2,$3,$4,$5,$6,$7,$8,'USER_ENTERED','VERIFIED',$9::jsonb)",
+        [
+          action.strategy_instance_id,
+          actionType,
+          action.currency,
+          validated.cashAmount.toString(),
+          action.instrument_id,
+          validated.ledgerQuantity.toString(),
+          execution.price,
+          validated.fee.toString(),
+          JSON.stringify({
+            actionId,
+            proposedAmount:String(action.amount),
+            actualNotional:validated.grossNotional.toString()
+          })
+        ]
+      );
     }
-    await tx.unsafe("UPDATE strategy_states SET state=$1::jsonb,calculated_at=now(),confidence=$2 WHERE strategy_instance_id=$3",[JSON.stringify(action.next_state??{}),action.confidence,action.strategy_instance_id]);
-    await tx.unsafe("UPDATE actions SET status='EXECUTED',executed_at=now(),updated_at=now() WHERE id=$1",[actionId]);
+
+    await tx.unsafe(
+      "UPDATE strategy_states SET state=$1::jsonb,calculated_at=now(),confidence=$2 WHERE strategy_instance_id=$3",
+      [JSON.stringify(action.next_state??{}),action.confidence,action.strategy_instance_id]
+    );
+    await tx.unsafe(
+      "UPDATE actions SET status='EXECUTED',executed_at=now(),updated_at=now() WHERE id=$1",
+      [actionId]
+    );
     return true;
   });
 }
