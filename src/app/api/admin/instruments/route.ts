@@ -137,9 +137,17 @@ export async function PUT(request:Request){
       if(p.effectiveFrom<lineFrom||(lineTo&&(!p.effectiveTo||p.effectiveTo>lineTo))){
         return Response.json({error:"The mapping effective period must fit inside the trading line effective period."},{status:409});
       }
+      const normalizedBroker=p.broker?.trim()||null;
+      const overlap=await sql.unsafe(
+        "SELECT id FROM regional_instrument_mappings WHERE economic_exposure=$1 AND leverage=$2 AND direction=$3 AND country=$4 AND wrapper=$5"+
+        " AND COALESCE(lower(broker),'')=COALESCE(lower($6),'') AND COALESCE(preferred_currency,'')=COALESCE($7,'')"+
+        " AND daterange(effective_from,COALESCE(effective_to,'infinity'::date),'[]') && daterange($8::date,COALESCE($9::date,'infinity'::date),'[]') LIMIT 1",
+        [p.economicExposure,normalizedLeverage(p.leverage),p.direction,p.country,p.wrapper,normalizedBroker,p.preferredCurrency??null,p.effectiveFrom,p.effectiveTo??null]
+      );
+      if(overlap[0])return Response.json({error:"An overlapping regional mapping already exists for that exposure/account/broker/currency scope."},{status:409});
       await sql.unsafe(
         "INSERT INTO regional_instrument_mappings (economic_exposure,leverage,direction,country,wrapper,broker,preferred_currency,trading_line_id,fidelity,effective_from,effective_to,enabled) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'EXACT',$9,$10,$11)",
-        [p.economicExposure,normalizedLeverage(p.leverage),p.direction,p.country,p.wrapper,p.broker?.trim()||null,p.preferredCurrency??null,p.tradingLineId,p.effectiveFrom,p.effectiveTo??null,p.enabled]
+        [p.economicExposure,normalizedLeverage(p.leverage),p.direction,p.country,p.wrapper,normalizedBroker,p.preferredCurrency??null,p.tradingLineId,p.effectiveFrom,p.effectiveTo??null,p.enabled]
       );
     }
 
