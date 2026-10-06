@@ -83,7 +83,7 @@ export async function PUT(request:Request){
         if(!existing[0])return Response.json({error:"Instrument not found."},{status:404});
         const semanticChange=
           String(existing[0].economic_exposure)!==p.economicExposure||
-          new Decimal(String(existing[0].leverage)).neq(normalized)||
+          !new Decimal(String(existing[0].leverage)).eq(normalized)||
           String(existing[0].direction)!==p.direction;
         if(semanticChange&&(existing[0].has_lines||existing[0].has_ledger)){
           return Response.json({error:"Economic exposure, leverage and direction are immutable once an instrument is in use. Create a new instrument instead."},{status:409});
@@ -125,7 +125,7 @@ export async function PUT(request:Request){
       const line=lineRows[0];
       if(!line)return Response.json({error:"Trading line not found."},{status:404});
       if(String(line.economic_exposure)!==p.economicExposure||
-        new Decimal(String(line.leverage)).neq(normalizedLeverage(p.leverage))||
+        !new Decimal(String(line.leverage)).eq(normalizedLeverage(p.leverage))||
         String(line.direction)!==p.direction){
         return Response.json({error:"The mapping must exactly match the selected instrument's economic exposure, leverage and direction."},{status:409});
       }
