@@ -4,7 +4,7 @@ import { assertCanCreateStrategy, buildEntitlementSnapshot, type EntitlementSnap
 
 export async function loadEntitlements(userId: string) {
   let rows = await sql.unsafe(
-    "SELECT p.slug,p.max_active_strategies,p.entitlements,p.available_strategy_keys FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.user_id=$1 AND s.status IN ('FREE','ACTIVE','TRIALING') LIMIT 1",
+    "SELECT p.slug,p.max_active_strategies,p.entitlements,p.available_strategy_keys FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.user_id=$1 AND s.status IN ('FREE','ACTIVE','TRIALING','PAST_DUE') LIMIT 1",
     [userId]
   );
   if (!rows[0]) rows = await sql.unsafe("SELECT slug,max_active_strategies,entitlements,available_strategy_keys FROM plans WHERE slug='free' LIMIT 1");
