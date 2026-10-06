@@ -109,3 +109,36 @@ export function PlanPriceEditor(){
     </div><button className="button primary" style={{marginTop:16}}>Save price</button>{message&&<div className="success">{message}</div>}
   </form>;
 }
+
+
+export function ModelPerformanceEditor() {
+  const { submit, message } = useAdminSubmit("/api/admin/model-performance");
+  const [error, setError] = useState("");
+
+  return <form className="glass form-card" onSubmit={async (e) => {
+    e.preventDefault();
+    setError("");
+    const f = new FormData(e.currentTarget);
+    try {
+      const points = json(String(f.get("points")), []);
+      if (!Array.isArray(points)) throw new Error("INVALID_JSON");
+      await submit({
+        strategyVersionId: f.get("strategyVersionId"),
+        source: f.get("source") || "ADMIN",
+        points
+      });
+    } catch {
+      setError("Points must be a JSON array of {date, value, benchmarkValue?} objects.");
+    }
+  }}>
+    <h3>Canonical model / benchmark history</h3>
+    <div className="stack">
+      <div className="field"><label>Strategy version UUID</label><input name="strategyVersionId" required /></div>
+      <div className="field"><label>Source label</label><input name="source" defaultValue="ADMIN" /></div>
+      <div className="field"><label>Points JSON</label><textarea name="points" rows={8} defaultValue={'[{"date":"2026-01-02","value":"100","benchmarkValue":"100"}]'} /></div>
+      <button className="button primary">Upload model points</button>
+      <div className="help">Values may be any positive canonical index scale. The customer chart replays the user's own cash flows against the index before comparing account values.</div>
+      {(error || message) && <div className={error ? "error" : "success"}>{error || message}</div>}
+    </div>
+  </form>;
+}
