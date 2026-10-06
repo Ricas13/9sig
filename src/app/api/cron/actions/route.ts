@@ -1,7 +1,6 @@
 import { sql } from "@/lib/db";
 import { calculateAction } from "@/lib/action-service";
 import { createDeliveriesForNotification, processPendingDeliveries } from "@/lib/notification-service";
-import { rebuildAnonymousAggregates } from "@/lib/aggregate-service";
 import { refreshMarketData } from "@/lib/market-data-worker";
 import { enforceStrategyEntitlements } from "@/lib/entitlement-service";
 
@@ -42,14 +41,12 @@ export async function GET(request: Request) {
   for (const n of notifications) await createDeliveriesForNotification(String(n.id));
 
   const delivered = await processPendingDeliveries(100);
-  const aggregates = await rebuildAnonymousAggregates();
   return Response.json({
     ok: true,
     delinquencyEnforcements,
     marketData,
     calculated,
     calculationFailures,
-    delivered,
-    aggregates
+    delivered
   });
 }
