@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
-const publicPrefixes = ["/", "/demo", "/login", "/register", "/verify-email", "/reset-password", "/api/auth", "/api/register", "/api/verify-email", "/api/password-reset", "/api/stripe/webhook", "/api/cron"];
+const publicPrefixes = ["/", "/demo", "/login", "/register", "/verify-email", "/reset-password", "/api/auth", "/api/register", "/api/verify-email", "/api/password-reset", "/api/stripe/webhook", "/api/cron", "/api/health"];
 
 export const proxy = auth((request) => {
   const path = request.nextUrl.pathname;
