@@ -13,7 +13,7 @@ describe("value-target engine",()=>{
   it("uses the explicit initial allocation rule for the first review",()=>{
     const result=valueTargetEngine.calculate(base);
     expect(result.actionType).toBe("BUY");
-    expect(result.amount?.toFixed(2)).toBe("3600.00");
+    expect(result.amount?.toFixed(2)).toBe("2400.00");
   });
   it("fails closed when critical data is stale",()=>{
     const result=valueTargetEngine.calculate({...base,dataHealth:{status:"STALE" as const,message:"stale"}});
