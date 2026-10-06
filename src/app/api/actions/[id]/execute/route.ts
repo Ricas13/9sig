@@ -1,0 +1,19 @@
+import { z } from "zod";
+import { requireUser } from "@/lib/session";
+import { executeAction } from "@/lib/action-service";
+
+const schema=z.object({price:z.string().optional(),quantity:z.string().optional()});
+
+export async function POST(request: Request, context: {params: Promise<{id:string}>}) {
+  try {
+    const user=await requireUser();
+    const {id}=await context.params;
+    const input=schema.parse(await request.json().catch(()=>({})));
+    await executeAction(user.id,id,input);
+    return Response.json({ok:true});
+  } catch(error) {
+    const code=error instanceof Error ? error.message : "FAILED";
+    if(code==="EXECUTION_DETAILS_REQUIRED") return Response.json({error:"Confirm the execution price before marking this trade complete."},{status:400});
+    return Response.json({error:"Could not complete this action."},{status:500});
+  }
+}
