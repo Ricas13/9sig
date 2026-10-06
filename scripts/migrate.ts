@@ -1,5 +1,5 @@
 import postgres from "postgres";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 async function main() {
@@ -7,9 +7,14 @@ async function main() {
   if (!url) throw new Error("DATABASE_URL is required");
   const sql = postgres(url, { max: 1, prepare: false });
   try {
-    const migration = await readFile(join(process.cwd(), "db/migrations/0001_platform_core.sql"), "utf8");
-    await sql.unsafe(migration);
-    console.log("Database migration complete");
+    const directory = join(process.cwd(), "db/migrations");
+    const files = (await readdir(directory)).filter((name) => name.endsWith(".sql")).sort();
+    for (const name of files) {
+      const migration = await readFile(join(directory, name), "utf8");
+      await sql.unsafe(migration);
+      console.log("Applied " + name);
+    }
+    console.log("Database migrations complete");
   } finally {
     await sql.end();
   }

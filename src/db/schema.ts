@@ -47,6 +47,7 @@ export const plans = pgTable("plans", {
   monthlyPriceMinor: integer("monthly_price_minor").notNull().default(0),
   annualPriceMinor: integer("annual_price_minor").notNull().default(0),
   billingCurrency: text("billing_currency").notNull().default("GBP"),
+  supportedBillingCurrencies: jsonb("supported_billing_currencies").notNull().default(["GBP"]),
   stripeMonthlyPriceId: text("stripe_monthly_price_id"),
   stripeAnnualPriceId: text("stripe_annual_price_id"),
   maxActiveStrategies: integer("max_active_strategies"),
@@ -330,6 +331,24 @@ export const benchmarks = pgTable("benchmarks", {
   economicExposure: text("economic_exposure").notNull(),
   description: text("description").notNull().default("")
 });
+
+export const canonicalModelPerformance = pgTable("canonical_model_performance", {
+  strategyVersionId: uuid("strategy_version_id").notNull().references(() => strategyVersions.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  value: numeric("value", { precision: 28, scale: 10 }).notNull(),
+  benchmarkValue: numeric("benchmark_value", { precision: 28, scale: 10 }),
+  source: text("source").notNull().default("ADMIN"),
+  metadata: jsonb("metadata").notNull().default({})
+}, (t) => [primaryKey({ columns: [t.strategyVersionId, t.date] })]);
+
+export const workerRuns = pgTable("worker_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerKey: text("worker_key").notNull(),
+  status: text("status").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  details: jsonb("details").notNull().default({})
+}, (t) => [index("worker_runs_key_time_idx").on(t.workerKey, t.startedAt)]);
 
 export const anonymousAggregates = pgTable("anonymous_aggregates", {
   id: uuid("id").primaryKey().defaultRandom(),

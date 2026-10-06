@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db";
 import { calculateAction } from "@/lib/action-service";
 import { createDeliveriesForNotification, processPendingDeliveries } from "@/lib/notification-service";
+import { rebuildAnonymousAggregates } from "@/lib/aggregate-service";
 
 function authorized(request: Request) {
   return Boolean(process.env.CRON_SECRET) && request.headers.get("authorization") === "Bearer " + process.env.CRON_SECRET;
@@ -16,5 +17,6 @@ export async function GET(request: Request) {
   const notifications=await sql.unsafe("SELECT n.id FROM notifications n LEFT JOIN notification_deliveries d ON d.notification_id=n.id WHERE d.id IS NULL ORDER BY n.created_at LIMIT 200");
   for(const n of notifications) await createDeliveriesForNotification(String(n.id));
   const delivered=await processPendingDeliveries(100);
-  return Response.json({ok:true,calculated,delivered});
+  const aggregates=await rebuildAnonymousAggregates();
+  return Response.json({ok:true,calculated,delivered,aggregates});
 }
