@@ -3,6 +3,7 @@ import Decimal from "decimal.js";
 export type LedgerEvent = {
   id?: string;
   eventType: string;
+  currency?: string | null;
   cashAmount: string | number | Decimal;
   feeAmount?: string | number | Decimal;
   instrumentId?: string | null;
@@ -11,22 +12,36 @@ export type LedgerEvent = {
 
 export type LedgerPosition = {
   cash: Decimal;
+  cashByCurrency: Map<string, Decimal>;
   quantities: Map<string, Decimal>;
 };
 
-export function foldLedger(events: LedgerEvent[]): LedgerPosition {
-  let cash = new Decimal(0);
+export function foldLedger(events: LedgerEvent[], baseCurrency?: string): LedgerPosition {
+  const cashByCurrency = new Map<string, Decimal>();
   const quantities = new Map<string, Decimal>();
 
   for (const event of events) {
-    cash = cash.plus(new Decimal(event.cashAmount ?? 0)).minus(new Decimal(event.feeAmount ?? 0));
+    const currency = String(event.currency ?? baseCurrency ?? "__UNSPECIFIED__").toUpperCase();
+    const previousCash = cashByCurrency.get(currency) ?? new Decimal(0);
+    const delta = new Decimal(event.cashAmount ?? 0).minus(new Decimal(event.feeAmount ?? 0));
+    cashByCurrency.set(currency, previousCash.plus(delta));
+
     if (event.instrumentId) {
       const previous = quantities.get(event.instrumentId) ?? new Decimal(0);
       quantities.set(event.instrumentId, previous.plus(new Decimal(event.quantity ?? 0)));
     }
   }
 
-  return { cash, quantities };
+  let cash = new Decimal(0);
+  if (baseCurrency) {
+    cash = cashByCurrency.get(baseCurrency.toUpperCase()) ?? new Decimal(0);
+  } else if (cashByCurrency.size === 1) {
+    cash = [...cashByCurrency.values()][0];
+  } else if (cashByCurrency.size > 1) {
+    throw new Error("BASE_CURRENCY_REQUIRED_FOR_MULTI_CURRENCY_LEDGER");
+  }
+
+  return { cash, cashByCurrency, quantities };
 }
 
 export function monetary(value: Decimal.Value, dp = 2) {

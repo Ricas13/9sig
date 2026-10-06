@@ -12,16 +12,18 @@ function isoDate(value: unknown) { return value instanceof Date ? value.toISOStr
 export async function calculateAction(strategyInstanceId:string){
   const rows=await sql.unsafe("SELECT i.id,i.user_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,v.engine_key AS engine,v.config,i.settings,a.country,a.wrapper,a.currency,a.broker_name,s.state,u.timezone AS user_timezone FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN users u ON u.id=i.user_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
   const instance=rows[0];if(!instance)throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
-  const ledgerRows=await sql.unsafe("SELECT event_type,cash_amount,fee_amount,instrument_id,quantity,occurred_at,created_at FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",[strategyInstanceId]);
-  const folded=foldLedger(ledgerRows.map((r)=>({eventType:String(r.event_type),cashAmount:String(r.cash_amount),feeAmount:String(r.fee_amount),instrumentId:r.instrument_id?String(r.instrument_id):null,quantity:String(r.quantity)})));
+  const ledgerRows=await sql.unsafe("SELECT event_type,currency,cash_amount,fee_amount,instrument_id,quantity,occurred_at,created_at FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",[strategyInstanceId]);
+  const folded=foldLedger(ledgerRows.map((r)=>({eventType:String(r.event_type),currency:String(r.currency),cashAmount:String(r.cash_amount),feeAmount:String(r.fee_amount),instrumentId:r.instrument_id?String(r.instrument_id):null,quantity:String(r.quantity)})),String(instance.currency));
   const config=(instance.config??{}) as Record<string,unknown>;
   const state={...((instance.state??{}) as Record<string,unknown>)};
   const targetOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key='strategy_state.targetValue' AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId]);
   if(targetOverride[0]?.manual_value!=null) state.targetValue=String(targetOverride[0].manual_value);
 
   const exposurePositions:Array<{economicExposure:string;value:Decimal;tradingLineId?:string}>=[];
+  const foreignCash=[...folded.cashByCurrency.entries()].filter(([currency,value])=>currency!==String(instance.currency).toUpperCase()&&!value.eq(0));
   let dataStatus:"CURRENT"|"STALE"|"MISSING"=state.resumeNeedsReconciliation||state.unresolvedReconciliation?"MISSING":"CURRENT";
   let dataMessage=state.resumeNeedsReconciliation?"Quick resume needs an opening holdings snapshot before a high-confidence action can be calculated.":state.unresolvedReconciliation?"An unresolved broker discrepancy must be classified before financial actions resume.":undefined;
+  if(foreignCash.length){dataStatus="MISSING";dataMessage="Foreign-currency cash is present. An explicit FX conversion is required before financial actions can resume.";}
 
   for(const [instrumentId,quantity] of folded.quantities.entries()){
     if(quantity.eq(0))continue;
@@ -120,16 +122,17 @@ export async function executeAction(
       }
 
       const ledgerRows=await tx.unsafe(
-        "SELECT event_type,cash_amount,fee_amount,instrument_id,quantity FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",
+        "SELECT event_type,currency,cash_amount,fee_amount,instrument_id,quantity FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",
         [action.strategy_instance_id]
       );
       const position=foldLedger(ledgerRows.map((r)=>({
         eventType:String(r.event_type),
+        currency:String(r.currency),
         cashAmount:String(r.cash_amount),
         feeAmount:String(r.fee_amount),
         instrumentId:r.instrument_id?String(r.instrument_id):null,
         quantity:String(r.quantity)
-      })));
+      })),String(rows[0].currency));
       const held=position.quantities.get(String(action.instrument_id))??new Decimal(0);
       const validated=validateExecution({
         side:actionType as "BUY"|"SELL",
