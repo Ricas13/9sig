@@ -14,7 +14,7 @@ It separates strategy definitions from versioned strategy rules, user strategy i
 
 Implemented foundations include authentication, Free / Investor / Pro entitlements, versioned strategies, multiple strategy instances per user, append-only ledger events, cash as a first-class position, quick resume, reconciliation adjustments, regional instrument mapping, action lifecycle and explanations, notification dedupe, Stripe subscription state, public aggregate plumbing, demo mode, customer dashboards and admin views.
 
-The active seed enables the 9Sig-family value-target engine. Fixed-allocation engines exist and are tested, but HFEA / Golden Butterfly definitions are deliberately disabled until faithful regional instruments and full multi-leg execution workflows are configured. Momentum and custom-strategy authoring are extension points, not fake features.
+The active seed enables the 9Sig-family value-target engine. Fixed-allocation engines exist and are tested, but HFEA / Golden Butterfly definitions are deliberately disabled until faithful regional instruments and full multi-leg execution workflows are configured. Momentum and custom-strategy authoring are extension points, not fake features. Strategy releases use a draft/publish/retire lifecycle; published versions snapshot their engine and configuration, while existing user instances remain pinned until an explicit audited migration.
 
 Production market data uses the configured HTTPS provider adapter. If no licensed provider is configured, the application deliberately fails closed instead of fabricating prices. The development mock provider is unavailable in production.
 
