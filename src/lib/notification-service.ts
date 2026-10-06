@@ -6,12 +6,16 @@ import { loadEntitlements } from "@/lib/entitlement-service";
 
 export async function createDeliveriesForNotification(notificationId: string) {
   const rows=await sql.unsafe("SELECT n.id,n.user_id,n.action_id FROM notifications n WHERE n.id=$1 LIMIT 1",[notificationId]);
-  const n=rows[0];if(!n)return;
+  const n=rows[0];
+  if(!n)return;
   const entitlements=await loadEntitlements(String(n.user_id));
   for(const channel of entitlements.notificationChannels){
     if(channel==="IN_APP")continue;
     const dedupe=String(notificationId)+":"+channel;
-    await sql.unsafe("INSERT INTO notification_deliveries (notification_id,channel,dedupe_key) VALUES ($1,$2,$3) ON CONFLICT (dedupe_key) DO NOTHING",[notificationId,channel,dedupe]);
+    await sql.unsafe(
+      "INSERT INTO notification_deliveries (notification_id,channel,dedupe_key) VALUES ($1,$2,$3) ON CONFLICT (dedupe_key) DO NOTHING",
+      [notificationId,channel,dedupe]
+    );
   }
 }
 
@@ -28,25 +32,63 @@ export async function processPendingDeliveries(limit=50){
     " FROM claimed c JOIN notifications n ON n.id=c.notification_id JOIN users u ON u.id=n.user_id",
     [limit]
   );
+
   let sent=0;
+  let entitlementSkipped=0;
   for(const d of deliveries){
+    try{
+      const entitlements=await loadEntitlements(String(d.user_id));
+      if(!entitlements.notificationChannels.has(String(d.channel))){
+        await sql.unsafe(
+          "UPDATE notification_deliveries SET status='CANCELLED',last_error_code='CHANNEL_NOT_ENTITLED',updated_at=now() WHERE id=$1 AND status='SENDING'",
+          [d.id]
+        );
+        entitlementSkipped+=1;
+        continue;
+      }
+    }catch{
+      await sql.unsafe(
+        "UPDATE notification_deliveries SET status='PENDING',next_attempt_at=now()+interval '15 minutes',last_error_code='ENTITLEMENT_LOOKUP_FAILED',updated_at=now() WHERE id=$1 AND status='SENDING'",
+        [d.id]
+      );
+      continue;
+    }
+
     let ok=false;
     try{
       if(d.channel==="EMAIL"){
         ok=await getEmailProvider().send({to:String(d.email),subject:String(d.title),text:String(d.body)});
       }else if(d.channel==="DISCORD"){
-        const endpoints=await sql.unsafe("SELECT encrypted_destination FROM notification_endpoints WHERE user_id=$1 AND channel='DISCORD' AND enabled=true LIMIT 1",[d.user_id]);
+        const endpoints=await sql.unsafe(
+          "SELECT encrypted_destination FROM notification_endpoints WHERE user_id=$1 AND channel='DISCORD' AND enabled=true LIMIT 1",
+          [d.user_id]
+        );
         if(endpoints[0]){
-          const response=await fetch(decryptSecret(String(endpoints[0].encrypted_destination)),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({content:"**"+String(d.title)+"**\n"+String(d.body)})});
+          const response=await fetch(decryptSecret(String(endpoints[0].encrypted_destination)),{
+            method:"POST",
+            headers:{"content-type":"application/json"},
+            body:JSON.stringify({content:"**"+String(d.title)+"**\n"+String(d.body)}),
+            signal:AbortSignal.timeout(10_000)
+          });
           ok=response.ok;
         }
       }
-    }catch{ok=false;}
+    }catch{
+      ok=false;
+    }
+
     if(ok){
-      await sql.unsafe("UPDATE notification_deliveries SET status='SENT',sent_at=now(),updated_at=now(),last_error_code=NULL WHERE id=$1 AND status='SENDING'",[d.id]);sent+=1;
+      await sql.unsafe(
+        "UPDATE notification_deliveries SET status='SENT',sent_at=now(),updated_at=now(),last_error_code=NULL WHERE id=$1 AND status='SENDING'",
+        [d.id]
+      );
+      sent+=1;
     }else{
-      await sql.unsafe("UPDATE notification_deliveries SET status='PENDING',next_attempt_at=now()+interval '15 minutes',last_error_code='DELIVERY_FAILED',updated_at=now() WHERE id=$1 AND status='SENDING'",[d.id]);
+      await sql.unsafe(
+        "UPDATE notification_deliveries SET status='PENDING',next_attempt_at=now()+interval '15 minutes',last_error_code='DELIVERY_FAILED',updated_at=now() WHERE id=$1 AND status='SENDING'",
+        [d.id]
+      );
     }
   }
-  return sent;
+  return {sent,entitlementSkipped};
 }
