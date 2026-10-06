@@ -23,8 +23,7 @@ export function PlanEditor(){
     monthlyPriceMinor:Math.round(Number(f.get("monthly"))*100),annualPriceMinor:Math.round(Number(f.get("annual"))*100),annualDiscountBps:Math.round(Number(f.get("annualDiscount")||0)*100),
     currency:f.get("currency"),supportedBillingCurrencies:String(f.get("currencies")).split(",").map(x=>x.trim()).filter(Boolean),
     maxActiveStrategies:f.get("max")===""?null:Number(f.get("max")),availableStrategyKeys:String(f.get("strategies")).split(",").map(x=>x.trim()).filter(Boolean),
-    stripeMonthlyPriceId:f.get("stripeMonthly")||null,stripeAnnualPriceId:f.get("stripeAnnual")||null,
-    entitlements:json(String(f.get("entitlements")),{}),trialDays:Number(f.get("trial")||0),visible:Boolean(f.get("visible")),archived:Boolean(f.get("archived")),sortOrder:Number(f.get("sort")||0)
+    entitlements:json(String(f.get("entitlements")),{}),trialDays:Number(f.get("trial")||0),delinquencyGraceDays:Number(f.get("grace")||3),visible:Boolean(f.get("visible")),archived:Boolean(f.get("archived")),sortOrder:Number(f.get("sort")||0)
   });}catch{setError("Entitlements must be valid JSON.");}}}>
     <h3>Upsert plan</h3><div className="form-grid">
       <div className="field"><label>Slug</label><input name="slug" required placeholder="investor"/></div>
@@ -35,10 +34,8 @@ export function PlanEditor(){
       <div className="field"><label>Primary currency</label><input name="currency" defaultValue="GBP" maxLength={3} required/></div>
       <div className="field"><label>Supported currencies</label><input name="currencies" defaultValue="GBP" placeholder="GBP,USD,EUR"/></div>
       <div className="field"><label>Max active strategies</label><input name="max" type="number" min="1" placeholder="blank = unlimited"/></div>
-      <div className="field"><label>Trial days</label><input name="trial" type="number" min="0" defaultValue="0"/></div>
+      <div className="field"><label>Trial days</label><input name="trial" type="number" min="0" defaultValue="0"/></div><div className="field"><label>Past-due grace days</label><input name="grace" type="number" min="0" max="30" defaultValue="3"/></div>
       <div className="field full"><label>Available strategy keys</label><input name="strategies" placeholder="blank = all enabled strategies"/></div>
-      <div className="field"><label>Stripe monthly Price ID</label><input name="stripeMonthly"/></div>
-      <div className="field"><label>Stripe annual Price ID</label><input name="stripeAnnual"/></div>
       <div className="field full"><label>Entitlements JSON</label><textarea name="entitlements" rows={4} defaultValue={'{"features":[],"notificationChannels":[]}'}/></div>
       <div className="field"><label><input name="visible" type="checkbox" defaultChecked/> Visible</label></div>
       <div className="field"><label><input name="archived" type="checkbox"/> Archived</label></div>
