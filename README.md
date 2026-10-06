@@ -1,99 +1,78 @@
-# 9Sig Journey
+# StrategyOS / 9sig repository
 
-A deliberately simple, single-page 3QQQ 9Sig journey tracker.
+This repository is a modular-monolith SaaS for operating user-selected, rules-based investment strategies. The repository name can remain 9sig, but the product architecture is not tied to 9Sig.
 
-The visible product answers three questions:
+The product is built around three questions:
 
-1. **What do I do now?** — Do nothing / add contribution / buy / sell / skip / reset.
-2. **Where am I?** — 3QQQ, CSH2, total portfolio, mode, next contribution and next signal.
-3. **How is it going?** — one chart comparing QQQ + DCA, 3QQQ + DCA and the user's real 3QQQ 9Sig + DCA journey.
+1. Where am I?
+2. Do I need to do anything?
+3. Exactly what do I need to do next?
 
-Everything else is deliberately collapsed below the main flow.
+It separates strategy definitions from versioned strategy rules, user strategy instances, source ledger events, derived calculations, reversible overrides, actions and notification delivery.
 
-## Included in this MVP
+## Current launch scope
 
-- Email/password accounts (Auth.js credentials + bcrypt).
-- One isolated portfolio per user.
-- Owner bypass via `OWNER_EMAIL` while the product is private.
-- Stripe subscription gate ready for a **$20/month** Price ID.
-- 3QQQ + CSH2 holdings and manual broker reconciliation.
-- Contextual action card: only asks for information needed now.
-- Quarterly 9Sig target: previous signal base × 1.09 + 50% of new contributions.
-- 90% reserve buy throttle.
-- Reconstructed 30-Down state: buys continue, two sell signals skipped, reset on the following sell, ~8-quarter maximum.
-- Spike-reset check.
-- QQQ + DCA vs 3QQQ + DCA vs actual 9Sig comparison chart.
-- Encrypted per-user Discord webhook and daily cron route that sends one notification on an outstanding signal day.
-- Market-data provider fails closed: if a price cannot be obtained, the app asks the user to confirm it.
+Implemented foundations include authentication, Free / Investor / Pro entitlements, versioned strategies, multiple strategy instances per user, append-only ledger events, cash as a first-class position, quick resume, reconciliation adjustments, regional instrument mapping, action lifecycle and explanations, notification dedupe, Stripe subscription state, public aggregate plumbing, demo mode, customer dashboards and admin views.
+
+The active seed enables the 9Sig-family value-target engine. Fixed-allocation engines exist and are tested, but HFEA / Golden Butterfly definitions are deliberately disabled until faithful regional instruments and full multi-leg execution workflows are configured. Momentum and custom-strategy authoring are extension points, not fake features. Strategy releases use a draft/publish/retire lifecycle; published versions snapshot their engine and configuration, while existing user instances remain pinned until an explicit audited migration.
+
+Production market data uses the configured HTTPS provider adapter. If no licensed provider is configured, the application deliberately fails closed instead of fabricating prices. The development mock provider is unavailable in production.
 
 ## Stack
 
-- Next.js 16 Active LTS / React 19
-- PostgreSQL using `postgres`
-- Auth.js credentials sessions
-- Stripe Checkout + Billing Portal
-- Recharts
-- Yahoo Finance chart endpoint as a **best-effort market-data source**, with manual price/reconciliation fallback
+- Next.js and React with TypeScript
+- PostgreSQL
+- Drizzle schema definitions plus reviewed SQL migrations
+- Auth.js
+- Decimal.js for accounting calculations
+- Recharts and Framer Motion-ready UI foundation
+- Stripe
+- Docker
+- GitHub Actions
 
-## Local setup
+## Local development
 
-Requires Node.js 22+ and PostgreSQL.
+Requirements: Node 22+, PostgreSQL 16+.
 
-```bash
-cp .env.example .env.local
-# edit .env.local
-psql "$DATABASE_URL" -f db/schema.sql
-npm install
-npm run dev
-```
+    cp .env.example .env.local
+    npm install
+    npm run db:migrate
+    npm run db:seed
+    npm run dev
 
-Generate an Auth.js secret with:
+Generate an Auth.js secret using a cryptographically secure random value. APP_ENCRYPTION_KEY must be a base64-encoded 32-byte key. CRON_SECRET protects the action and notification worker.
 
-```bash
-npx auth secret
-```
+## Verification
 
-Generate the Discord encryption key with:
+    npm run lint
+    npm run typecheck
+    npm test
+    npm run build
 
-```bash
-openssl rand -base64 32
-```
+CI applies migrations twice to prove idempotency, seeds a fresh PostgreSQL database, runs lint/typecheck/unit and database tests, builds production, renders public pages in mobile and desktop Chromium, and runs a high-severity production dependency audit.
 
-Set your own email in `OWNER_EMAIL`. That account bypasses Stripe so you can use and test the product before enabling subscriptions.
+## Stripe test setup
 
-## Stripe
+Create monthly and annual Stripe Prices for each supported billing currency. Put those Price IDs into plan price records through the admin panel/API. Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, then point Stripe to POST /api/stripe/webhook.
 
-Create one recurring Stripe Price for **$20/month** and set `STRIPE_PRICE_ID`.
+The webhook is the authority for paid subscription status. Feature access comes from the canonical entitlement service, not scattered Stripe checks.
 
-Configure the webhook endpoint:
+## Notifications
 
-`POST /api/stripe/webhook`
+In-app notifications exist on every plan. Investor and Pro may use Email and Discord according to their plan entitlements. Discord webhook destinations are encrypted at rest. notification_deliveries has a unique dedupe key, so worker restarts cannot resend the same delivery record.
 
-Recommended events:
+## Market data
 
-- `checkout.session.completed`
-- `customer.subscription.created`
-- `customer.subscription.updated`
-- `customer.subscription.deleted`
+src/lib/market-data.ts defines the provider interface. The built-in production adapter accepts a configured HTTPS quote service via MARKET_DATA_PROVIDER=http, MARKET_DATA_HTTP_BASE_URL and MARKET_DATA_HTTP_TOKEN. It expects GET /quote?symbol=... and GET /historical?symbol=...&at=... responses containing price, three-letter currency and an offset-aware observedAt timestamp. The hourly worker refreshes active holdings/mappings before action calculation. If no licensed provider is configured, financial actions fail closed on missing or stale critical data.
 
-The database subscription state is updated only from signed Stripe webhook events.
+## Deployment
 
-## Discord signal-day alerts
+Build the Docker image after migrations have been applied. Run db:migrate and db:seed as controlled release steps before switching application traffic. Configure the hourly /api/cron/actions worker with Authorization: Bearer CRON_SECRET.
 
-Set `CRON_SECRET` and `DISCORD_ENCRYPTION_KEY`. Vercel cron is configured to call:
+## Security and regulatory posture
 
-`GET /api/cron/rebalance`
+Financial information is treated as sensitive. The application uses server-side validation, signed Stripe webhooks, secure headers, rate limiting for account flows, encrypted notification secrets and audit events.
 
-at 18:10 UTC each day. The handler only sends an alert when a user's next quarterly signal is outstanding and uses `notification_events` to prevent duplicate alerts.
+The application does not select a strategy based on suitability. Customer-facing wording describes the output as a calculation under rules the user selected. Jurisdiction-specific legal and regulatory review remains required before launch.
 
-If your hosting platform does not attach `Authorization: Bearer $CRON_SECRET` automatically, call the route from your own scheduler with that header.
-
-## Important product notes
-
-This repository intentionally does **not** place trades, connect to a brokerage account or silently trade on behalf of users. Users confirm contributions/trades and can reconcile the calculated position to their broker.
-
-Before selling access to the public, obtain appropriate legal/compliance advice for the jurisdictions in which the service will be offered. A paid tool that produces specific investment signals can raise financial-promotion/advice/regulatory questions depending on how it is marketed and operated.
-
-## Market-data note
-
-The included Yahoo chart provider is fine for an MVP and has a manual fail-safe, but it is not a contractual commercial market-data feed. Before charging customers, replace or supplement it with a licensed/reliable data provider and keep the same `market.ts` interface.
+See docs/ for the detailed architecture and methodology notes.

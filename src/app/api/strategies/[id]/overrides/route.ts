@@ -1,0 +1,40 @@
+import { z } from "zod";
+import { requireUser } from "@/lib/session";
+import { getStrategyForUser } from "@/lib/strategy-service";
+import { sql } from "@/lib/db";
+import { assertSameOrigin } from "@/lib/security";
+
+const create=z.object({fieldKey:z.string().min(1).max(120),automaticValue:z.unknown().optional(),manualValue:z.unknown(),reason:z.string().max(240).optional()});
+
+export async function POST(request:Request,context:{params:Promise<{id:string}>}){
+  try{
+    assertSameOrigin(request);
+    const user=await requireUser();
+    const {id}=await context.params;
+    if(!await getStrategyForUser(user.id,id))return Response.json({error:"Not found."},{status:404});
+    const p=create.parse(await request.json());
+    await sql.begin(async(tx)=>{
+      await tx.unsafe("UPDATE overrides SET active=false,restored_at=now(),updated_at=now() WHERE strategy_instance_id=$1 AND field_key=$2 AND active=true",[id,p.fieldKey]);
+      await tx.unsafe("INSERT INTO overrides (strategy_instance_id,field_key,automatic_value,manual_value,reason,created_by) VALUES ($1,$2,$3::jsonb,$4::jsonb,$5,'USER')",[id,p.fieldKey,JSON.stringify(p.automaticValue??null),JSON.stringify(p.manualValue),p.reason??null]);
+    });
+    return Response.json({ok:true});
+  }catch(error){
+    if(error instanceof z.ZodError)return Response.json({error:"Invalid override."},{status:400});
+    return Response.json({error:"Could not save override."},{status:500});
+  }
+}
+
+export async function DELETE(request:Request,context:{params:Promise<{id:string}>}){
+  try{
+    assertSameOrigin(request);
+    const user=await requireUser();
+    const {id}=await context.params;
+    if(!await getStrategyForUser(user.id,id))return Response.json({error:"Not found."},{status:404});
+    const body=await request.json();
+    if(typeof body.fieldKey!=="string")return Response.json({error:"Invalid field."},{status:400});
+    await sql.unsafe("UPDATE overrides SET active=false,restored_at=now(),updated_at=now() WHERE strategy_instance_id=$1 AND field_key=$2 AND active=true",[id,body.fieldKey]);
+    return Response.json({ok:true});
+  }catch{
+    return Response.json({error:"Could not restore automatic value."},{status:500});
+  }
+}

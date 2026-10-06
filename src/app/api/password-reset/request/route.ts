@@ -1,0 +1,24 @@
+import { z } from "zod";
+import { sql } from "@/lib/db";
+import { consumeRateLimit, hashToken, newToken } from "@/lib/security";
+import { getEmailProvider } from "@/lib/email";
+
+const schema = z.object({email:z.string().email()});
+
+export async function POST(request: Request) {
+  try {
+    const input = schema.parse(await request.json());
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    await consumeRateLimit("reset:" + ip, 6, 3600);
+    const rows = await sql.unsafe("SELECT id,email FROM users WHERE lower(email)=lower($1) AND deleted_at IS NULL LIMIT 1",[input.email]);
+    if (rows[0]) {
+      const token = newToken();
+      await sql.unsafe("INSERT INTO auth_tokens (user_id,type,token_hash,expires_at) VALUES ($1,'RESET_PASSWORD',$2,now()+interval '30 minutes')",[rows[0].id,hashToken(token)]);
+      const url = (process.env.NEXT_PUBLIC_APP_URL ?? "") + "/reset-password?token=" + encodeURIComponent(token);
+      await getEmailProvider().send({to:String(rows[0].email),subject:"Reset your password",text:"Reset your password: " + url});
+    }
+    return Response.json({ok:true});
+  } catch {
+    return Response.json({ok:true});
+  }
+}

@@ -1,0 +1,38 @@
+import { describe,expect,it } from "vitest";
+import { simulateSameCashFlows } from "../src/domain/comparison";
+
+describe("same-cash-flow comparison",()=>{
+  it("scales an index to the user's first tracked value",()=>{
+    const result=simulateSameCashFlows({
+      index:[{date:"2026-01-01",value:"100"},{date:"2026-02-01",value:"110"}],
+      anchorDate:"2026-01-01",
+      anchorValue:"1000",
+      flows:[]
+    });
+    expect(result.map(p=>p.value.toFixed(2))).toEqual(["1000.00","1100.00"]);
+  });
+
+  it("applies later contributions to both model and benchmark rather than treating deposits as alpha",()=>{
+    const result=simulateSameCashFlows({
+      index:[
+        {date:"2026-01-01",value:"100"},
+        {date:"2026-02-01",value:"100"},
+        {date:"2026-03-01",value:"110"}
+      ],
+      anchorDate:"2026-01-01",
+      anchorValue:"1000",
+      flows:[{date:"2026-01-15",amount:"500"}]
+    });
+    expect(result.map(p=>p.value.toFixed(2))).toEqual(["1000.00","1500.00","1650.00"]);
+  });
+
+  it("handles withdrawals as negative external cash flows",()=>{
+    const result=simulateSameCashFlows({
+      index:[{date:"2026-01-01",value:"100"},{date:"2026-02-01",value:"100"}],
+      anchorDate:"2026-01-01",
+      anchorValue:"1000",
+      flows:[{date:"2026-01-15",amount:"-200"}]
+    });
+    expect(result.at(-1)?.value.toFixed(2)).toBe("800.00");
+  });
+});

@@ -1,0 +1,3 @@
+import Link from "next/link";
+import { RegisterForm } from "@/components/AuthForms";
+export default function RegisterPage(){return <main className="auth-page"><section className="glass auth-card"><Link href="/" className="brand"><span className="brand-mark"/>StrategyOS</Link><h1>Start simple.</h1><p>Country and base currency are enough to create the account. Strategy-specific details come later, only when needed.</p><RegisterForm/><p className="help">By continuing you acknowledge that this product calculates rules for strategies you select yourself; it does not assess suitability.</p></section></main>;}

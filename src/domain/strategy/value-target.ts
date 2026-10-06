@@ -1,0 +1,60 @@
+import Decimal from "decimal.js";
+import type { EngineContext, ProposedAction, StrategyEngine } from "./types";
+
+function num(config: Record<string, unknown>, key: string, fallback: string) {
+  return new Decimal(String(config[key] ?? fallback));
+}
+function money(v: Decimal) { return v.toDecimalPlaces(2, Decimal.ROUND_HALF_EVEN).toFixed(2); }
+
+export const valueTargetEngine: StrategyEngine = {
+  key: "VALUE_TARGET",
+  validateConfig(config) {
+    if (!String(config.targetExposure ?? "").trim()) throw new Error("VALUE_TARGET_REQUIRES_EXPOSURE");
+    const bounded = ["initialTargetRatio","contributionTargetRatio","maxCashUse","tolerance"] as const;
+    for (const key of bounded) {
+      const value = new Decimal(String(config[key] ?? ({initialTargetRatio:"0.60",contributionTargetRatio:"0.50",maxCashUse:"1",tolerance:"0.01"} as const)[key]));
+      if (!value.isFinite() || value.lt(0) || value.gt(1)) throw new Error("INVALID_VALUE_TARGET_CONFIG:" + key);
+    }
+    const rate = new Decimal(String(config.targetRate ?? "0"));
+    if (!rate.isFinite() || rate.lte("-1") || rate.gt("10")) throw new Error("INVALID_VALUE_TARGET_CONFIG:targetRate");
+    const frequency = String(config.reviewFrequency ?? "QUARTERLY");
+    if (!["MONTHLY","QUARTERLY","ANNUAL"].includes(frequency)) throw new Error("INVALID_VALUE_TARGET_CONFIG:reviewFrequency");
+    const cutoff = String(config.reviewCutoffLocal ?? "16:00");
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(cutoff)) throw new Error("INVALID_VALUE_TARGET_CONFIG:reviewCutoffLocal");
+  },
+  calculate(ctx: EngineContext): ProposedAction {
+    if (ctx.dataHealth.status !== "CURRENT") {
+      return { actionType:"DATA_REQUIRED",title:"Data needs attention",instruction:ctx.dataHealth.message ?? "Current source data is not reliable enough to calculate a financial action.",explanation:[{label:"Data status",value:ctx.dataHealth.status,kind:"text"}],nextState:ctx.state,confidence:"LOW",dueAt:ctx.nextReviewAt };
+    }
+    if (!ctx.reviewDue) {
+      return { actionType:"NO_ACTION",title:"Everything is on track",instruction:"No strategy review is due yet.",explanation:ctx.nextReviewAt?[{label:"Next review",value:ctx.nextReviewAt.toISOString(),kind:"text"}]:[],nextState:ctx.state,confidence:"HIGH",dueAt:ctx.nextReviewAt };
+    }
+
+    const exposureKey=String(ctx.config.targetExposure ?? "");
+    const exposure=ctx.exposures.find((x)=>x.economicExposure===exposureKey);
+    const current=exposure?.value ?? new Decimal(0);
+    const isInitial=ctx.state.targetValue == null;
+    const previousTarget=new Decimal(String(ctx.state.targetValue ?? current.toString()));
+    const target=isInitial
+      ? current.plus(ctx.cash).mul(num(ctx.config,"initialTargetRatio","0.60"))
+      : previousTarget.mul(new Decimal(1).plus(num(ctx.config,"targetRate","0"))).plus(ctx.contributionsSinceReview.mul(num(ctx.config,"contributionTargetRatio","0")));
+    const gap=target.minus(current);
+    const threshold=target.abs().mul(num(ctx.config,"tolerance","0.01"));
+    const explanation=[
+      {label:"Current strategy value",value:money(current),kind:"money" as const},
+      {label:isInitial?"Initial target":"Review target",value:money(target),kind:"money" as const},
+      {label:"New contributions",value:money(ctx.contributionsSinceReview),kind:"money" as const},
+      {label:"Calculated adjustment",value:money(gap),kind:"money" as const}
+    ];
+    const nextState={...ctx.state,targetValue:target.toString(),lastCalculatedAt:ctx.now.toISOString()};
+
+    if(gap.abs().lte(threshold)) return {actionType:"HOLD",title:"No trade required",instruction:"The current exposure is within the strategy tolerance.",explanation,nextState,confidence:"HIGH",dueAt:ctx.now};
+    if(gap.gt(0)){
+      const amount=Decimal.min(gap,ctx.cash.mul(num(ctx.config,"maxCashUse","1")));
+      if(amount.lte(0)) return {actionType:"DATA_REQUIRED",title:"Contribution or cash is required",instruction:"The strategy calls for more exposure, but there is no available cash recorded.",explanation,nextState:ctx.state,confidence:"HIGH",dueAt:ctx.now};
+      return {actionType:"BUY",title:"Buy "+money(amount)+" of the target exposure",instruction:"Under the strategy rules you selected, add "+money(amount)+" "+ctx.baseCurrency+" of "+exposureKey+" exposure.",amount,currency:ctx.baseCurrency,economicExposure:exposureKey,explanation,nextState,confidence:"HIGH",dueAt:ctx.now};
+    }
+    const amount=gap.abs();
+    return {actionType:"SELL",title:"Sell "+money(amount)+" of the target exposure",instruction:"Under the strategy rules you selected, reduce "+exposureKey+" exposure by "+money(amount)+" "+ctx.baseCurrency+".",amount,currency:ctx.baseCurrency,economicExposure:exposureKey,explanation,nextState,confidence:"HIGH",dueAt:ctx.now};
+  }
+};
