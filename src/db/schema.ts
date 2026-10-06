@@ -46,6 +46,7 @@ export const plans = pgTable("plans", {
   description: text("description").notNull().default(""),
   monthlyPriceMinor: integer("monthly_price_minor").notNull().default(0),
   annualPriceMinor: integer("annual_price_minor").notNull().default(0),
+  annualDiscountBps: integer("annual_discount_bps").notNull().default(0),
   billingCurrency: text("billing_currency").notNull().default("GBP"),
   supportedBillingCurrencies: jsonb("supported_billing_currencies").notNull().default(["GBP"]),
   stripeMonthlyPriceId: text("stripe_monthly_price_id"),
@@ -58,6 +59,15 @@ export const plans = pgTable("plans", {
   archived: boolean("archived").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
   ...timestamps
+});
+
+export const billingWebhookEvents = pgTable("billing_webhook_events", {
+  eventId: text("event_id").primaryKey(),
+  eventType: text("event_type").notNull(),
+  status: text("status").notNull().default("PROCESSING"),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  lastErrorCode: text("last_error_code"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
 export const subscriptions = pgTable("subscriptions", {
@@ -291,7 +301,7 @@ export const notifications = pgTable("notifications", {
   body: text("body").notNull(),
   readAt: timestamp("read_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [index("notification_user_idx").on(t.userId, t.readAt, t.createdAt)]);
+}, (t) => [index("notification_user_idx").on(t.userId, t.readAt, t.createdAt), uniqueIndex("notification_action_unique").on(t.actionId)]);
 
 export const notificationEndpoints = pgTable("notification_endpoints", {
   id: uuid("id").primaryKey().defaultRandom(),
