@@ -4,7 +4,7 @@ import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
-import { ContributionForm, ExecuteAction, OpeningSnapshotForm, RecalculateButton, ReconcileForm, StrategyLifecycleControls } from "@/components/StrategyActions";
+import { ContributionForm, ExecuteAction, OpeningSnapshotForm, RecalculateButton, ReconcileForm, StrategyLifecycleControls, StrategyVersionUpgrade } from "@/components/StrategyActions";
 
 export default async function StrategyPage({params}:{params:Promise<{id:string}>}){
   const user=await requireUser();
@@ -73,6 +73,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   const latestValue=actualPoints.at(-1);
   const explanation=Array.isArray(action?.explanation)?action.explanation:[];
   const needsOpeningSnapshot=Boolean(s.state?.resumeNeedsReconciliation);
+  const hasVersionUpdate=Boolean(s.latest_version_id)&&String(s.latest_version_id)!==String(s.strategy_version_id);
 
   return <>
     <div className="page-title">
@@ -107,6 +108,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
       </section>
     </div>
 
+    {hasVersionUpdate&&<StrategyVersionUpgrade id={id} currentVersion={String(s.version)} targetVersionId={String(s.latest_version_id)} targetVersion={String(s.latest_version)} releaseNotes={s.latest_release_notes?String(s.latest_release_notes):null} upgradePolicy={String(s.latest_upgrade_policy??"OPTIONAL")} inputSchema={Array.isArray(s.latest_input_schema)?s.latest_input_schema:[]} currentSettings={(s.settings??{}) as Record<string,unknown>}/>}
     {needsOpeningSnapshot&&<section className="glass form-card" style={{marginTop:16}}>
       <div className="eyebrow">Quick Resume</div><h3>Enter your current holdings snapshot</h3>
       <p className="help">Actions remain blocked until current cash and holdings are recorded.</p>

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-function useAdminSubmit(url:string,method:"PUT"|"POST"="PUT"){
+function useAdminSubmit(url:string,method:"PUT"|"POST"|"PATCH"="PUT"){
   const router=useRouter();const[message,setMessage]=useState("");
   async function submit(payload:unknown){
     setMessage("");
@@ -70,9 +70,49 @@ export function StrategyVersionEditor(){
   const {submit,message}=useAdminSubmit("/api/admin/strategies","POST");const[error,setError]=useState("");
   return <form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();setError("");const f=new FormData(e.currentTarget);try{await submit({
     strategyKey:f.get("strategyKey"),version:f.get("version"),effectiveFrom:f.get("effectiveFrom"),effectiveTo:f.get("effectiveTo")||null,
-    config:json(String(f.get("config")),{}),disclosure:f.get("disclosure")??""
-  });}catch{setError("Configuration must be valid JSON.");}}}>
-    <h3>Create immutable strategy version</h3><div className="form-grid"><div className="field"><label>Strategy key</label><input name="strategyKey" required/></div><div className="field"><label>Version</label><input name="version" placeholder="1.1" required/></div><div className="field"><label>Effective from</label><input name="effectiveFrom" type="date" required/></div><div className="field"><label>Effective to</label><input name="effectiveTo" type="date"/></div><div className="field full"><label>Config JSON</label><textarea name="config" rows={7} defaultValue="{}"/></div><div className="field full"><label>Disclosure</label><textarea name="disclosure" rows={3}/></div></div><button className="button primary" style={{marginTop:16}}>Create version</button>{(error||message)&&<div className={error?"error":"success"}>{error||message}</div>}
+    engineKey:f.get("engineKey")||undefined,upgradePolicy:f.get("upgradePolicy"),
+    inputSchema:json(String(f.get("inputSchema")),[]),config:json(String(f.get("config")),{}),
+    disclosure:f.get("disclosure")??"",releaseNotes:f.get("releaseNotes")??""
+  });}catch{setError("Configuration and input schema must be valid JSON.");}}}>
+    <h3>Create strategy release draft</h3><div className="form-grid">
+      <div className="field"><label>Strategy key</label><input name="strategyKey" required/></div>
+      <div className="field"><label>Version</label><input name="version" placeholder="1.1" required/></div>
+      <div className="field"><label>Effective from</label><input name="effectiveFrom" type="date" required/></div>
+      <div className="field"><label>Effective to</label><input name="effectiveTo" type="date"/></div>
+      <div className="field"><label>Engine override</label><select name="engineKey"><option value="">Use definition default</option><option>VALUE_TARGET</option><option>FIXED_ALLOCATION</option></select></div>
+      <div className="field"><label>Upgrade policy</label><select name="upgradePolicy"><option>OPTIONAL</option><option>RECOMMENDED</option><option>REQUIRED</option></select></div>
+      <div className="field full"><label>Strategy-specific onboarding fields JSON</label><textarea name="inputSchema" rows={5} defaultValue="[]"/></div>
+      <div className="field full"><label>Config JSON</label><textarea name="config" rows={7} defaultValue="{}"/></div>
+      <div className="field full"><label>Release notes</label><textarea name="releaseNotes" rows={3}/></div>
+      <div className="field full"><label>Disclosure</label><textarea name="disclosure" rows={3}/></div>
+    </div><button className="button primary" style={{marginTop:16}}>Create draft</button>{(error||message)&&<div className={error?"error":"success"}>{error||message}</div>}
+  </form>;
+}
+
+export function StrategyVersionManager(){
+  const {submit,message}=useAdminSubmit("/api/admin/strategies","PATCH");const[error,setError]=useState("");
+  return <form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();setError("");const f=new FormData(e.currentTarget);const action=String(f.get("action"));try{
+    if(action==="UPDATE_DRAFT")await submit({
+      action,versionId:f.get("versionId"),effectiveFrom:f.get("effectiveFrom")||undefined,effectiveTo:f.get("effectiveTo")||undefined,
+      engineKey:f.get("engineKey")||undefined,upgradePolicy:f.get("upgradePolicy")||undefined,
+      inputSchema:String(f.get("inputSchema")).trim()?json(String(f.get("inputSchema")),[]):undefined,
+      config:String(f.get("config")).trim()?json(String(f.get("config")),{}):undefined,
+      disclosure:f.get("disclosure")||undefined,releaseNotes:f.get("releaseNotes")||undefined
+    });
+    else await submit({action,versionId:f.get("versionId")});
+  }catch{setError("Draft configuration must be valid JSON.");}}}>
+    <h3>Manage strategy release</h3><div className="form-grid">
+      <div className="field full"><label>Version UUID</label><input name="versionId" required/></div>
+      <div className="field"><label>Action</label><select name="action"><option>UPDATE_DRAFT</option><option>PUBLISH</option><option>RETIRE</option></select></div>
+      <div className="field"><label>Engine override (draft only)</label><select name="engineKey"><option value="">Keep current</option><option>VALUE_TARGET</option><option>FIXED_ALLOCATION</option></select></div>
+      <div className="field"><label>Effective from (draft only)</label><input name="effectiveFrom" type="date"/></div>
+      <div className="field"><label>Effective to (draft only)</label><input name="effectiveTo" type="date"/></div>
+      <div className="field"><label>Upgrade policy (draft only)</label><select name="upgradePolicy"><option value="">Keep current</option><option>OPTIONAL</option><option>RECOMMENDED</option><option>REQUIRED</option></select></div>
+      <div className="field full"><label>Input schema JSON (blank = keep current)</label><textarea name="inputSchema" rows={4}/></div>
+      <div className="field full"><label>Config JSON (blank = keep current)</label><textarea name="config" rows={6}/></div>
+      <div className="field full"><label>Release notes (blank = keep current)</label><textarea name="releaseNotes" rows={2}/></div>
+      <div className="field full"><label>Disclosure (blank = keep current)</label><textarea name="disclosure" rows={2}/></div>
+    </div><button className="button primary" style={{marginTop:16}}>Apply release action</button>{(error||message)&&<div className={error?"error":"success"}>{error||message}</div>}
   </form>;
 }
 
