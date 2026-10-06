@@ -122,8 +122,14 @@ export async function PATCH(request:Request){
         [current.strategy_definition_id,current.effective_from,p.versionId]
       );
       if(duplicate[0])return Response.json({error:"Another published version already has that effective date."},{status:409});
-      await sql.unsafe("UPDATE strategy_versions SET lifecycle_status='PUBLISHED',published_at=now() WHERE id=$1",[p.versionId]);
-      await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id) VALUES ($1,'strategy-version.published','strategy_version',$2)",[admin.id,p.versionId]);
+      await sql.begin(async(tx)=>{
+        await tx.unsafe("UPDATE strategy_versions SET lifecycle_status='PUBLISHED',published_at=now() WHERE id=$1",[p.versionId]);
+        await tx.unsafe(
+          "INSERT INTO notifications (user_id,type,title,body) SELECT DISTINCT i.user_id,'STRATEGY_VERSION',$1,$2 FROM strategy_instances i WHERE i.strategy_definition_id=$3 AND i.strategy_version_id<>$4 AND i.status IN ('ACTIVE','PAUSED')",
+          ["Strategy update available: "+String(current.strategy_key)+" v"+String(current.version),String(current.release_notes||"A new strategy rules version is available to review."),current.strategy_definition_id,p.versionId]
+        );
+        await tx.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id) VALUES ($1,'strategy-version.published','strategy_version',$2)",[admin.id,p.versionId]);
+      });
       return Response.json({ok:true,status:"PUBLISHED"});
     }
 
