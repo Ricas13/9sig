@@ -53,7 +53,7 @@ CI additionally applies the migration twice to prove idempotency, seeds a fresh 
 
 ## Stripe test setup
 
-Create monthly and annual Stripe Prices for the Investor and Pro plans. Put the Price IDs into the plan records through the admin API. Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, then point Stripe to POST /api/stripe/webhook.
+Create monthly and annual Stripe Prices for each supported billing currency. Put those Price IDs into plan price records through the admin panel/API. Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, then point Stripe to POST /api/stripe/webhook.
 
 The webhook is the authority for paid subscription status. Feature access comes from the canonical entitlement service, not scattered Stripe checks.
 
@@ -63,7 +63,7 @@ In-app notifications exist on every plan. Investor and Pro may use Email and Dis
 
 ## Market data
 
-src/lib/market-data.ts defines the provider interface. Production returns unavailable data unless a real provider is configured. Financial action calculation fails closed on missing or stale critical data.
+src/lib/market-data.ts defines the provider interface. The built-in production adapter accepts a configured HTTPS quote service via MARKET_DATA_PROVIDER=http, MARKET_DATA_HTTP_BASE_URL and MARKET_DATA_HTTP_TOKEN. It expects GET /quote?symbol=... and GET /historical?symbol=...&at=... responses containing price, three-letter currency and an offset-aware observedAt timestamp. The hourly worker refreshes active holdings/mappings before action calculation. If no licensed provider is configured, financial actions fail closed on missing or stale critical data.
 
 ## Deployment
 
