@@ -10,8 +10,8 @@ export default defineConfig({
     trace: "retain-on-failure"
   },
   projects: [
-    { name: "mobile-chromium", use: { ...devices["iPhone 13"] } },
-    { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } }
+    { name: "mobile-chromium", use: { ...devices["iPhone 13"], browserName: "chromium" } },
+    { name: "desktop-chromium", use: { ...devices["Desktop Chrome"], browserName: "chromium" } }
   ],
   webServer: {
     command: "npm run start",

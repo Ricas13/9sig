@@ -12,7 +12,7 @@ function nextReview(start: Date, frequency: string) { const d=new Date(start); i
 export async function calculateAction(strategyInstanceId:string){
   const rows=await sql.unsafe("SELECT i.id,i.user_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,d.engine,v.config,a.country,a.wrapper,a.currency,a.broker_name,s.state FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
   const instance=rows[0];if(!instance)throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
-  const ledgerRows=await sql.unsafe("SELECT event_type,cash_amount,fee_amount,instrument_id,quantity,occurred_at FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",[strategyInstanceId]);
+  const ledgerRows=await sql.unsafe("SELECT event_type,cash_amount,fee_amount,instrument_id,quantity,occurred_at,created_at FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",[strategyInstanceId]);
   const folded=foldLedger(ledgerRows.map((r)=>({eventType:String(r.event_type),cashAmount:String(r.cash_amount),feeAmount:String(r.fee_amount),instrumentId:r.instrument_id?String(r.instrument_id):null,quantity:String(r.quantity)})));
   const config=(instance.config??{}) as Record<string,unknown>;
   const state={...((instance.state??{}) as Record<string,unknown>)};
@@ -44,8 +44,9 @@ export async function calculateAction(strategyInstanceId:string){
   const dueAt=nextReview(lastReview,frequency);
   const reviewDue=Boolean(state.forceReview)||new Date()>=dueAt;
   const contributionRows=await sql.unsafe("SELECT COALESCE(sum(cash_amount),0) AS amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' AND occurred_at>$2",[strategyInstanceId,lastReview]);
+  const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0));
   const engine=getStrategyEngine(String(instance.engine));
-  let proposal=engine.calculate({strategyInstanceId,strategyVersionId:String(instance.strategy_version_id),now:new Date(),baseCurrency:String(instance.currency),cash:folded.cash,exposures:exposurePositions,contributionsSinceReview:new Decimal(String(contributionRows[0]?.amount??0)),state,config,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
+  let proposal=engine.calculate({strategyInstanceId,strategyVersionId:String(instance.strategy_version_id),now:new Date(),baseCurrency:String(instance.currency),cash:folded.cash,exposures:exposurePositions,contributionsSinceReview,state,config,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
 
   let tradingLineId:string|null=null;
   if(proposal.economicExposure&&["BUY","SELL","REBALANCE"].includes(proposal.actionType)){
@@ -57,7 +58,12 @@ export async function calculateAction(strategyInstanceId:string){
     else tradingLineId=mapping.tradingLineId;
   }
 
-  const material=[strategyInstanceId,String(instance.strategy_version_id),proposal.actionType,proposal.title,proposal.amount?.toString()??"",proposal.dueAt?.toISOString()??""].join("|");
+  const stablePositions=exposurePositions.map((p)=>p.economicExposure+":"+p.value.toString()+":"+(p.tradingLineId??"")).sort().join(",");
+  const material=[
+    strategyInstanceId,String(instance.strategy_version_id),lastReview.toISOString(),proposal.actionType,
+    proposal.amount?.toString()??"",proposal.currency??"",proposal.economicExposure??"",tradingLineId??"",
+    folded.cash.toString(),contributionsSinceReview.toString(),stablePositions,dataStatus
+  ].join("|");
   const fingerprint=crypto.createHash("sha256").update(material).digest("hex");
   const nextState=["BUY","SELL","REBALANCE","HOLD"].includes(proposal.actionType)?{...proposal.nextState,lastReviewAt:new Date().toISOString(),forceReview:false}:proposal.nextState;
   const totalValue=exposurePositions.reduce((sum,p)=>sum.plus(p.value),folded.cash);
@@ -65,9 +71,9 @@ export async function calculateAction(strategyInstanceId:string){
   const inserted=await sql.unsafe("INSERT INTO actions (strategy_instance_id,strategy_version_id,fingerprint,action_type,status,title,instruction,amount,currency,trading_line_id,explanation,next_state,confidence,due_at) VALUES ($1,$2,$3,$4,'CALCULATED',$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13) ON CONFLICT (strategy_instance_id,fingerprint) DO UPDATE SET updated_at=now() RETURNING id",[strategyInstanceId,instance.strategy_version_id,fingerprint,proposal.actionType,proposal.title,proposal.instruction,proposal.amount?.toString()??null,proposal.currency??null,tradingLineId,JSON.stringify(proposal.explanation),JSON.stringify(nextState),proposal.confidence,proposal.dueAt??null]);
   const actionId=String(inserted[0].id);
   await sql.unsafe("UPDATE actions SET status='SUPERSEDED',superseded_by_action_id=$1,updated_at=now() WHERE strategy_instance_id=$2 AND id<>$1 AND status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') AND action_type<>'NO_ACTION'",[actionId,strategyInstanceId]);
-  await sql.unsafe("UPDATE strategy_instances SET health_status=$1,updated_at=now() WHERE id=$2",[dataStatus==="CURRENT"?"HEALTHY":"NEEDS_ATTENTION",strategyInstanceId]);
-  const existingNotification=await sql.unsafe("SELECT id FROM notifications WHERE action_id=$1 LIMIT 1",[actionId]);
-  if(!existingNotification[0]&&proposal.actionType!=="NO_ACTION")await sql.unsafe("INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION',$3,$4)",[instance.user_id,actionId,proposal.title,proposal.instruction]);
+  const healthy=dataStatus==="CURRENT"&&proposal.actionType!=="DATA_REQUIRED";
+  await sql.unsafe("UPDATE strategy_instances SET health_status=$1,updated_at=now() WHERE id=$2",[healthy?"HEALTHY":"NEEDS_ATTENTION",strategyInstanceId]);
+  if(proposal.actionType!=="NO_ACTION")await sql.unsafe("INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION',$3,$4) ON CONFLICT DO NOTHING",[instance.user_id,actionId,proposal.title,proposal.instruction]);
   return {actionId,proposal,totalValue:totalValue.toString()};
 }
 
