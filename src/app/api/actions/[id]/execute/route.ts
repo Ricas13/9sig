@@ -28,7 +28,8 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       EXECUTION_NOTIONAL_MISMATCH:"The actual fill differs too much from the calculated action. Recalculate before confirming it.",
       INSUFFICIENT_CASH:"This execution would use more cash than the strategy ledger currently has.",
       INSUFFICIENT_HOLDINGS:"This execution would sell more units than the strategy ledger currently holds.",
-      EXECUTION_CURRENCY_MISMATCH:"The execution currency does not match the account currency."
+      EXECUTION_CURRENCY_MISMATCH:"The execution currency does not match the account currency.",
+      EXECUTION_TRADING_LINE_REQUIRED:"This action is missing its exchange/trading-line identity. Recalculate it before confirming execution."
     };
     return Response.json({error:messages[code]??"Could not complete this action."},{status:400});
   }
