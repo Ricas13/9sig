@@ -4,7 +4,7 @@ import { valueTargetEngine } from "../src/domain/strategy/value-target";
 
 const base={
   strategyInstanceId:"i",strategyVersionId:"v",now:new Date("2026-10-01T12:00:00Z"),baseCurrency:"GBP",
-  cash:new Decimal(4000),exposures:[],contributionsSinceReview:new Decimal(10000),state:{forceReview:true},
+  cash:new Decimal(4000),exposures:[],contributionsSinceReview:new Decimal(10000),state:{forceReview:true},settings:{},
   config:{targetExposure:"NASDAQ_100_3X_LONG",initialTargetRatio:"0.60",targetRate:"0.09",contributionTargetRatio:"0.50",maxCashUse:"0.90",tolerance:"0.01"},
   reviewDue:true,nextReviewAt:new Date("2026-10-01T12:00:00Z"),dataHealth:{status:"CURRENT" as const}
 };
