@@ -22,6 +22,7 @@ export type EngineContext = {
   contributionsSinceReview: Decimal;
   state: Record<string, unknown>;
   config: Record<string, unknown>;
+  settings: Record<string, unknown>;
   reviewDue: boolean;
   nextReviewAt?: Date | null;
   dataHealth: DataHealth;
@@ -48,5 +49,6 @@ export type ProposedAction = {
 
 export interface StrategyEngine {
   key: string;
+  validateConfig(config: Record<string, unknown>): void;
   calculate(ctx: EngineContext): ProposedAction;
 }

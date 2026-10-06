@@ -119,8 +119,14 @@ export const strategyVersions = pgTable("strategy_versions", {
   version: text("version").notNull(),
   effectiveFrom: date("effective_from").notNull(),
   effectiveTo: date("effective_to"),
+  engineKey: text("engine_key").notNull(),
+  lifecycleStatus: text("lifecycle_status").notNull().default("DRAFT"),
+  upgradePolicy: text("upgrade_policy").notNull().default("OPTIONAL"),
+  inputSchema: jsonb("input_schema").notNull().default([]),
   config: jsonb("config").notNull(),
   disclosure: text("disclosure").notNull().default(""),
+  releaseNotes: text("release_notes").notNull().default(""),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (t) => [
   uniqueIndex("strategy_version_unique").on(t.strategyDefinitionId, t.version),
@@ -152,11 +158,23 @@ export const strategyInstances = pgTable("strategy_instances", {
   closedAt: timestamp("closed_at", { withTimezone: true }),
   healthStatus: text("health_status").notNull().default("NEEDS_ATTENTION"),
   lastReconciledAt: timestamp("last_reconciled_at", { withTimezone: true }),
+  settings: jsonb("settings").notNull().default({}),
   ...timestamps
 }, (t) => [
   index("strategy_instances_user_idx").on(t.userId, t.status),
   index("strategy_instances_definition_idx").on(t.strategyDefinitionId, t.status)
 ]);
+
+export const strategyVersionMigrations = pgTable("strategy_version_migrations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  strategyInstanceId: uuid("strategy_instance_id").notNull().references(() => strategyInstances.id, { onDelete: "cascade" }),
+  fromVersionId: uuid("from_version_id").notNull().references(() => strategyVersions.id),
+  toVersionId: uuid("to_version_id").notNull().references(() => strategyVersions.id),
+  stateBefore: jsonb("state_before").notNull().default({}),
+  stateAfter: jsonb("state_after").notNull().default({}),
+  migratedBy: text("migrated_by").notNull(),
+  migratedAt: timestamp("migrated_at", { withTimezone: true }).notNull().defaultNow()
+}, (t) => [index("strategy_version_migration_instance_idx").on(t.strategyInstanceId, t.migratedAt)]);
 
 export const strategyStates = pgTable("strategy_states", {
   strategyInstanceId: uuid("strategy_instance_id").primaryKey().references(() => strategyInstances.id, { onDelete: "cascade" }),
