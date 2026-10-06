@@ -25,8 +25,8 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     [s.strategy_version_id]
   );
   const externalFlows=await sql.unsafe(
-    "SELECT occurred_at::date AS date,cash_amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('CONTRIBUTION','WITHDRAWAL') ORDER BY occurred_at,created_at",
-    [id]
+    "SELECT occurred_at::date AS date,cash_amount FROM ledger_events WHERE strategy_instance_id=$1 AND currency=$2 AND event_type IN ('CONTRIBUTION','WITHDRAWAL') ORDER BY occurred_at,created_at",
+    [id,s.currency]
   );
 
   const byDate=new Map<string,{date:string;actual?:number;model?:number;benchmark?:number}>();
@@ -68,9 +68,9 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   }
 
   const chartData=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
-  const contributions=await sql.unsafe("SELECT id,occurred_at,cash_amount,provenance,confidence FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' ORDER BY occurred_at DESC LIMIT 8",[id]);
+  const contributions=await sql.unsafe("SELECT id,occurred_at,cash_amount,provenance,confidence FROM ledger_events WHERE strategy_instance_id=$1 AND currency=$2 AND event_type='CONTRIBUTION' ORDER BY occurred_at DESC LIMIT 8",[id,s.currency]);
   const reconciliations=await sql.unsafe("SELECT occurred_at,expected_value,broker_reported_value,difference,reason FROM reconciliations WHERE strategy_instance_id=$1 ORDER BY occurred_at DESC LIMIT 5",[id]);
-  const cashEvents=await sql.unsafe("SELECT id,occurred_at,event_type,cash_amount,fee_amount,metadata FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('WITHDRAWAL','DIVIDEND','DISTRIBUTION','INTEREST','FEE','TAX') ORDER BY occurred_at DESC,created_at DESC LIMIT 12",[id]);
+  const cashEvents=await sql.unsafe("SELECT id,occurred_at,event_type,cash_amount,fee_amount,metadata FROM ledger_events WHERE strategy_instance_id=$1 AND currency=$2 AND event_type IN ('WITHDRAWAL','DIVIDEND','DISTRIBUTION','INTEREST','FEE','TAX') ORDER BY occurred_at DESC,created_at DESC LIMIT 12",[id,s.currency]);
   const latestValue=actualPoints.at(-1);
   const explanation=Array.isArray(action?.explanation)?action.explanation:[];
   const needsOpeningSnapshot=Boolean(s.state?.resumeNeedsReconciliation);
