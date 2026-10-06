@@ -49,7 +49,7 @@ export function validateInstanceSettings(schema: StrategyInputField[], raw: Reco
   const result: Record<string, unknown> = {};
 
   for (const field of schema) {
-    let value = input[field.key] ?? field.default;
+    const value = input[field.key] ?? field.default;
     const missing = value === undefined || value === null || value === "";
     if (missing) {
       if (field.required) throw new Error("MISSING_STRATEGY_INPUT:" + field.key);
