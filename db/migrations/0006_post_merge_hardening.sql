@@ -56,3 +56,18 @@ DROP INDEX IF EXISTS notification_action_unique;
 CREATE UNIQUE INDEX IF NOT EXISTS notification_action_type_unique
   ON notifications(action_id,type)
   WHERE action_id IS NOT NULL;
+
+
+WITH ranked AS (
+  SELECT id,row_number() OVER (PARTITION BY strategy_instance_id,field_key ORDER BY created_at DESC,id DESC) AS rn
+  FROM overrides
+  WHERE active=true
+)
+UPDATE overrides o
+SET active=false,restored_at=COALESCE(restored_at,now()),updated_at=now()
+FROM ranked r
+WHERE o.id=r.id AND r.rn>1;
+
+CREATE UNIQUE INDEX IF NOT EXISTS overrides_one_active_unique
+  ON overrides(strategy_instance_id,field_key)
+  WHERE active=true;
