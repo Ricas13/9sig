@@ -137,7 +137,7 @@ export function ModelPerformanceEditor() {
       <div className="field"><label>Source label</label><input name="source" defaultValue="ADMIN" /></div>
       <div className="field"><label>Points JSON</label><textarea name="points" rows={8} defaultValue={'[{"date":"2026-01-02","value":"100","benchmarkValue":"100"}]'} /></div>
       <button className="button primary">Upload model points</button>
-      <div className="help">Values may be any positive canonical index scale. The customer chart replays the user's own cash flows against the index before comparing account values.</div>
+      <div className="help">Values may be any positive canonical index scale. The customer chart replays the user&apos;s own cash flows against the index before comparing account values.</div>
       {(error || message) && <div className={error ? "error" : "success"}>{error || message}</div>}
     </div>
   </form>;
