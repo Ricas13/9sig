@@ -22,7 +22,15 @@ describe("regional instrument resolver",()=>{
     const result=resolveMapping([
       {id:"generic",tradingLineId:"a",...base},
       {id:"specific",tradingLineId:"b",...base,broker:"Example Broker"}
-    ],{economicExposure:base.economicExposure,leverage:base.leverage,direction:"LONG",country:"GB",wrapper:"ISA",broker:"Example Broker",preferredCurrency:"GBP",asOf:"2026-10-01"});
+    ],{economicExposure:base.economicExposure,leverage:base.leverage,direction:"LONG",country:"GB",wrapper:"ISA",broker:"Example Broker",preferredCurrency:"GBP",asOf:"2026-10-01"  it("does not use a broker-specific mapping when no broker is known",()=>{
+    const result=resolveMapping([{id:"specific",tradingLineId:"a",...base,broker:"Example Broker"}],{economicExposure:base.economicExposure,leverage:base.leverage,direction:"LONG",country:"GB",wrapper:"ISA",broker:null,preferredCurrency:"GBP",asOf:"2026-10-01"});
+    expect(result).toBeNull();
+  });
+  it("does not cross a mapping preferred-currency boundary",()=>{
+    const result=resolveMapping([{id:"eur",tradingLineId:"a",...base,preferredCurrency:"EUR",tradingLineCurrency:"GBP"}],{economicExposure:base.economicExposure,leverage:base.leverage,direction:"LONG",country:"GB",wrapper:"ISA",broker:null,preferredCurrency:"GBP",asOf:"2026-10-01"});
+    expect(result).toBeNull();
+  });
+});
     expect(result?.id).toBe("specific");
   });
 

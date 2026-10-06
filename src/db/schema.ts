@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  authVersion: integer("auth_version").notNull().default(1),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   country: text("country").notNull().default("GB"),
   baseCurrency: text("base_currency").notNull().default("GBP"),
@@ -55,6 +56,7 @@ export const plans = pgTable("plans", {
   entitlements: jsonb("entitlements").notNull().default({}),
   availableStrategyKeys: jsonb("available_strategy_keys").notNull().default([]),
   trialDays: integer("trial_days").notNull().default(0),
+  delinquencyGraceDays: integer("delinquency_grace_days").notNull().default(3),
   visible: boolean("visible").notNull().default(true),
   archived: boolean("archived").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -94,6 +96,7 @@ export const subscriptions = pgTable("subscriptions", {
   stripeSubscriptionId: text("stripe_subscription_id").unique(),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  billingGraceUntil: timestamp("billing_grace_until", { withTimezone: true }),
   ...timestamps
 });
 
@@ -243,6 +246,7 @@ export const ledgerEvents = pgTable("ledger_events", {
   currency: text("currency").notNull(),
   cashAmount: numeric("cash_amount", { precision: 24, scale: 8 }).notNull().default("0"),
   instrumentId: uuid("instrument_id").references(() => instruments.id),
+  tradingLineId: uuid("trading_line_id").references(() => tradingLines.id),
   quantity: numeric("quantity", { precision: 30, scale: 12 }).notNull().default("0"),
   unitPrice: numeric("unit_price", { precision: 24, scale: 10 }),
   feeAmount: numeric("fee_amount", { precision: 24, scale: 8 }).notNull().default("0"),
@@ -253,7 +257,8 @@ export const ledgerEvents = pgTable("ledger_events", {
   createdBy: text("created_by").notNull().default("USER"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (t) => [
-  index("ledger_instance_time_idx").on(t.strategyInstanceId, t.occurredAt, t.createdAt)
+  index("ledger_instance_time_idx").on(t.strategyInstanceId, t.occurredAt, t.createdAt),
+  index("ledger_trading_line_idx").on(t.strategyInstanceId, t.tradingLineId)
 ]);
 
 export const reconciliations = pgTable("reconciliations", {
@@ -333,7 +338,7 @@ export const notifications = pgTable("notifications", {
   body: text("body").notNull(),
   readAt: timestamp("read_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [index("notification_user_idx").on(t.userId, t.readAt, t.createdAt), uniqueIndex("notification_action_unique").on(t.actionId)]);
+}, (t) => [index("notification_user_idx").on(t.userId, t.readAt, t.createdAt), uniqueIndex("notification_action_type_unique").on(t.actionId, t.type)]);
 
 export const notificationEndpoints = pgTable("notification_endpoints", {
   id: uuid("id").primaryKey().defaultRandom(),

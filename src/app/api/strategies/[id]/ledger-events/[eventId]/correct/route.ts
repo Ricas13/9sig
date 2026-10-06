@@ -28,11 +28,12 @@ export async function POST(request:Request,context:{params:Promise<{id:string;ev
       if(existing[0])throw new Error("LEDGER_EVENT_ALREADY_CORRECTED");
 
       const inserted=await tx.unsafe(
-        "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,unit_price,fee_amount,provenance,confidence,correction_of_event_id,metadata,created_by)"+
-        " VALUES ($1,now(),'CORRECTION',$2,$3,$4,$5,$6,$7,'USER_CONFIRMED','VERIFIED',$8,$9::jsonb,'USER') RETURNING id",
+        "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,trading_line_id,quantity,unit_price,fee_amount,provenance,confidence,correction_of_event_id,metadata,created_by)"+
+        " VALUES ($1,now(),'CORRECTION',$2,$3,$4,$5,$6,$7,$8,'USER_CONFIRMED','VERIFIED',$9,$10::jsonb,'USER') RETURNING id",
         [
           id,String(original.currency),new Decimal(String(original.cash_amount??0)).neg().toString(),
           original.instrument_id??null,
+          original.trading_line_id??null,
           new Decimal(String(original.quantity??0)).neg().toString(),
           original.unit_price??null,
           new Decimal(String(original.fee_amount??0)).neg().toString(),

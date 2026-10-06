@@ -40,7 +40,8 @@ export function resolveMapping(candidates: MappingCandidate[], request: ResolveR
     c.tradingLineEffectiveFrom <= request.asOf &&
     (!c.tradingLineEffectiveTo || c.tradingLineEffectiveTo >= request.asOf) &&
     (!request.preferredCurrency || c.tradingLineCurrency === request.preferredCurrency) &&
-    (!c.broker || !request.broker || c.broker.toLowerCase() === request.broker.toLowerCase())
+    (!c.preferredCurrency || c.preferredCurrency === request.preferredCurrency) &&
+    (!c.broker || (!!request.broker && c.broker.toLowerCase() === request.broker.toLowerCase()))
   );
 
   return eligible.sort((a,b) => {

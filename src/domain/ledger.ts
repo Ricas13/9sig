@@ -7,6 +7,7 @@ export type LedgerEvent = {
   cashAmount: string | number | Decimal;
   feeAmount?: string | number | Decimal;
   instrumentId?: string | null;
+  tradingLineId?: string | null;
   quantity?: string | number | Decimal;
 };
 
@@ -14,11 +15,13 @@ export type LedgerPosition = {
   cash: Decimal;
   cashByCurrency: Map<string, Decimal>;
   quantities: Map<string, Decimal>;
+  tradingLineQuantities: Map<string, Decimal>;
 };
 
 export function foldLedger(events: LedgerEvent[], baseCurrency?: string): LedgerPosition {
   const cashByCurrency = new Map<string, Decimal>();
   const quantities = new Map<string, Decimal>();
+  const tradingLineQuantities = new Map<string, Decimal>();
 
   for (const event of events) {
     const currency = String(event.currency ?? baseCurrency ?? "__UNSPECIFIED__").toUpperCase();
@@ -29,6 +32,10 @@ export function foldLedger(events: LedgerEvent[], baseCurrency?: string): Ledger
     if (event.instrumentId) {
       const previous = quantities.get(event.instrumentId) ?? new Decimal(0);
       quantities.set(event.instrumentId, previous.plus(new Decimal(event.quantity ?? 0)));
+    }
+    if (event.tradingLineId) {
+      const previousLine = tradingLineQuantities.get(event.tradingLineId) ?? new Decimal(0);
+      tradingLineQuantities.set(event.tradingLineId, previousLine.plus(new Decimal(event.quantity ?? 0)));
     }
   }
 
@@ -41,7 +48,7 @@ export function foldLedger(events: LedgerEvent[], baseCurrency?: string): Ledger
     throw new Error("BASE_CURRENCY_REQUIRED_FOR_MULTI_CURRENCY_LEDGER");
   }
 
-  return { cash, cashByCurrency, quantities };
+  return { cash, cashByCurrency, quantities, tradingLineQuantities };
 }
 
 export function monetary(value: Decimal.Value, dp = 2) {

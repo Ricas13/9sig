@@ -12,8 +12,8 @@ function isoDate(value: unknown) { return value instanceof Date ? value.toISOStr
 export async function calculateAction(strategyInstanceId:string){
   const rows=await sql.unsafe("SELECT i.id,i.user_id,i.strategy_definition_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,v.effective_from AS version_effective_from,v.engine_key AS engine,v.config,i.settings,a.country,a.wrapper,a.currency,a.broker_name,s.state,u.timezone AS user_timezone FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN users u ON u.id=i.user_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
   const instance=rows[0];if(!instance)throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
-  const ledgerRows=await sql.unsafe("SELECT event_type,currency,cash_amount,fee_amount,instrument_id,quantity,occurred_at,created_at FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",[strategyInstanceId]);
-  const folded=foldLedger(ledgerRows.map((r)=>({eventType:String(r.event_type),currency:String(r.currency),cashAmount:String(r.cash_amount),feeAmount:String(r.fee_amount),instrumentId:r.instrument_id?String(r.instrument_id):null,quantity:String(r.quantity)})),String(instance.currency));
+  const ledgerRows=await sql.unsafe("SELECT event_type,currency,cash_amount,fee_amount,instrument_id,trading_line_id,quantity,occurred_at,created_at FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",[strategyInstanceId]);
+  const folded=foldLedger(ledgerRows.map((r)=>({eventType:String(r.event_type),currency:String(r.currency),cashAmount:String(r.cash_amount),feeAmount:String(r.fee_amount),instrumentId:r.instrument_id?String(r.instrument_id):null,tradingLineId:r.trading_line_id?String(r.trading_line_id):null,quantity:String(r.quantity)})),String(instance.currency));
   const config=(instance.config??{}) as Record<string,unknown>;
   const state={...((instance.state??{}) as Record<string,unknown>)};
   const requiredRelease=await sql.unsafe(
@@ -23,34 +23,75 @@ export async function calculateAction(strategyInstanceId:string){
   const targetOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key='strategy_state.targetValue' AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId]);
   if(targetOverride[0]?.manual_value!=null) state.targetValue=String(targetOverride[0].manual_value);
 
-  const exposurePositions:Array<{economicExposure:string;value:Decimal;tradingLineId?:string}>=[];
+  const linePositions:Array<{economicExposure:string;value:Decimal;tradingLineId:string}>=[];
   const foreignCash=[...folded.cashByCurrency.entries()].filter(([currency,value])=>currency!==String(instance.currency).toUpperCase()&&!value.eq(0));
   let dataStatus:"CURRENT"|"STALE"|"MISSING"=state.resumeNeedsReconciliation||state.unresolvedReconciliation?"MISSING":"CURRENT";
   let dataMessage=state.resumeNeedsReconciliation?"Quick resume needs an opening holdings snapshot before a high-confidence action can be calculated.":state.unresolvedReconciliation?"An unresolved broker discrepancy must be classified before financial actions resume.":undefined;
   if(foreignCash.length){dataStatus="MISSING";dataMessage="Foreign-currency cash is present. An explicit FX conversion is required before financial actions can resume.";}
   if(requiredRelease[0]){dataStatus="MISSING";dataMessage="Strategy version "+String(requiredRelease[0].version)+" is a required rules update. Update this strategy before new financial actions are calculated.";}
 
-  for(const [instrumentId,quantity] of folded.quantities.entries()){
+  const unresolvedLines=await sql.unsafe(
+    "SELECT instrument_id,sum(quantity) AS quantity FROM ledger_events WHERE strategy_instance_id=$1 AND instrument_id IS NOT NULL AND trading_line_id IS NULL GROUP BY instrument_id HAVING sum(quantity)<>0",
+    [strategyInstanceId]
+  );
+  if(unresolvedLines.length){
+    dataStatus="MISSING";
+    dataMessage="A held position is missing its trading line/exchange identity. Reconcile the holding before financial actions resume.";
+  }
+
+  for(const [tradingLineId,quantity] of folded.tradingLineQuantities.entries()){
     if(quantity.eq(0))continue;
-    const market=await sql.unsafe("SELECT i.economic_exposure,o.price,o.observed_at,o.currency AS observation_currency,tl.currency AS trading_currency,tl.id AS trading_line_id FROM instruments i LEFT JOIN trading_lines tl ON tl.instrument_id=i.id AND tl.effective_from<=current_date AND (tl.effective_to IS NULL OR tl.effective_to>=current_date) LEFT JOIN LATERAL (SELECT price,observed_at,currency FROM market_data_observations m WHERE m.trading_line_id=tl.id ORDER BY observed_at DESC LIMIT 1) o ON true WHERE i.id=$1 LIMIT 1",[instrumentId]);
+    const market=await sql.unsafe(
+      "SELECT i.id AS instrument_id,i.economic_exposure,o.price,o.observed_at,o.currency AS observation_currency,tl.currency AS trading_currency "+
+      "FROM trading_lines tl JOIN instruments i ON i.id=tl.instrument_id "+
+      "LEFT JOIN LATERAL (SELECT price,observed_at,currency FROM market_data_observations m WHERE m.trading_line_id=tl.id ORDER BY observed_at DESC LIMIT 1) o ON true "+
+      "WHERE tl.id=$1 AND tl.effective_from<=current_date AND (tl.effective_to IS NULL OR tl.effective_to>=current_date) LIMIT 1",
+      [tradingLineId]
+    );
     const m=market[0];
-    const priceOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key=$2 AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId,"market_price:"+instrumentId]);
-    const priceCurrency=String(m?.observation_currency??m?.trading_currency??"");
-    if(priceCurrency&&priceCurrency!==String(instance.currency)){
+    if(!m){
+      dataStatus="MISSING";dataMessage="A held trading line is no longer configured as active.";continue;
+    }
+    const priceOverride=await sql.unsafe(
+      "SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key IN ($2,$3) AND active=true ORDER BY CASE WHEN field_key=$2 THEN 0 ELSE 1 END,created_at DESC LIMIT 1",
+      [strategyInstanceId,"market_price:"+tradingLineId,"market_price:"+String(m.instrument_id)]
+    );
+    const priceCurrency=String(m.observation_currency??m.trading_currency??"").toUpperCase();
+    if(priceCurrency&&priceCurrency!==String(instance.currency).toUpperCase()){
       dataStatus="MISSING";
       dataMessage="FX conversion is required for a held instrument; actions are suppressed until an explicit FX source is configured.";
       continue;
     }
-    const manualPrice=priceOverride[0]?.manual_value==null?null:new Decimal(String(priceOverride[0].manual_value));
-    if(manualPrice){
-      exposurePositions.push({economicExposure:String(m?.economic_exposure??""),value:quantity.mul(manualPrice),tradingLineId:m?.trading_line_id?String(m.trading_line_id):undefined});
-      continue;
+    let manualPrice:Decimal|null=null;
+    if(priceOverride[0]?.manual_value!=null){
+      try{
+        const candidate=new Decimal(String(priceOverride[0].manual_value));
+        if(candidate.isFinite()&&candidate.gt(0))manualPrice=candidate;
+        else throw new Error("INVALID_MANUAL_PRICE");
+      }catch{
+        dataStatus="MISSING";dataMessage="A manual market-price override is invalid.";continue;
+      }
     }
-    if(!m?.price){dataStatus="MISSING";dataMessage="A held instrument has no current market price.";continue;}
-    const observedAt=new Date(m.observed_at);
-    if((Date.now()-observedAt.getTime())/3600000>36&&dataStatus!=="MISSING"){dataStatus="STALE";dataMessage="Market data is stale; financial actions are suppressed until data is current or confirmed.";}
-    exposurePositions.push({economicExposure:String(m.economic_exposure),value:quantity.mul(new Decimal(String(m.price))),tradingLineId:m.trading_line_id?String(m.trading_line_id):undefined});
+    const price=manualPrice??(m.price?new Decimal(String(m.price)):null);
+    if(!price){dataStatus="MISSING";dataMessage="A held trading line has no current market price.";continue;}
+    if(!manualPrice){
+      const observedAt=new Date(m.observed_at);
+      const ageHours=(Date.now()-observedAt.getTime())/3600000;
+      if(ageHours<(-5/60)){dataStatus="MISSING";dataMessage="A market observation is timestamped in the future.";continue;}
+      if(ageHours>36&&dataStatus!=="MISSING"){dataStatus="STALE";dataMessage="Market data is stale; financial actions are suppressed until data is current or confirmed.";}
+    }
+    linePositions.push({economicExposure:String(m.economic_exposure),value:quantity.mul(price),tradingLineId});
   }
+
+  const exposureMap=new Map<string,{value:Decimal;tradingLineId?:string}>();
+  for(const position of linePositions){
+    const current=exposureMap.get(position.economicExposure);
+    exposureMap.set(position.economicExposure,{
+      value:(current?.value??new Decimal(0)).plus(position.value),
+      tradingLineId:current?.tradingLineId??position.tradingLineId
+    });
+  }
+  const exposurePositions=[...exposureMap.entries()].map(([economicExposure,value])=>({economicExposure,value:value.value,tradingLineId:value.tradingLineId}));
 
   const frequency=String(config.reviewFrequency??"QUARTERLY");
   const lastReview=state.lastReviewAt?new Date(String(state.lastReviewAt)):new Date(instance.started_at);
@@ -66,7 +107,7 @@ export async function calculateAction(strategyInstanceId:string){
     convention
   });
   const reviewDue=Boolean(state.forceReview)||new Date()>=dueAt;
-  const contributionRows=await sql.unsafe("SELECT COALESCE(sum(cash_amount),0) AS amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' AND occurred_at>$2",[strategyInstanceId,lastReview]);
+  const contributionRows=await sql.unsafe("SELECT COALESCE(sum(cash_amount),0) AS amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' AND currency=$2 AND occurred_at>$3",[strategyInstanceId,String(instance.currency),lastReview]);
   const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0));
   const engine=getStrategyEngine(String(instance.engine));
   let proposal=engine.calculate({strategyInstanceId,strategyVersionId:String(instance.strategy_version_id),now:new Date(),baseCurrency:String(instance.currency),cash:folded.cash,exposures:exposurePositions,contributionsSinceReview,state,config,settings:(instance.settings??{}) as Record<string,unknown>,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
@@ -127,7 +168,7 @@ export async function executeAction(
       }
 
       const ledgerRows=await tx.unsafe(
-        "SELECT event_type,currency,cash_amount,fee_amount,instrument_id,quantity FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",
+        "SELECT event_type,currency,cash_amount,fee_amount,instrument_id,trading_line_id,quantity FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",
         [action.strategy_instance_id]
       );
       const position=foldLedger(ledgerRows.map((r)=>({
@@ -136,9 +177,10 @@ export async function executeAction(
         cashAmount:String(r.cash_amount),
         feeAmount:String(r.fee_amount),
         instrumentId:r.instrument_id?String(r.instrument_id):null,
+        tradingLineId:r.trading_line_id?String(r.trading_line_id):null,
         quantity:String(r.quantity)
       })),String(rows[0].currency));
-      const held=position.quantities.get(String(action.instrument_id))??new Decimal(0);
+      const held=action.trading_line_id ? (position.tradingLineQuantities.get(String(action.trading_line_id))??new Decimal(0)) : new Decimal(0);
       const validated=validateExecution({
         side:actionType as "BUY"|"SELL",
         proposedAmount:String(action.amount),
@@ -150,13 +192,14 @@ export async function executeAction(
       });
 
       await tx.unsafe(
-        "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,now(),$2,$3,$4,$5,$6,$7,$8,'USER_ENTERED','VERIFIED',$9::jsonb)",
+        "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,trading_line_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,now(),$2,$3,$4,$5,$6,$7,$8,'USER_ENTERED','VERIFIED',$9::jsonb)",
         [
           action.strategy_instance_id,
           actionType,
           action.currency,
           validated.cashAmount.toString(),
           action.instrument_id,
+          action.trading_line_id,
           validated.ledgerQuantity.toString(),
           execution.price,
           validated.fee.toString(),

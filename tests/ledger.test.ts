@@ -30,6 +30,15 @@ describe("immutable ledger fold",()=>{
       {eventType:"CONTRIBUTION",currency:"USD",cashAmount:"100"}
     ])).toThrow("BASE_CURRENCY_REQUIRED_FOR_MULTI_CURRENCY_LEDGER");
   });
+  it("tracks quantities independently by trading line",()=>{
+    const state=foldLedger([
+      {eventType:"BUY",currency:"GBP",cashAmount:"-100",instrumentId:"fund",tradingLineId:"lse",quantity:"2"},
+      {eventType:"BUY",currency:"GBP",cashAmount:"-100",instrumentId:"fund",tradingLineId:"xetra",quantity:"1"}
+    ],"GBP");
+    expect(state.quantities.get("fund")?.toFixed(2)).toBe("3.00");
+    expect(state.tradingLineQuantities.get("lse")?.toFixed(2)).toBe("2.00");
+    expect(state.tradingLineQuantities.get("xetra")?.toFixed(2)).toBe("1.00");
+  });
   it("rejects sign-inconsistent trade events",()=>{
     expect(()=>assertLedgerEvent({eventType:"BUY",cashAmount:"100",instrumentId:"x",quantity:"1"})).toThrow();
   });

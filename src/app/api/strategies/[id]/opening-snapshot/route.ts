@@ -60,8 +60,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         );
         if (!lines[0]) throw new Error("TRADING_LINE_NOT_FOUND:" + holding.ticker + ":" + holding.exchange);
         await tx.unsafe(
-          "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,provenance,confidence,metadata) VALUES ($1,now(),'OPENING_POSITION',$2,0,$3,$4,'USER_CONFIRMED','VERIFIED',$5::jsonb)",
-          [id, lines[0].currency, lines[0].instrument_id, holding.quantityDecimal.toString(), JSON.stringify({ openingSnapshot: true, tradingLineId: String(lines[0].id), ticker: holding.ticker, exchange: holding.exchange })]
+          "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,trading_line_id,quantity,provenance,confidence,metadata) VALUES ($1,now(),'OPENING_POSITION',$2,0,$3,$4,$5,'USER_CONFIRMED','VERIFIED',$6::jsonb)",
+          [id, lines[0].currency, lines[0].instrument_id, lines[0].id, holding.quantityDecimal.toString(), JSON.stringify({ openingSnapshot: true, tradingLineId: String(lines[0].id), ticker: holding.ticker, exchange: holding.exchange })]
         );
       }
 
