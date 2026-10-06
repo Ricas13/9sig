@@ -1,0 +1,2 @@
+import { requireUser } from "@/lib/session";import { sql } from "@/lib/db";
+export async function DELETE(){try{const user=await requireUser();await sql.begin(async(tx)=>{await tx.unsafe("INSERT INTO audit_events (action,entity_type,metadata) VALUES ('account.deleted','user',$1::jsonb)",[JSON.stringify({selfService:true})]);await tx.unsafe("DELETE FROM users WHERE id=$1",[user.id]);});return Response.json({ok:true});}catch{return Response.json({error:"Could not delete account."},{status:500});}}
