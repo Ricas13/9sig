@@ -4,7 +4,7 @@ import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
-import { CashEventForm, ContributionForm, ExecuteAction, OpeningSnapshotForm, RecalculateButton, ReconcileForm, StrategyLifecycleControls, StrategyVersionUpgrade } from "@/components/StrategyActions";
+import { CashEventForm, ContributionForm, ExecuteAction, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategyVersionUpgrade } from "@/components/StrategyActions";
 
 export default async function StrategyPage({params}:{params:Promise<{id:string}>}){
   const user=await requireUser();
@@ -68,9 +68,9 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   }
 
   const chartData=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
-  const contributions=await sql.unsafe("SELECT occurred_at,cash_amount,provenance,confidence FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' ORDER BY occurred_at DESC LIMIT 8",[id]);
+  const contributions=await sql.unsafe("SELECT id,occurred_at,cash_amount,provenance,confidence FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' ORDER BY occurred_at DESC LIMIT 8",[id]);
   const reconciliations=await sql.unsafe("SELECT occurred_at,expected_value,broker_reported_value,difference,reason FROM reconciliations WHERE strategy_instance_id=$1 ORDER BY occurred_at DESC LIMIT 5",[id]);
-  const cashEvents=await sql.unsafe("SELECT occurred_at,event_type,cash_amount,fee_amount,metadata FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('WITHDRAWAL','DIVIDEND','DISTRIBUTION','INTEREST','FEE','TAX') ORDER BY occurred_at DESC,created_at DESC LIMIT 12",[id]);
+  const cashEvents=await sql.unsafe("SELECT id,occurred_at,event_type,cash_amount,fee_amount,metadata FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('WITHDRAWAL','DIVIDEND','DISTRIBUTION','INTEREST','FEE','TAX') ORDER BY occurred_at DESC,created_at DESC LIMIT 12",[id]);
   const latestValue=actualPoints.at(-1);
   const explanation=Array.isArray(action?.explanation)?action.explanation:[];
   const needsOpeningSnapshot=Boolean(s.state?.resumeNeedsReconciliation);
@@ -128,11 +128,11 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     </div>
     <div className="detail-grid">
       <section className="glass form-card"><h3>Reconcile to broker</h3><p className="help">Known cash differences create adjustment events. Unexplained valuation differences block new financial actions instead of rewriting history.</p><ReconcileForm id={id} expected={latestValue?Number(latestValue.value):null}/></section>
-      <section className="card"><h3>Recent cash events</h3>{cashEvents.length?cashEvents.map((event:any)=><div className="why-row" key={String(event.occurred_at)+String(event.event_type)}><span>{new Date(event.occurred_at).toLocaleDateString("en-GB")} · {String(event.event_type).replaceAll("_"," ")}</span><b>{new Intl.NumberFormat("en-GB",{style:"currency",currency:s.currency}).format(Math.abs(Number(event.cash_amount||event.fee_amount||0)))}</b></div>):<p className="help">No withdrawals, income, fees or tax recorded yet.</p>}</section>
+      <section className="card"><h3>Recent cash events</h3>{cashEvents.length?cashEvents.map((event:any)=><div className="why-row" key={String(event.occurred_at)+String(event.event_type)}><span>{new Date(event.occurred_at).toLocaleDateString("en-GB")} · {String(event.event_type).replaceAll("_"," ")}</span><span className="inline"><b>{new Intl.NumberFormat("en-GB",{style:"currency",currency:s.currency}).format(Math.abs(Number(event.cash_amount||event.fee_amount||0)))}</b><ReverseLedgerEventButton strategyId={id} eventId={String(event.id)}/></span></div>):<p className="help">No withdrawals, income, fees or tax recorded yet.</p>}</section>
     </div>
 
     <div className="detail-grid">
-      <section className="card"><h3>Contribution history</h3>{contributions.length?contributions.map((c:any,i:number)=><div className="why-row" key={i}><span>{new Date(c.occurred_at).toLocaleString("en-GB")}</span><b>{new Intl.NumberFormat("en-GB",{style:"currency",currency:s.currency}).format(Number(c.cash_amount))}</b></div>):<p className="help">No contributions recorded.</p>}</section>
+      <section className="card"><h3>Contribution history</h3>{contributions.length?contributions.map((c:any,i:number)=><div className="why-row" key={i}><span>{new Date(c.occurred_at).toLocaleString("en-GB")}</span><span className="inline"><b>{new Intl.NumberFormat("en-GB",{style:"currency",currency:s.currency}).format(Number(c.cash_amount))}</b><ReverseLedgerEventButton strategyId={id} eventId={String(c.id)}/></span></div>):<p className="help">No contributions recorded.</p>}</section>
       <section className="card"><h3>Reconciliation history</h3>{reconciliations.length?reconciliations.map((r:any,i:number)=><div className="why-row" key={i}><span>{new Date(r.occurred_at).toLocaleDateString("en-GB")} · {r.reason??"Adjustment"}</span><b>{Number(r.difference).toFixed(2)}</b></div>):<p className="help">No reconciliations yet.</p>}</section>
     </div>
 

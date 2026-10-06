@@ -223,3 +223,17 @@ export function CashEventForm({id}:{id:string}){
     <div className="field full"><button className="button">Record cash event</button><div className="help">Withdrawals, fees and tax reduce cash; dividends, distributions and interest increase cash. The original ledger history remains append-only.</div>{message&&<div className={message.startsWith("Cash event recorded")?"success":"error"}>{message}</div>}</div>
   </form>;
 }
+
+
+export function ReverseLedgerEventButton({strategyId,eventId}:{strategyId:string;eventId:string}){
+  const router=useRouter();const[busy,setBusy]=useState(false);const[error,setError]=useState("");
+  return <button className="button" disabled={busy} onClick={async()=>{
+    const reason=prompt("Why are you reversing this entry?");
+    if(!reason?.trim())return;
+    setBusy(true);setError("");
+    const response=await fetch("/api/strategies/"+strategyId+"/ledger-events/"+eventId+"/correct",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({reason:reason.trim()})});
+    const body=await response.json();setBusy(false);
+    if(!response.ok){setError(body.error??"Could not reverse entry.");return;}
+    router.refresh();
+  }}>Reverse entry{error?" · "+error:""}</button>;
+}
