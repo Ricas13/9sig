@@ -71,3 +71,28 @@ WHERE o.id=r.id AND r.rn>1;
 CREATE UNIQUE INDEX IF NOT EXISTS overrides_one_active_unique
   ON overrides(strategy_instance_id,field_key)
   WHERE active=true;
+
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM regional_instrument_mappings
+    GROUP BY economic_exposure,leverage,direction,country,wrapper,COALESCE(lower(broker),''),COALESCE(preferred_currency,''),effective_from
+    HAVING count(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'Duplicate regional mapping scopes must be resolved before applying 0006';
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS regional_mapping_scope_start_unique
+  ON regional_instrument_mappings(
+    economic_exposure,
+    leverage,
+    direction,
+    country,
+    wrapper,
+    COALESCE(lower(broker),''),
+    COALESCE(preferred_currency,''),
+    effective_from
+  );
