@@ -13,7 +13,9 @@ function median(values:Decimal[]){
 }
 
 export async function rebuildAnonymousAggregates(asOf=new Date()){
-  const runRows=await sql.unsafe("INSERT INTO worker_runs (worker_key,status,details) VALUES ('anonymous-aggregates','RUNNING','{}'::jsonb) RETURNING id");
+  const runRows=await sql.unsafe(
+    "INSERT INTO worker_runs (worker_key,status,details) VALUES ('anonymous-aggregates','RUNNING','{}'::jsonb) RETURNING id"
+  );
   const runId=String(runRows[0].id);
   try{
     const definitions=await sql.unsafe("SELECT id FROM strategy_definitions ORDER BY id");
@@ -21,7 +23,7 @@ export async function rebuildAnonymousAggregates(asOf=new Date()){
     for(const definition of definitions){
       const strategyDefinitionId=String(definition.id);
       const instances=await sql.unsafe(
-        "SELECT i.id,p.date,p.value FROM strategy_instances i JOIN users u ON u.id=i.user_id JOIN LATERAL ("+
+        "SELECT i.id,a.currency,p.date,p.value FROM strategy_instances i JOIN users u ON u.id=i.user_id JOIN accounts a ON a.id=i.account_id JOIN LATERAL ("+
         " SELECT date,value FROM performance_series ps WHERE ps.strategy_instance_id=i.id AND ps.series_type='USER_VALUE' ORDER BY date DESC LIMIT 1"+
         ") p ON true WHERE i.strategy_definition_id=$1 AND u.anonymous_aggregate_opt_in=true AND u.deleted_at IS NULL",
         [strategyDefinitionId]
@@ -31,8 +33,8 @@ export async function rebuildAnonymousAggregates(asOf=new Date()){
       for(const instance of instances){
         const latestDate=String(instance.date).slice(0,10);
         const flows=await sql.unsafe(
-          "SELECT occurred_at,event_type,cash_amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('CONTRIBUTION','WITHDRAWAL') AND occurred_at::date<=$2::date ORDER BY occurred_at,created_at",
-          [instance.id,latestDate]
+          "SELECT occurred_at,event_type,cash_amount FROM ledger_events WHERE strategy_instance_id=$1 AND currency=$2 AND event_type IN ('CONTRIBUTION','WITHDRAWAL') AND occurred_at::date<=$3::date ORDER BY occurred_at,created_at",
+          [instance.id,String(instance.currency),latestDate]
         );
         if(!flows.length)continue;
         const cashFlows=flows.map((flow)=>({
@@ -60,7 +62,7 @@ export async function rebuildAnonymousAggregates(asOf=new Date()){
         ["TRACKED_INSTANCES",tracked,String(tracked),{method:"eligible-instance-count"}]
       ];
       const med=median(mwrr);
-      if(med)metrics.push(["MEDIAN_USER_XIRR",mwrr.length,med.toString(),{method:"median-per-instance-xirr",cashFlowAware:true,annualized:true}]);
+      if(med)metrics.push(["MEDIAN_USER_XIRR",mwrr.length,med.toString(),{method:"median-per-instance-xirr",cashFlowAware:true,annualized:true,currencySafe:true}]);
       if(row?.action_required_pct!=null)metrics.push(["ACTION_REQUIRED_PCT",tracked,String(row.action_required_pct),{method:"derived-cohort-statistic"}]);
 
       for(const [metricKey,sampleSize,value,method] of metrics){
@@ -73,10 +75,16 @@ export async function rebuildAnonymousAggregates(asOf=new Date()){
         written+=1;
       }
     }
-    await sql.unsafe("UPDATE worker_runs SET status='SUCCESS',finished_at=now(),details=$1::jsonb WHERE id=$2",[JSON.stringify({written,publicThreshold:PUBLIC_THRESHOLD}),runId]);
+    await sql.unsafe(
+      "UPDATE worker_runs SET status='SUCCESS',finished_at=now(),details=$1::jsonb WHERE id=$2",
+      [JSON.stringify({written,publicThreshold:PUBLIC_THRESHOLD}),runId]
+    );
     return {written,publicThreshold:PUBLIC_THRESHOLD};
   }catch(error){
-    await sql.unsafe("UPDATE worker_runs SET status='FAILED',finished_at=now(),details=$1::jsonb WHERE id=$2",[JSON.stringify({error:error instanceof Error?error.message:"unknown"}),runId]);
+    await sql.unsafe(
+      "UPDATE worker_runs SET status='FAILED',finished_at=now(),details=$1::jsonb WHERE id=$2",
+      [JSON.stringify({error:error instanceof Error?error.message:"unknown"}),runId]
+    );
     throw error;
   }
 }
