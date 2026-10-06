@@ -29,7 +29,7 @@ export async function listUserStrategies(userId: string) {
 
 export async function getStrategyForUser(userId: string, instanceId: string) {
   const rows = await sql.unsafe(
-    "SELECT i.*,d.key AS strategy_key,d.name AS strategy_name,d.family,d.engine,d.description,v.version,v.config,v.disclosure,a.wrapper,a.currency,a.country,a.broker_name FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id LEFT JOIN accounts a ON a.id=i.account_id WHERE i.id=$1 AND i.user_id=$2 LIMIT 1",
+    "SELECT i.*,d.key AS strategy_key,d.name AS strategy_name,d.family,d.engine,d.description,v.version,v.config,v.disclosure,a.wrapper,a.currency,a.country,a.broker_name,s.state,s.confidence AS state_confidence FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id LEFT JOIN accounts a ON a.id=i.account_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.user_id=$2 LIMIT 1",
     [instanceId,userId]
   );
   return rows[0] ?? null;

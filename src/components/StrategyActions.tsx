@@ -99,3 +99,43 @@ export function ReconcileForm({ id, expected }: { id: string; expected?: number 
     <div className="field full"><button className="button">Reconcile</button>{message && <div className={message.includes("resolved") ? "success" : "error"}>{message}</div>}</div>
   </form>;
 }
+
+
+export function OpeningSnapshotForm({ id }: { id: string }) {
+  const router = useRouter();
+  const [cash, setCash] = useState("0");
+  const [holdings, setHoldings] = useState([{ ticker: "", exchange: "LSE", quantity: "" }]);
+  const [message, setMessage] = useState("");
+
+  function update(index: number, field: "ticker" | "exchange" | "quantity", value: string) {
+    setHoldings((rows) => rows.map((row, i) => i === index ? { ...row, [field]: value } : row));
+  }
+
+  return <form className="stack" onSubmit={async (e) => {
+    e.preventDefault();
+    setMessage("");
+    const cleanHoldings = holdings.filter((h) => h.ticker.trim() && h.exchange.trim() && h.quantity.trim());
+    const response = await fetch("/api/strategies/" + id + "/opening-snapshot", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cash, holdings: cleanHoldings })
+    });
+    const body = await response.json();
+    setMessage(response.ok ? "Opening snapshot saved." : body.error ?? "Could not save snapshot.");
+    if (response.ok) router.refresh();
+  }}>
+    <div className="field"><label>Current cash balance</label><input value={cash} onChange={(e) => setCash(e.target.value)} type="number" min="0" step="0.01" /></div>
+    {holdings.map((holding, index) => <div className="form-grid" key={index}>
+      <div className="field"><label>Ticker</label><input value={holding.ticker} onChange={(e) => update(index, "ticker", e.target.value)} placeholder="3QQQ" /></div>
+      <div className="field"><label>Exchange</label><input value={holding.exchange} onChange={(e) => update(index, "exchange", e.target.value)} placeholder="LSE" /></div>
+      <div className="field full"><label>Quantity</label><input value={holding.quantity} onChange={(e) => update(index, "quantity", e.target.value)} type="number" min="0" step="0.00000001" /></div>
+    </div>)}
+    <div className="inline">
+      <button type="button" className="button" onClick={() => setHoldings((rows) => [...rows, { ticker: "", exchange: "LSE", quantity: "" }])}>Add holding</button>
+      {holdings.length > 1 && <button type="button" className="button" onClick={() => setHoldings((rows) => rows.slice(0, -1))}>Remove last</button>}
+      <button className="button primary">Save opening snapshot</button>
+    </div>
+    <div className="help">This records what you hold now. It does not invent historical trades, cost basis or contributions.</div>
+    {message && <div className={message.startsWith("Opening snapshot saved") ? "success" : "error"}>{message}</div>}
+  </form>;
+}
