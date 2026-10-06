@@ -10,15 +10,15 @@ import { nextReviewDueAt } from "@/domain/schedule";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
 export async function calculateAction(strategyInstanceId:string){
-  const rows=await sql.unsafe("SELECT i.id,i.user_id,i.strategy_definition_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,v.engine_key AS engine,v.config,i.settings,a.country,a.wrapper,a.currency,a.broker_name,s.state,u.timezone AS user_timezone FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN users u ON u.id=i.user_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
+  const rows=await sql.unsafe("SELECT i.id,i.user_id,i.strategy_definition_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,v.effective_from AS version_effective_from,v.engine_key AS engine,v.config,i.settings,a.country,a.wrapper,a.currency,a.broker_name,s.state,u.timezone AS user_timezone FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN users u ON u.id=i.user_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
   const instance=rows[0];if(!instance)throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
   const ledgerRows=await sql.unsafe("SELECT event_type,currency,cash_amount,fee_amount,instrument_id,quantity,occurred_at,created_at FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",[strategyInstanceId]);
   const folded=foldLedger(ledgerRows.map((r)=>({eventType:String(r.event_type),currency:String(r.currency),cashAmount:String(r.cash_amount),feeAmount:String(r.fee_amount),instrumentId:r.instrument_id?String(r.instrument_id):null,quantity:String(r.quantity)})),String(instance.currency));
   const config=(instance.config??{}) as Record<string,unknown>;
   const state={...((instance.state??{}) as Record<string,unknown>)};
   const requiredRelease=await sql.unsafe(
-    "SELECT id,version FROM strategy_versions WHERE strategy_definition_id=$1 AND lifecycle_status='PUBLISHED' AND upgrade_policy='REQUIRED' AND effective_from<=current_date AND (effective_to IS NULL OR effective_to>=current_date) AND id<>$2 ORDER BY effective_from DESC,published_at DESC NULLS LAST LIMIT 1",
-    [instance.strategy_definition_id,instance.strategy_version_id]
+    "SELECT id,version FROM strategy_versions WHERE strategy_definition_id=$1 AND lifecycle_status='PUBLISHED' AND upgrade_policy='REQUIRED' AND effective_from>$2 AND effective_from<=current_date AND (effective_to IS NULL OR effective_to>=current_date) ORDER BY effective_from DESC,published_at DESC NULLS LAST LIMIT 1",
+    [instance.strategy_definition_id,instance.version_effective_from]
   );
   const targetOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key='strategy_state.targetValue' AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId]);
   if(targetOverride[0]?.manual_value!=null) state.targetValue=String(targetOverride[0].manual_value);
