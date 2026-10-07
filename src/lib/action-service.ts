@@ -8,6 +8,7 @@ import { exposureLeverage, resolveMapping, type MappingCandidate } from "@/domai
 import { normalizeExecutionConstraints, planPracticalTrade, validateExecution } from "@/domain/execution";
 import { nextReviewDueAt } from "@/domain/schedule";
 import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/config";
+import { actionRecalculationDisposition, type ActionStatus } from "@/domain/actions";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
 type CalculationScenario={
@@ -513,16 +514,16 @@ export async function calculateAction(strategyInstanceId:string){
     let shouldNotify=false;
     if(existing[0]){
       actionId=String(existing[0].id);
-      const previousStatus=String(existing[0].status);
-      const reactivated=["CANCELLED","SUPERSEDED"].includes(previousStatus);
+      const previousStatus=String(existing[0].status) as ActionStatus;
+      const disposition=actionRecalculationDisposition(previousStatus);
       await tx.unsafe(
         "UPDATE actions SET account_id=$1,strategy_version_id=$2,action_type=$3,status=$4,title=$5,instruction=$6,amount=$7,currency=$8,trading_line_id=$9,explanation=$10::jsonb,next_state=$11::jsonb,confidence=$12,due_at=$13,"+
         "acknowledged_at=CASE WHEN $4='CALCULATED' THEN NULL ELSE acknowledged_at END,"+
         "cancelled_at=CASE WHEN $4='CALCULATED' THEN NULL ELSE cancelled_at END,"+
         "superseded_by_action_id=CASE WHEN $4='CALCULATED' THEN NULL ELSE superseded_by_action_id END,updated_at=now() WHERE id=$14",
-        [executionAccountId,instance.strategy_version_id,proposal.actionType,reactivated?"CALCULATED":previousStatus,proposal.title,proposal.instruction,proposal.amount?.toString()??null,proposal.currency??null,tradingLineId,JSON.stringify(proposal.explanation),JSON.stringify(nextState),proposal.confidence,proposal.dueAt??null,actionId]
+        [executionAccountId,instance.strategy_version_id,proposal.actionType,disposition.status,proposal.title,proposal.instruction,proposal.amount?.toString()??null,proposal.currency??null,tradingLineId,JSON.stringify(proposal.explanation),JSON.stringify(nextState),proposal.confidence,proposal.dueAt??null,actionId]
       );
-      shouldNotify=reactivated;
+      shouldNotify=disposition.shouldNotify;
     }else{
       const inserted=await tx.unsafe(
         "INSERT INTO actions (strategy_instance_id,account_id,strategy_version_id,fingerprint,action_type,status,title,instruction,amount,currency,trading_line_id,explanation,next_state,confidence,due_at) VALUES ($1,$2,$3,$4,$5,'CALCULATED',$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14) RETURNING id",
