@@ -7,6 +7,7 @@ import { sql } from "@/lib/db";
 import { loadEntitlements } from "@/lib/entitlement-service";
 import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
+import { plainEnglishActionReason } from "@/domain/action-copy";
 import { CashEventForm, ContributionForm, ContributionPlanForm, ExecuteAction, ExecutionConstraintsForm, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategyVersionUpgrade, WhatIfPreview } from "@/components/StrategyActions";
 
 function money(value:number,currency:string){
@@ -88,6 +89,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   const isActive=s.status==="ACTIVE";
   const actionReady=Boolean(action)&&isActive;
   const nextReview=action?.due_at?new Date(action.due_at):null;
+  const plainReason=action?plainEnglishActionReason({actionType:String(action.action_type),instruction:String(action.instruction??"")}):null;
 
   return <>
     <Link href="/app/strategies" className="back-link"><ArrowLeft size={14}/>Portfolio</Link>
@@ -120,6 +122,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         </div>
         <h2>{actionReady?action.title:isActive?"Nothing to do right now.":"Strategy "+String(s.status).toLowerCase()}</h2>
         <p>{actionReady?action.instruction:isActive?"We will show your next action here as soon as the strategy needs you.":"Resume this strategy when you want new actions to be calculated."}</p>
+        {actionReady&&plainReason&&<div className="plain-reason"><Sparkles size={14}/><span>{plainReason}</span></div>}
         {action&&isActive&&action.action_type!=="DATA_REQUIRED"&&action.action_type!=="NO_ACTION"&&<div className="focus-action"><ExecuteAction action={{id:String(action.id),actionType:String(action.action_type)}}/></div>}
       </div>
 
