@@ -13,12 +13,19 @@ export type EntitlementSnapshot = {
   availableStrategyKeys: Set<string> | null;
 };
 
+function parseJsonish(value:unknown){
+  if(typeof value!=="string")return value;
+  try{return JSON.parse(value);}catch{return value;}
+}
+
 function strings(value: unknown) {
-  return Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : [];
+  const parsed=parseJsonish(value);
+  return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
 }
 
 export function buildEntitlementSnapshot(plan: PlanRecord): EntitlementSnapshot {
-  const raw = (plan.entitlements && typeof plan.entitlements === "object" ? plan.entitlements : {}) as Record<string, unknown>;
+  const parsedEntitlements=parseJsonish(plan.entitlements);
+  const raw = (parsedEntitlements && typeof parsedEntitlements === "object" && !Array.isArray(parsedEntitlements) ? parsedEntitlements : {}) as Record<string, unknown>;
   const strategyKeys = strings(plan.availableStrategyKeys);
   return {
     planSlug: plan.slug,
