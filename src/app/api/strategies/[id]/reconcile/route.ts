@@ -13,7 +13,8 @@ const schema = z.object({
   brokerValue: money,
   reason: z.string().max(120).optional(),
   affectsCash: z.boolean().default(false),
-  accountId: z.string().uuid().optional()
+  accountId: z.string().uuid().optional(),
+  requestKey: z.string().uuid().optional()
 });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
