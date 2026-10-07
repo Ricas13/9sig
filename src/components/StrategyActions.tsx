@@ -256,7 +256,37 @@ export function StrategyVersionUpgrade({
   id:string;currentVersion:string;targetVersionId:string;targetVersion:string;releaseNotes?:string|null;upgradePolicy:string;
   inputSchema:VersionInputField[];currentSettings:Record<string,unknown>;currentConfig:Record<string,unknown>;targetConfig:Record<string,unknown>;
 }){
-  const router=useRouter();const[message,setMessage]=useState("");const[busy,setBusy]=useState(false);
+  const router=useRouter();
+  const[message,setMessage]=useState("");
+  const[busy,setBusy]=useState(false);
+  const[previewBusy,setPreviewBusy]=useState(false);
+  const[previewError,setPreviewError]=useState("");
+  const[preview,setPreview]=useState<null|{actionType:string;title:string;instruction:string;confidence:string;amount:string|null;currency:string|null}>(null);
+
+  function collectSettings(form:HTMLFormElement){
+    const f=new FormData(form);
+    const settings:Record<string,unknown>={};
+    for(const field of inputSchema){
+      if(field.type==="boolean")settings[field.key]=Boolean(f.get("versionInput:"+field.key));
+      else {
+        const value=f.get("versionInput:"+field.key);
+        if(value!==null&&String(value)!=="")settings[field.key]=String(value);
+      }
+    }
+    return settings;
+  }
+
+  async function previewVersion(form:HTMLFormElement){
+    setPreviewBusy(true);setPreviewError("");setPreview(null);
+    const response=await fetch("/api/strategies/"+id+"/version",{
+      method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({targetVersionId,settings:collectSettings(form)})
+    });
+    const body=await response.json();setPreviewBusy(false);
+    if(!response.ok)return setPreviewError(body.error??"Could not preview this version.");
+    setPreview(body.result.action);
+  }
+
   const changedKeys=[...new Set([...Object.keys(currentConfig),...Object.keys(targetConfig)])]
     .filter((key)=>JSON.stringify(currentConfig[key])!==JSON.stringify(targetConfig[key]));
   return <section className="glass version-upgrade">
@@ -284,11 +314,8 @@ export function StrategyVersionUpgrade({
     </details>
 
     <form className="version-upgrade-form" onSubmit={async(e)=>{
-      e.preventDefault();setBusy(true);setMessage("");const f=new FormData(e.currentTarget);const settings:Record<string,unknown>={};
-      for(const field of inputSchema){
-        if(field.type==="boolean")settings[field.key]=Boolean(f.get("versionInput:"+field.key));
-        else {const value=f.get("versionInput:"+field.key);if(value!==null&&String(value)!=="")settings[field.key]=String(value);}
-      }
+      e.preventDefault();setBusy(true);setMessage("");
+      const settings=collectSettings(e.currentTarget);
       const response=await fetch("/api/strategies/"+id+"/version",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({targetVersionId,settings})});
       const body=await response.json();setBusy(false);setMessage(response.ok?"Strategy updated to v"+targetVersion+".":body.error??"Could not update strategy.");
       if(response.ok)router.refresh();
@@ -304,8 +331,14 @@ export function StrategyVersionUpgrade({
           </div>)}
         </div>
       </details>}
+      {preview&&<div className="version-action-preview" role="status">
+        <div><span>Today on v{targetVersion}</span><strong>{preview.title}</strong><p>{preview.instruction}</p></div>
+        <span className={"pill "+(preview.confidence==="HIGH"?"good":"warn")}>{preview.confidence} confidence</span>
+      </div>}
+      {previewError&&<div className="error" role="alert">{previewError}</div>}
       <div className="version-upgrade-actions">
-        <button className="button primary" disabled={busy}>{busy?"Updating…":"Update to v"+targetVersion}</button>
+        <button type="button" className="button" disabled={busy||previewBusy} onClick={(event)=>event.currentTarget.form&&previewVersion(event.currentTarget.form)}>{previewBusy?"Previewing…":"Preview today’s action"}</button>
+        <button className="button primary" disabled={busy||previewBusy}>{busy?"Updating…":"Update to v"+targetVersion}</button>
         {message&&<div className={message.startsWith("Strategy updated")?"success":"error"}>{message}</div>}
       </div>
     </form>
