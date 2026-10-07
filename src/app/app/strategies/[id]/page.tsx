@@ -293,7 +293,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
             <section><h3>Other cash movement</h3><p className="help">Withdrawals, dividends, interest, fees and tax belong here.</p><CashEventForm id={id} accounts={accountOptions}/></section>
           </div>
           <section className="drawer-section contribution-plan-settings"><h3>Regular contribution</h3><p className="help">Optional reminder only. Planned money never appears in your portfolio until you record the real deposit.</p><ContributionPlanForm id={id} plan={(s.contribution_plan??{}) as Record<string,unknown>}/></section>
-          <section className="drawer-section"><h3>Match your broker</h3><p className="help">If the app and broker differ, reconcile them here. Unexplained differences block financial actions instead of being guessed.</p><ReconcileForm id={id} expected={latestValue?Number(latestValue.value):null} accounts={accountOptions}/></section>
+          <section className="drawer-section"><h3>Match your broker</h3><p className="help">If the app and broker differ, reconcile them here. Unexplained differences block financial actions instead of being guessed.</p><ReconcileForm id={id} expected={accountOptions.length===1&&latestValue?Number(latestValue.value):null} accounts={accountOptions}/></section>
         </div>
       </details>
 
