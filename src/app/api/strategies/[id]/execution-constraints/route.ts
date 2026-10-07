@@ -31,8 +31,9 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       if(String(locked[0].status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
       await tx.unsafe("UPDATE strategy_instances SET execution_constraints=$1::jsonb,updated_at=now() WHERE id=$2",[JSON.stringify(constraints),id]);
       await tx.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy.execution-constraints.updated','strategy_instance',$2,$3::jsonb)",[user.id,id,JSON.stringify(constraints)]);
+      return {status:String(locked[0].status)};
     });
-    const recalc=String(strategy.status)==="ACTIVE"?await recalculateAfterMutation(id,user.id,"execution-constraints"):{actionId:null,recalculationPending:false,errorCode:null};
+    const recalc=result.status==="ACTIVE"?await recalculateAfterMutation(id,user.id,"execution-constraints"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({ok:true,constraints,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending});
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Check your trade preferences."},{status:400});
