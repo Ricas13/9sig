@@ -118,4 +118,30 @@ describe("trade execution validation", () => {
     expect(result).toMatchObject({status:"BLOCKED",reason:"BELOW_ONE_SHARE"});
   });
 
+
+  it("accepts an explicitly partial fill below the proposed notional", () => {
+    const result = validateExecution({
+      side:"BUY",
+      proposedAmount:"1000",
+      price:"100",
+      quantity:"4",
+      availableCash:"1500",
+      heldQuantity:"0",
+      allowPartial:true
+    });
+    expect(result.grossNotional.toFixed(2)).toBe("400.00");
+  });
+
+  it("still rejects an oversized fill when marked partial", () => {
+    expect(() => validateExecution({
+      side:"BUY",
+      proposedAmount:"1000",
+      price:"100",
+      quantity:"11",
+      availableCash:"2000",
+      heldQuantity:"0",
+      allowPartial:true
+    })).toThrow("EXECUTION_NOTIONAL_MISMATCH");
+  });
+
 });
