@@ -15,9 +15,14 @@ function planSummary(prices:BillingPrice[],slug:string,currency:string){
   return {monthly,annual,meta:monthly??annual};
 }
 export function BillingButtons({
-  prices,defaultCurrency,currentPlanSlug,paidSubscription
+  prices,defaultCurrency,currentPlanSlug,paidSubscription,activeStrategyCount,currentMaxActiveStrategies
 }:{
-  prices:BillingPrice[];defaultCurrency:string;currentPlanSlug:string;paidSubscription:boolean;
+  prices:BillingPrice[];
+  defaultCurrency:string;
+  currentPlanSlug:string;
+  paidSubscription:boolean;
+  activeStrategyCount:number;
+  currentMaxActiveStrategies:number|null;
 }){
   const currencies=useMemo(()=>[...new Set(prices.map(p=>p.currency))],[prices]);
   const[currency,setCurrency]=useState(currencies.includes(defaultCurrency)?defaultCurrency:(currencies[0]??defaultCurrency));
@@ -38,9 +43,17 @@ export function BillingButtons({
   }
 
   if(paidSubscription)return <div className="billing-current">
+    <div className="billing-usage">
+      <span>Active strategies</span>
+      <strong>{activeStrategyCount}{currentMaxActiveStrategies==null?"":" / "+currentMaxActiveStrategies}</strong>
+    </div>
     <p>You’re on <strong>{currentPlanSlug}</strong>. Change plan, billing cycle or payment details in one place.</p>
+    <div className="billing-impact-note">
+      <strong>Changing to a smaller plan is safe.</strong>
+      <span>If the new plan allows fewer active strategies, the excess strategies are paused automatically. Their history is preserved and can be resumed later when your plan allows it.</span>
+    </div>
     <button className="button primary" disabled={Boolean(busy)} onClick={portal}>{busy==="portal"?"Opening…":"Manage billing"}</button>
-    {error&&<div className="error">{error}</div>}
+    {error&&<div className="error" role="alert">{error}</div>}
   </div>;
 
   const slugs=[...new Set(prices.map((price)=>price.planSlug))];
@@ -64,7 +77,7 @@ export function BillingButtons({
         </div>;
       })}
     </div>
-    {currentPlanSlug==="free"&&<p className="help">Your Free plan keeps working if you do nothing. Upgrading only changes the limits and features available to your account.</p>}
+    {currentPlanSlug==="free"&&<p className="help">Your Free plan keeps working if you do nothing. Upgrading only changes the limits and features available to your account. Nothing changes until checkout completes successfully.</p>}
     {error&&<div className="error">{error}</div>}
   </div>;
 }
