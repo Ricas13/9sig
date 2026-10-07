@@ -13,11 +13,32 @@ export default async function OverviewPage(){
   const user=await requireUser();
   const strategies=await listUserStrategies(user.id);
   const actions=await sql.unsafe("SELECT a.id,a.strategy_instance_id,a.action_type,a.title,a.instruction,a.due_at,a.confidence,i.name AS instance_name FROM actions a JOIN strategy_instances i ON i.id=a.strategy_instance_id WHERE i.user_id=$1 AND a.status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') AND a.action_type<>'NO_ACTION' ORDER BY COALESCE(a.due_at,a.created_at),a.created_at LIMIT 12",[user.id]);
-  const values=await sql.unsafe("SELECT ps.strategy_instance_id,ps.value FROM performance_series ps JOIN strategy_instances i ON i.id=ps.strategy_instance_id WHERE i.user_id=$1 AND ps.series_type='USER_VALUE' AND ps.date=(SELECT max(p2.date) FROM performance_series p2 WHERE p2.strategy_instance_id=ps.strategy_instance_id AND p2.series_type='USER_VALUE')",[user.id]);
-  const contributions=await sql.unsafe("SELECT COALESCE(sum(l.cash_amount),0) AS total FROM ledger_events l JOIN strategy_instances i ON i.id=l.strategy_instance_id WHERE i.user_id=$1 AND l.event_type='CONTRIBUTION'",[user.id]);
+  const values=await sql.unsafe("SELECT ps.strategy_instance_id,ps.value,a.currency FROM performance_series ps JOIN strategy_instances i ON i.id=ps.strategy_instance_id JOIN accounts a ON a.id=i.account_id WHERE i.user_id=$1 AND i.status<>'CLOSED' AND ps.series_type='USER_VALUE' AND ps.date=(SELECT max(p2.date) FROM performance_series p2 WHERE p2.strategy_instance_id=ps.strategy_instance_id AND p2.series_type='USER_VALUE')",[user.id]);
+  const contributions=await sql.unsafe("SELECT l.currency,COALESCE(sum(l.cash_amount),0) AS total FROM ledger_events l JOIN strategy_instances i ON i.id=l.strategy_instance_id WHERE i.user_id=$1 AND i.status<>'CLOSED' AND l.event_type='CONTRIBUTION' GROUP BY l.currency ORDER BY l.currency",[user.id]);
   const reviewRows=await sql.unsafe("SELECT i.id,i.name,x.due_at FROM strategy_instances i LEFT JOIN LATERAL (SELECT a.due_at FROM actions a WHERE a.strategy_instance_id=i.id AND a.due_at IS NOT NULL ORDER BY a.created_at DESC LIMIT 1) x ON true WHERE i.user_id=$1 AND i.status='ACTIVE'",[user.id]);
-  const knownValue=values.length?values.reduce((sum,r)=>sum+Number(r.value),0):null;
   const activeStrategies=strategies.filter((s:any)=>s.status==="ACTIVE");
+  const trackedStrategies=strategies.filter((s:any)=>s.status!=="CLOSED");
+  const valuedIds=new Set(values.map((row:any)=>String(row.strategy_instance_id)));
+  const portfolioFullyValued=trackedStrategies.length>0&&trackedStrategies.every((strategy:any)=>valuedIds.has(String(strategy.id)));
+  const totalsByCurrency=new Map<string,number>();
+  for(const row of values){
+    const currency=String(row.currency);
+    totalsByCurrency.set(currency,(totalsByCurrency.get(currency)??0)+Number(row.value));
+  }
+  const portfolioCurrencyEntries=[...totalsByCurrency.entries()];
+  const portfolioHeadline=!portfolioFullyValued
+    ?"—"
+    :portfolioCurrencyEntries.length===1
+      ?money(portfolioCurrencyEntries[0][1],portfolioCurrencyEntries[0][0])
+      :"Multi-currency";
+  const portfolioValueContext=!portfolioFullyValued
+    ?(values.length?values.length+" of "+trackedStrategies.length+" strategies currently valued":"Waiting for current valuations")
+    :portfolioCurrencyEntries.length>1
+      ?portfolioCurrencyEntries.map(([currency,value])=>money(value,currency)).join(" · ")
+      :null;
+  const contributionContext=contributions.length
+    ?contributions.map((row:any)=>money(Number(row.total),String(row.currency))).join(" · ")
+    :"No contributions recorded";
   const primaryAction:any=actions[0];
   const primaryReason=primaryAction?plainEnglishActionReason({actionType:primaryAction.action_type,instruction:primaryAction.instruction}):null;
   const plannedContributions=activeStrategies
@@ -52,12 +73,13 @@ export default async function OverviewPage(){
     <section className="glass dashboard-hero">
       <div className="portfolio-snapshot">
         <span className="soft-label">Tracked portfolio</span>
-        <strong className="portfolio-value">{knownValue==null?"—":money(knownValue,user.baseCurrency)}</strong>
+        <strong className="portfolio-value">{portfolioHeadline}</strong>
         <div className="portfolio-context">
           <span>{activeStrategies.length} active {activeStrategies.length===1?"strategy":"strategies"}</span>
           <span className="dot-separator">•</span>
-          <span>{money(Number(contributions[0]?.total??0),user.baseCurrency)} contributed</span>
+          <span>{portfolioValueContext??contributionContext}</span>
         </div>
+        {portfolioValueContext&&portfolioFullyValued&&<div className="portfolio-context secondary-context"><span>{contributionContext} contributed</span></div>}
       </div>
 
       <div className={"today-card "+(primaryAction?"needs-action":"all-clear")}>
