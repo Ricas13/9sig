@@ -26,6 +26,14 @@ describe("regional instrument resolver",()=>{
     expect(result?.id).toBe("specific");
   });
 
+  it("does not use a broker-specific mapping when no broker was supplied",()=>{
+    const result=resolveMapping(
+      [{id:"specific",tradingLineId:"b",...base,broker:"Example Broker"}],
+      {economicExposure:base.economicExposure,leverage:base.leverage,direction:"LONG",country:"GB",wrapper:"ISA",broker:null,preferredCurrency:"GBP",asOf:"2026-10-01"}
+    );
+    expect(result).toBeNull();
+  });
+
   it("refuses economically different leverage",()=>{
     const result=resolveMapping(
       [{id:"x",tradingLineId:"a",...base,leverage:"2.000000"}],
