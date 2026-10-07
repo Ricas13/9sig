@@ -1315,3 +1315,40 @@ html[data-theme="light"] .switch-confirmation {
 .skip-link:focus {
   transform:translateY(0);
 }
+
+
+/* Core lifecycle strategy switching */
+.lifecycle-switch-details {
+  margin-top:14px;
+  padding-top:12px;
+  border-top:1px solid var(--line);
+}
+.lifecycle-switch-details > summary {
+  min-height:44px;
+  display:flex;
+  align-items:center;
+  cursor:pointer;
+  color:var(--accent2);
+  font-size:11px;
+  font-weight:850;
+}
+.lifecycle-switch-details > .help { margin:0 0 12px; }
+.strategy-switch-control { display:grid; gap:12px; }
+.lifecycle-switch-preview {
+  display:grid;
+  gap:12px;
+  padding:13px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--surface-soft);
+}
+.lifecycle-switch-preview > div:first-child { display:grid; gap:4px; }
+.lifecycle-switch-preview > div:first-child > span {
+  color:var(--muted);
+  font-size:9px;
+  font-weight:850;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.lifecycle-switch-preview strong { font-size:12px; }
+.lifecycle-switch-preview p { margin:0; color:var(--muted); font-size:11px; line-height:1.5; }
