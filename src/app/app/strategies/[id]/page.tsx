@@ -78,6 +78,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   );
 
   const byDate=new Map<string,{date:string;actual?:number;model?:number;benchmark?:number}>();
+  const comparisonWarnings:string[]=[];
   for(const point of actualPoints){
     byDate.set(point.date,{date:point.date,actual:Number(point.value)});
   }
@@ -85,32 +86,40 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   if(actualPoints.length&&canonical.length){
     const anchor=actualPoints[0];
     const flows=externalFlows.map((flow:any)=>({date:String(flow.date).slice(0,10),amount:String(flow.cash_amount)}));
-    const model=simulateSameCashFlows({
-      index:canonical.map((p:any)=>({date:String(p.date).slice(0,10),value:String(p.value)})),
-      anchorDate:anchor.date,
-      anchorValue:anchor.value,
-      flows
-    });
-    for(const point of model){
-      const item=byDate.get(point.date)??{date:point.date};
-      item.model=point.value.toNumber();
-      byDate.set(point.date,item);
+    try{
+      const model=simulateSameCashFlows({
+        index:canonical.map((p:any)=>({date:String(p.date).slice(0,10),value:String(p.value)})),
+        anchorDate:anchor.date,
+        anchorValue:anchor.value,
+        flows
+      });
+      for(const point of model){
+        const item=byDate.get(point.date)??{date:point.date};
+        item.model=point.value.toNumber();
+        byDate.set(point.date,item);
+      }
+    }catch{
+      comparisonWarnings.push("Strategy-model comparison is unavailable for part of this history because a withdrawal exceeds the counterfactual value.");
     }
 
     const benchmarkIndex=canonical
       .filter((p:any)=>p.benchmark_value!=null)
       .map((p:any)=>({date:String(p.date).slice(0,10),value:String(p.benchmark_value)}));
     if(benchmarkIndex.length){
-      const benchmark=simulateSameCashFlows({
-        index:benchmarkIndex,
-        anchorDate:anchor.date,
-        anchorValue:anchor.value,
-        flows
-      });
-      for(const point of benchmark){
-        const item=byDate.get(point.date)??{date:point.date};
-        item.benchmark=point.value.toNumber();
-        byDate.set(point.date,item);
+      try{
+        const benchmark=simulateSameCashFlows({
+          index:benchmarkIndex,
+          anchorDate:anchor.date,
+          anchorValue:anchor.value,
+          flows
+        });
+        for(const point of benchmark){
+          const item=byDate.get(point.date)??{date:point.date};
+          item.benchmark=point.value.toNumber();
+          byDate.set(point.date,item);
+        }
+      }catch{
+        comparisonWarnings.push("Benchmark comparison is unavailable for part of this history because a withdrawal exceeds the counterfactual value.");
       }
     }
   }
@@ -221,6 +230,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
             <div className="section-head"><div><h2>Performance</h2><p>Your account versus the same cash flows applied to the strategy model and benchmark.</p></div></div>
             <PerformanceChart data={chartData} markers={chartMarkers}/>
             <p className="help">Contributions and withdrawals are applied across comparison series so adding money is not mistaken for investment performance.</p>
+            {comparisonWarnings.map((warning)=><p className="help comparison-warning" key={warning}>{warning}</p>)}
             <div className="tracking-boundary"><span>Tracked by StrategyOS since {new Date(s.started_at).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}.</span>{s.onboarding_mode==="RESUME"&&<span>Performance before that date is not reconstructed from incomplete history.</span>}</div>
           </section>
 
