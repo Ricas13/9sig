@@ -11,7 +11,8 @@ const schema=z.object({
   eventType:z.enum(["WITHDRAWAL","DIVIDEND","DISTRIBUTION","INTEREST","FEE","TAX"]),
   amount,
   occurredAt:z.string().datetime({offset:true}).optional(),
-  note:z.string().max(240).optional()
+  note:z.string().max(240).optional(),
+  accountId:z.string().uuid().optional()
 });
 
 export async function POST(request:Request,context:{params:Promise<{id:string}>}){
@@ -34,13 +35,16 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     if(String(strategy.status)==="CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
 
     const eventId=await sql.begin(async(tx)=>{
-      const locked=await tx.unsafe("SELECT id,status,account_id FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE",[id,user.id]);
+      const locked=await tx.unsafe(
+        "SELECT i.id,i.status,a.id AS account_id,a.currency FROM strategy_instances i JOIN strategy_accounts sa ON sa.strategy_instance_id=i.id JOIN accounts a ON a.id=sa.account_id WHERE i.id=$1 AND i.user_id=$2 AND a.id=COALESCE($3::uuid,i.account_id) FOR UPDATE OF i",
+        [id,user.id,input.accountId??null]
+      );
       if(!locked[0])throw new Error("STRATEGY_NOT_FOUND");
       if(String(locked[0].status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
       const rows=await tx.unsafe(
         "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,fee_amount,provenance,confidence,metadata)"+
         " VALUES ($1,$2,$3,$4,$5,$6,$7,'USER_ENTERED','VERIFIED',$8::jsonb) RETURNING id",
-        [id,locked[0].account_id,input.occurredAt?new Date(input.occurredAt):new Date(),input.eventType,strategy.currency,cashAmount.toString(),feeAmount.toString(),JSON.stringify({note:input.note??null})]
+        [id,locked[0].account_id,input.occurredAt?new Date(input.occurredAt):new Date(),input.eventType,String(locked[0].currency),cashAmount.toString(),feeAmount.toString(),JSON.stringify({note:input.note??null})]
       );
       const ledgerEventId=String(rows[0].id);
       await tx.unsafe(
@@ -56,6 +60,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     if(error instanceof z.ZodError)return Response.json({error:"Check the cash event details."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     if(code==="STRATEGY_CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
+    if(code==="STRATEGY_NOT_FOUND")return Response.json({error:"That account is not linked to this strategy."},{status:404});
     return Response.json({error:"Could not record the cash event."},{status:500});
   }
 }
