@@ -9,6 +9,7 @@ import { normalizeExecutionConstraints, planPracticalTrade, validateExecution } 
 import { nextReviewDueAt } from "@/domain/schedule";
 import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/config";
 import { actionRecalculationDisposition, type ActionStatus } from "@/domain/actions";
+import { actionFingerprintMaterial } from "@/domain/action-fingerprint";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
 type CalculationScenario={
@@ -293,11 +294,21 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
       .filter(([,quantity])=>!quantity.eq(0))
       .map(([instrumentId,quantity])=>accountId+":"+instrumentId+":"+quantity.toString());
   }).sort().join(",");
-  const material=[
-    strategyInstanceId,calculationVersionId,lastReview.toISOString(),proposal.actionType,
-    proposal.currency??"",proposal.economicExposure??"",proposal.leverage??"",tradingLineId??"",executionAccountId??"",
-    effectiveCash.toString(),contributionsSinceReview.toString(),stableHoldings,dataStatus
-  ].join("|");
+  const material=actionFingerprintMaterial({
+    strategyInstanceId,
+    strategyVersionId:calculationVersionId,
+    lastReviewIso:lastReview.toISOString(),
+    actionType:proposal.actionType,
+    currency:proposal.currency??"",
+    economicExposure:proposal.economicExposure??"",
+    leverage:proposal.leverage??"",
+    tradingLineId:tradingLineId??"",
+    executionAccountId:executionAccountId??"",
+    effectiveCash:effectiveCash.toString(),
+    contributionsSinceReview:contributionsSinceReview.toString(),
+    stableHoldings,
+    dataStatus
+  });
   const fingerprint=crypto.createHash("sha256").update(material).digest("hex");
   const reviewAction=["BUY","SELL","REBALANCE","HOLD"].includes(proposal.actionType);
   const nextState=reviewAction
