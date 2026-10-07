@@ -12,7 +12,7 @@ type Point={
 type Marker={date:string;type:"CONTRIBUTION"|"REVIEW";label:string};
 type ComparisonSeries={key:string;label:string;defaultVisible?:boolean};
 const frames=["1M","3M","6M","YTD","1Y","3Y","5Y","MAX"];
-const comparisonColors=["#ffd27a","#c58cff","#ff8fab","#56d6e9","#a5d86e","#f0a35e"];
+const comparisonColors=["var(--chart-comparison-1)","var(--chart-comparison-2)","var(--chart-comparison-3)","var(--chart-comparison-4)","var(--chart-comparison-5)","var(--chart-comparison-6)"];
 
 function cutoff(frame:string) {
   const now=new Date();
@@ -87,23 +87,23 @@ export function PerformanceChart({
       </div>
     </div>
     {filteredMarkers.length>0&&<div className="chart-markers" aria-label="Chart event markers"><span className="chart-marker-key contribution">+ Contributions</span><span className="chart-marker-key review">R Reviews</span></div>}
-    <div className="chart-wrap"><ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={filtered} margin={{top:22,right:8,left:0,bottom:0}}>
+    <div className="chart-wrap" role="img" aria-label="Interactive portfolio performance chart"><ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={filtered} margin={{top:22,right:8,left:0,bottom:0}} accessibilityLayer>
         <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#78f3c6" stopOpacity={.28}/><stop offset="100%" stopColor="#78f3c6" stopOpacity={0}/></linearGradient>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--chart-actual)" stopOpacity={.28}/><stop offset="100%" stopColor="var(--chart-actual)" stopOpacity={0}/></linearGradient>
         </defs>
-        <CartesianGrid vertical={false} stroke="rgba(158,184,214,.085)"/>
-        <XAxis dataKey="date" tick={{fill:"#7f95ae",fontSize:10}} axisLine={false} tickLine={false} minTickGap={30}/>
-        <YAxis tick={{fill:"#7f95ae",fontSize:10}} tickFormatter={(v)=>compact(Number(v))} axisLine={false} tickLine={false} width={48}/>
-        {filteredMarkers.map((marker,index)=><ReferenceLine key={marker.type+marker.date+index} x={marker.date} stroke={marker.type==="CONTRIBUTION"?"#79a8ff":"#ffd27a"} strokeOpacity={.42} strokeDasharray="3 5" label={{value:marker.type==="CONTRIBUTION"?"+":"R",position:"insideTop",fill:marker.type==="CONTRIBUTION"?"#79a8ff":"#ffd27a",fontSize:10}} ifOverflow="extendDomain"/>)}
+        <CartesianGrid vertical={false} stroke="var(--chart-grid)"/>
+        <XAxis dataKey="date" tick={{fill:"var(--chart-axis)",fontSize:10}} axisLine={false} tickLine={false} minTickGap={30}/>
+        <YAxis tick={{fill:"var(--chart-axis)",fontSize:10}} tickFormatter={(v)=>compact(Number(v))} axisLine={false} tickLine={false} width={48}/>
+        {filteredMarkers.map((marker,index)=><ReferenceLine key={marker.type+marker.date+index} x={marker.date} stroke={marker.type==="CONTRIBUTION"?"var(--chart-model)":"var(--chart-comparison-1)"} strokeOpacity={.42} strokeDasharray="3 5" label={{value:marker.type==="CONTRIBUTION"?"+":"R",position:"insideTop",fill:marker.type==="CONTRIBUTION"?"var(--chart-model)":"var(--chart-comparison-1)",fontSize:10}} ifOverflow="extendDomain"/>)}
         <Tooltip
-          contentStyle={{background:"#0b192a",border:"1px solid rgba(158,184,214,.16)",borderRadius:14,boxShadow:"0 18px 50px rgba(0,0,0,.3)"}}
-          labelStyle={{color:"#8ea3bd",fontSize:11}}
+          contentStyle={{background:"var(--chart-tooltip-bg)",border:"1px solid var(--line)",borderRadius:14,boxShadow:"var(--shadow)",color:"var(--text)"}}
+          labelStyle={{color:"var(--muted)",fontSize:11}}
           itemStyle={{fontSize:12}}
           formatter={(value,name)=>[new Intl.NumberFormat("en-GB",{maximumFractionDigits:2}).format(Number(value)),String(name)]}
         />
-        {showActual&&<Area type="monotone" dataKey="actual" name="Your portfolio" stroke="#78f3c6" fill={"url(#"+gradientId+")"} strokeWidth={3} connectNulls isAnimationActive={!reduceMotion} animationDuration={650}/>}
-        {showModel&&<Area type="monotone" dataKey="model" name="Strategy model" stroke="#79a8ff" fillOpacity={0} strokeWidth={2.25} connectNulls isAnimationActive={!reduceMotion} animationDuration={650}/>}
+        {showActual&&<Area type="monotone" dataKey="actual" name="Your portfolio" stroke="var(--chart-actual)" fill={"url(#"+gradientId+")"} strokeWidth={3} connectNulls isAnimationActive={!reduceMotion} animationDuration={650}/>}
+        {showModel&&<Area type="monotone" dataKey="model" name="Strategy model" stroke="var(--chart-model)" fillOpacity={0} strokeWidth={2.25} connectNulls isAnimationActive={!reduceMotion} animationDuration={650}/>}
         {availableComparisons.map((series,index)=>visibleComparisons[series.key]&&<Area
           key={series.key}
           type="monotone"
