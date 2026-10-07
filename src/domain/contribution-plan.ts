@@ -18,10 +18,16 @@ function validDate(value:string){
 export function addContributionPeriod(dateValue:string,frequency:ContributionFrequency){
   if(!validDate(dateValue))throw new Error("INVALID_CONTRIBUTION_DATE");
   const date=new Date(dateValue+"T00:00:00Z");
-  if(frequency==="WEEKLY")date.setUTCDate(date.getUTCDate()+7);
-  else if(frequency==="MONTHLY")date.setUTCMonth(date.getUTCMonth()+1);
-  else date.setUTCMonth(date.getUTCMonth()+3);
-  return date.toISOString().slice(0,10);
+  if(frequency==="WEEKLY"){
+    date.setUTCDate(date.getUTCDate()+7);
+    return date.toISOString().slice(0,10);
+  }
+  const months=frequency==="MONTHLY"?1:3;
+  const originalDay=date.getUTCDate();
+  const target=new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth()+months,1));
+  const lastDay=new Date(Date.UTC(target.getUTCFullYear(),target.getUTCMonth()+1,0)).getUTCDate();
+  target.setUTCDate(Math.min(originalDay,lastDay));
+  return target.toISOString().slice(0,10);
 }
 
 export function normalizeContributionPlan(raw:unknown,anchorDate=new Date()):ContributionPlan{
