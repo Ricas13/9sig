@@ -2,6 +2,13 @@ import Decimal from "decimal.js";
 
 export type TradeSide = "BUY" | "SELL";
 
+export function assertExecutionCurrencyMatch(actionCurrency: unknown, accountCurrency: unknown) {
+  const action = typeof actionCurrency === "string" ? actionCurrency.trim().toUpperCase() : "";
+  const account = typeof accountCurrency === "string" ? accountCurrency.trim().toUpperCase() : "";
+  if (!action || !account || action !== account) throw new Error("EXECUTION_CURRENCY_MISMATCH");
+  return action;
+}
+
 export type ExecutionInput = {
   side: TradeSide;
   proposedAmount: Decimal.Value;
