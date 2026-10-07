@@ -3,6 +3,7 @@ import Decimal from "decimal.js";
 import { sql } from "@/lib/db";
 import { assertCanCreateStrategy, buildEntitlementSnapshot } from "@/domain/entitlements";
 import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/config";
+import { serializeExecutionConstraints } from "@/domain/execution";
 
 export type CreateStrategyInput = {
   strategyKey: string;
@@ -14,6 +15,7 @@ export type CreateStrategyInput = {
   startingCash?: string;
   approximateValue?: string;
   settings?: Record<string, unknown>;
+  executionConstraints?: Record<string, unknown>;
 };
 
 export async function listAvailableStrategies() {
@@ -99,6 +101,7 @@ export async function createStrategy(userId: string, country: string, input: Cre
       Array.isArray(definition.input_schema)&&definition.input_schema.length?definition.input_schema:definition.required_inputs
     );
     const settings=validateInstanceSettings(inputSchema,input.settings);
+    const executionConstraints=serializeExecutionConstraints(input.executionConstraints);
 
     const accounts = await tx.unsafe(
       "INSERT INTO accounts (user_id,name,wrapper,country,currency,broker_name) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",
@@ -108,8 +111,8 @@ export async function createStrategy(userId: string, country: string, input: Cre
       ? { resumeNeedsReconciliation:true, approximateValue:input.approximateValue ?? null, forceReview:false }
       : { forceReview:true };
     const instances = await tx.unsafe(
-      "INSERT INTO strategy_instances (user_id,account_id,strategy_definition_id,strategy_version_id,name,onboarding_mode,health_status,settings) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb) RETURNING id",
-      [userId,accounts[0].id,definition.id,definition.version_id,input.name,input.onboardingMode,input.onboardingMode==="RESUME"?"NEEDS_ATTENTION":"HEALTHY",JSON.stringify(settings)]
+      "INSERT INTO strategy_instances (user_id,account_id,strategy_definition_id,strategy_version_id,name,onboarding_mode,health_status,settings,execution_constraints) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb) RETURNING id",
+      [userId,accounts[0].id,definition.id,definition.version_id,input.name,input.onboardingMode,input.onboardingMode==="RESUME"?"NEEDS_ATTENTION":"HEALTHY",JSON.stringify(settings),JSON.stringify(executionConstraints)]
     );
     const id=String(instances[0].id);
     await tx.unsafe(
