@@ -526,6 +526,79 @@ type StrategySwitchOption={
   inputSchema:VersionInputField[];
 };
 
+export function StrategySwitchControl({id,options=[]}:{id:string;options?:StrategySwitchOption[]}){
+  const router=useRouter();
+  const [key,setKey]=useState(options[0]?.key??"");
+  const [preview,setPreview]=useState<null|{targetStrategy:{key:string;name:string;version:string};action:{title:string;instruction:string;confidence:string}}>(null);
+  const [settings,setSettings]=useState<Record<string,unknown>>({});
+  const [busy,setBusy]=useState(false);
+  const [applying,setApplying]=useState(false);
+  const [confirm,setConfirm]=useState(false);
+  const [error,setError]=useState("");
+  const selected=options.find((option)=>option.key===key)??options[0];
+
+  if(!selected)return <p className="help">No other compatible strategy is available on your current plan.</p>;
+
+  function collect(form:HTMLFormElement){
+    const f=new FormData(form);
+    const next:Record<string,unknown>={};
+    for(const field of selected.inputSchema){
+      if(field.type==="boolean")next[field.key]=Boolean(f.get("switchLifecycle:"+field.key));
+      else{
+        const value=f.get("switchLifecycle:"+field.key);
+        if(value!==null&&String(value)!=="")next[field.key]=String(value);
+      }
+    }
+    return next;
+  }
+
+  async function previewSwitch(form:HTMLFormElement){
+    setBusy(true);setError("");setPreview(null);setConfirm(false);
+    const nextSettings=collect(form);
+    const response=await fetch("/api/strategies/"+id+"/preview",{
+      method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({type:"STRATEGY_SWITCH",targetStrategyKey:key,settings:nextSettings})
+    });
+    const body=await response.json();setBusy(false);
+    if(!response.ok)return setError(body.error??"Could not preview this strategy.");
+    setSettings(nextSettings);
+    setPreview({targetStrategy:body.result.scenario.targetStrategy,action:body.result.action});
+  }
+
+  async function applySwitch(){
+    if(!preview)return;
+    setApplying(true);setError("");
+    const response=await fetch("/api/strategies/"+id+"/switch",{
+      method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({targetStrategyKey:preview.targetStrategy.key,settings})
+    });
+    const body=await response.json();setApplying(false);
+    if(!response.ok)return setError(body.error??"Could not switch strategies.");
+    router.push("/app/strategies/"+body.newStrategyInstanceId);
+    router.refresh();
+  }
+
+  return <form className="strategy-switch-control" onSubmit={(event)=>{event.preventDefault();previewSwitch(event.currentTarget)}}>
+    <div className="field"><label>Switch to</label><select value={key} onChange={(event)=>{setKey(event.target.value);setPreview(null);setConfirm(false);setError("")}}>{options.map((option)=><option key={option.key} value={option.key}>{option.name} · v{option.version}</option>)}</select></div>
+    {selected.inputSchema.length>0&&<div className="form-grid">{selected.inputSchema.map((field)=><div className="field full" key={field.key}>
+      <label>{field.label}</label>
+      {field.type==="select"?<select name={"switchLifecycle:"+field.key} defaultValue={String(field.default??"")} required={field.required}>{!field.required&&<option value="">Not set</option>}{field.options?.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</select>:
+      field.type==="boolean"?<label className="toggle-row"><input name={"switchLifecycle:"+field.key} type="checkbox" defaultChecked={Boolean(field.default)}/><span>{field.help??field.label}</span></label>:
+      <input name={"switchLifecycle:"+field.key} type={field.type} defaultValue={field.default==null?undefined:String(field.default)} required={field.required} min={field.min==null?undefined:String(field.min)} max={field.max==null?undefined:String(field.max)}/>}
+      {field.help&&field.type!=="boolean"&&<div className="help">{field.help}</div>}
+    </div>)}</div>}
+    {!preview&&<button className="button" disabled={busy}>{busy?"Checking…":"Preview switch"}</button>}
+    {preview&&<div className="lifecycle-switch-preview">
+      <div><span>New strategy would say today</span><strong>{preview.action.title}</strong><p>{preview.action.instruction}</p></div>
+      {!confirm?<button type="button" className="button" onClick={()=>setConfirm(true)}>Switch to {preview.targetStrategy.name}</button>:<div className="switch-confirmation">
+        <div><strong>Close this journey and start {preview.targetStrategy.name} from today’s portfolio?</strong><span>Your old strategy history remains available and no historical trades are rewritten.</span></div>
+        <div className="inline"><button type="button" className="button primary" disabled={applying} onClick={applySwitch}>{applying?"Switching…":"Confirm switch"}</button><button type="button" className="button quiet" disabled={applying} onClick={()=>setConfirm(false)}>Cancel</button></div>
+      </div>}
+    </div>}
+    {error&&<div className="error" role="alert">{error}</div>}
+  </form>;
+}
+
 type WhatIfResult={
   scenario:{
     type:"CONTRIBUTION"|"WITHDRAWAL"|"EXECUTION_CONSTRAINTS"|"STRATEGY_SWITCH";
