@@ -536,3 +536,33 @@ th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacin
   .correction-inline { grid-template-columns:1fr 1fr; width:100%; }
   .correction-inline input { grid-column:1/-1; }
 }
+
+
+/* Loading and recoverable error states */
+.sr-only { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
+.loading-shell { padding-top:14px; }
+.skeleton { position:relative; overflow:hidden; border-radius:12px; background:rgba(255,255,255,.045); }
+.skeleton:after { content:""; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg,transparent,rgba(255,255,255,.065),transparent); animation:skeleton-sweep 1.35s ease-in-out infinite; }
+.skeleton-kicker { width:72px; height:11px; }
+.skeleton-title { width:min(560px,74vw); height:52px; margin-top:14px; }
+.skeleton-copy { width:min(430px,64vw); height:14px; margin-top:13px; }
+.loading-hero { display:grid; grid-template-columns:.92fr 1.08fr; gap:14px; margin-top:28px; padding:14px; border:1px solid var(--line); border-radius:22px; }
+.skeleton-value,.skeleton-action { height:300px; border-radius:18px; }
+.loading-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:14px; }
+.loading-strip .skeleton { height:62px; }
+@keyframes skeleton-sweep { to { transform:translateX(100%); } }
+
+.app-error { max-width:720px; margin:8vh auto 0; padding:clamp(30px,6vw,58px); text-align:center; }
+.app-error-icon { width:52px; height:52px; display:grid; place-items:center; margin:0 auto 18px; border:1px solid rgba(255,210,122,.18); border-radius:17px; color:var(--warning); background:rgba(255,210,122,.055); }
+.app-error h1 { margin:8px 0 10px; font-size:clamp(34px,6vw,52px); letter-spacing:-.055em; line-height:1; }
+.app-error p { max-width:560px; margin:0 auto 24px; color:var(--muted); line-height:1.65; }
+
+@media (max-width:680px) {
+  .loading-hero { grid-template-columns:1fr; }
+  .skeleton-value { height:180px; }
+  .skeleton-action { height:270px; }
+  .loading-strip { grid-template-columns:1fr; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .skeleton:after { animation:none; display:none; }
+}
