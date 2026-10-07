@@ -165,7 +165,7 @@ export async function executeAction(
   actionId:string,
   execution?:{price?:string;quantity?:string;fee?:string}
 ){
-  return sql.begin(async(tx)=>{
+  const strategyInstanceId=await sql.begin(async(tx)=>{
     const rows=await tx.unsafe(
       "SELECT a.*,i.user_id,i.execution_constraints,acc.currency,tl.instrument_id FROM actions a JOIN strategy_instances i ON i.id=a.strategy_instance_id JOIN accounts acc ON acc.id=i.account_id LEFT JOIN trading_lines tl ON tl.id=a.trading_line_id WHERE a.id=$1 AND i.user_id=$2 FOR UPDATE OF a",
       [actionId,userId]
@@ -243,6 +243,8 @@ export async function executeAction(
       "UPDATE actions SET status='EXECUTED',executed_at=now(),updated_at=now() WHERE id=$1",
       [actionId]
     );
-    return true;
+    return String(action.strategy_instance_id);
   });
+  try{await calculateAction(strategyInstanceId);}catch{}
+  return true;
 }
