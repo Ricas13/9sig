@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/session";
 import { assertSameOrigin } from "@/lib/security";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { serializeExecutionConstraints } from "@/domain/execution";
-import { calculateAction } from "@/lib/action-service";
+import { recalculateAfterMutation } from "@/lib/action-service";
 import { sql } from "@/lib/db";
 
 const decimalString=z.string().regex(/^\d+(?:\.\d{1,8})?$/);
@@ -32,8 +32,8 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       await tx.unsafe("UPDATE strategy_instances SET execution_constraints=$1::jsonb,updated_at=now() WHERE id=$2",[JSON.stringify(constraints),id]);
       await tx.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy.execution-constraints.updated','strategy_instance',$2,$3::jsonb)",[user.id,id,JSON.stringify(constraints)]);
     });
-    try{await calculateAction(id);}catch{}
-    return Response.json({ok:true,constraints});
+    const recalc=String(strategy.status)==="ACTIVE"?await recalculateAfterMutation(id,user.id,"execution-constraints"):{actionId:null,recalculationPending:false,errorCode:null};
+    return Response.json({ok:true,constraints,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending});
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Check your trade preferences."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
