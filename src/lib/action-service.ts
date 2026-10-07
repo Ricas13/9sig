@@ -182,7 +182,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
         const account=candidateAccount.account;
         const mappingRows=await sql.unsafe(
           "SELECT m.id,m.economic_exposure,m.leverage,m.direction,m.country,m.wrapper,m.broker,m.preferred_currency,m.fidelity,m.effective_from,m.effective_to,m.trading_line_id,tl.currency AS trading_line_currency,tl.effective_from AS trading_line_effective_from,tl.effective_to AS trading_line_effective_to FROM regional_instrument_mappings m JOIN trading_lines tl ON tl.id=m.trading_line_id WHERE m.economic_exposure=$1 AND m.country=$2 AND m.wrapper=$3 AND m.enabled=true",
-          [proposal.economicExposure,account.country,account.wrapper]
+          [proposal.economicExposure,String(account.country),String(account.wrapper)]
         );
         const candidates:MappingCandidate[]=mappingRows.map((r)=>({
           id:String(r.id),economicExposure:String(r.economic_exposure),leverage:String(r.leverage),direction:String(r.direction),
