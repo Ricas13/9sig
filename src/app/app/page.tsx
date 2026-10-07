@@ -5,6 +5,15 @@ import { listUserStrategies } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { plainEnglishActionReason } from "@/domain/action-copy";
 
+function strategyCardState(strategy:any){
+  const status=String(strategy.status);
+  if(status==="CLOSED")return {className:"attention",label:"Closed history"};
+  if(status==="PAUSED")return {className:"attention",label:"Paused"};
+  return strategy.health_status==="HEALTHY"
+    ?{className:"healthy",label:"On track"}
+    :{className:"attention",label:"Needs attention"};
+}
+
 function money(value:number,currency:string){
   return new Intl.NumberFormat("en-GB",{style:"currency",currency,maximumFractionDigits:0}).format(value);
 }
@@ -113,13 +122,13 @@ export default async function OverviewPage(){
         <Link className="text-link" href="/app/strategies/new">Add another <ArrowRight size={14}/></Link>
       </div>
       <div className="strategy-grid">
-        {trackedStrategies.map((s:any)=><Link href={"/app/strategies/"+s.id} className="card strategy-card premium-card" key={s.id}>
-          <div className="strategy-card-top"><span className={"status-light "+(s.health_status==="HEALTHY"?"healthy":"attention")}/><span>{s.health_status==="HEALTHY"?"On track":"Needs attention"}</span></div>
+        {trackedStrategies.map((s:any)=>{const cardState=strategyCardState(s);return <Link href={"/app/strategies/"+s.id} className="card strategy-card premium-card" key={s.id}>
+          <div className="strategy-card-top"><span className={"status-light "+cardState.className}/><span>{cardState.label}</span></div>
           <h3>{s.name}</h3>
           <p>{s.strategy_name} · {s.wrapper}</p>
           <div className="strategy-meta"><span className="pill">v{s.version}</span><span className="pill">{s.currency}</span></div>
           <span className="card-arrow"><ArrowRight size={17}/></span>
-        </Link>)}
+        </Link>})}
       </div>
     </section>
 
