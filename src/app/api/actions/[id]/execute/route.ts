@@ -32,7 +32,8 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       EXECUTION_CURRENCY_MISMATCH:"The execution currency does not match the account currency.",
       SELLING_DISABLED:"Sell recommendations are disabled in your trade preferences.",
       FRACTIONAL_SHARES_DISABLED:"Your broker is set to whole shares only. Enter a whole-share quantity or recalculate.",
-      BELOW_MINIMUM_TRADE:"This execution is below your configured minimum trade size."
+      BELOW_MINIMUM_TRADE:"This execution is below your configured minimum trade size.",
+      STRATEGY_NOT_ACTIVE:"Resume this strategy before completing an action."
     };
     return Response.json({error:messages[code]??"Could not complete this action."},{status:400});
   }
