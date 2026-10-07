@@ -700,8 +700,8 @@ Use this checklist as the shared cross-chat roadmap.
 ### Visual system
 
 - [ ] define premium design tokens
-- [ ] dark mode
-- [ ] light mode
+- [x] dark mode
+- [x] light mode
 - [ ] typography and number formatting
 - [ ] cards / surfaces / gradients / depth
 - [ ] icon system
