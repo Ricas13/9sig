@@ -9,7 +9,7 @@ import { normalizeExecutionConstraints, planPracticalTrade, validateExecution } 
 import { nextReviewDueAt } from "@/domain/schedule";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
-async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashDelta?:Decimal.Value;contributionDelta?:Decimal.Value}){
+async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashDelta?:Decimal.Value;contributionDelta?:Decimal.Value;executionConstraints?:Record<string,unknown>}){
   const rows=await sql.unsafe("SELECT i.id,i.user_id,i.account_id,i.strategy_definition_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,v.effective_from AS version_effective_from,v.engine_key AS engine,v.config,i.settings,i.execution_constraints,a.name AS primary_account_name,a.country,a.wrapper,a.currency,a.broker_name,s.state,u.timezone AS user_timezone FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN users u ON u.id=i.user_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
   const instance=rows[0];if(!instance)throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
   const linkedAccounts=await sql.unsafe(
@@ -153,7 +153,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
           price:String(quote.price),
           availableCash:effectiveCash,
           heldQuantity,
-          constraints:(instance.execution_constraints??{}) as Record<string,unknown>
+          constraints:scenario?.executionConstraints??((instance.execution_constraints??{}) as Record<string,unknown>)
         });
         if(practical.status==="BLOCKED"){
           const messages={
@@ -219,6 +219,45 @@ export async function previewCashScenario(
   });
   return {
     scenario:{type:input.type,amount:amount.toString(),currency:String(calculation.instance.currency)},
+    portfolioValueAfter:calculation.totalValue.toString(),
+    action:{
+      actionType:calculation.proposal.actionType,
+      title:calculation.proposal.title,
+      instruction:calculation.proposal.instruction,
+      amount:calculation.proposal.amount?.toString()??null,
+      currency:calculation.proposal.currency??null,
+      confidence:calculation.proposal.confidence,
+      explanation:calculation.proposal.explanation
+    }
+  };
+}
+
+export async function previewExecutionConstraintsScenario(
+  userId:string,
+  strategyInstanceId:string,
+  executionConstraints:Record<string,unknown>
+){
+  const owner=await sql.unsafe("SELECT id FROM strategy_instances WHERE id=$1 AND user_id=$2 LIMIT 1",[strategyInstanceId,userId]);
+  if(!owner[0])throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
+  const normalized=normalizeExecutionConstraints(executionConstraints);
+  const calculation=await buildActionCalculation(strategyInstanceId,{executionConstraints:{
+    fractionalShares:normalized.fractionalShares,
+    minimumTradeAmount:normalized.minimumTradeAmount.toString(),
+    cashBufferAmount:normalized.cashBufferAmount.toString(),
+    flatFee:normalized.flatFee.toString(),
+    allowSelling:normalized.allowSelling
+  }});
+  return {
+    scenario:{
+      type:"EXECUTION_CONSTRAINTS" as const,
+      constraints:{
+        fractionalShares:normalized.fractionalShares,
+        minimumTradeAmount:normalized.minimumTradeAmount.toString(),
+        cashBufferAmount:normalized.cashBufferAmount.toString(),
+        flatFee:normalized.flatFee.toString(),
+        allowSelling:normalized.allowSelling
+      }
+    },
     portfolioValueAfter:calculation.totalValue.toString(),
     action:{
       actionType:calculation.proposal.actionType,
