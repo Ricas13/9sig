@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { CheckCircle2 } from "lucide-react";
 
 export function RecalculateButton({ id }: { id: string }) {
   const router = useRouter();
@@ -17,7 +18,16 @@ export function ExecuteAction({ action }: { action: { id: string; actionType: st
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [completed, setCompleted] = useState(false);
   const needsPrice = ["BUY", "SELL"].includes(action.actionType);
+
+  if (completed) {
+    return <div className="action-complete" role="status" aria-live="polite">
+      <span className="action-complete-icon"><CheckCircle2 size={20}/></span>
+      <span><strong>{needsPrice ? "Trade recorded." : "Review completed."}</strong><small>Recalculating what comes next…</small></span>
+    </div>;
+  }
+
   return <form className="inline" onSubmit={async (e) => {
     e.preventDefault();
     setBusy(true);
@@ -31,14 +41,17 @@ export function ExecuteAction({ action }: { action: { id: string; actionType: st
     const body = await response.json();
     setBusy(false);
     if (!response.ok) return setError(body.error ?? "Could not complete action.");
-    router.refresh();
+    setCompleted(true);
+    window.setTimeout(() => router.refresh(), 550);
   }}>
     {needsPrice && <>
-      <input name="price" type="number" min="0" step="0.000001" placeholder="Execution price" required />
-      <input name="quantity" type="number" min="0" step="0.00000001" placeholder="Actual quantity" required /><input name="fee" type="number" min="0" step="0.01" defaultValue="0" placeholder="Fee" /><label className="partial-fill"><input name="partial" type="checkbox"/><span>I only completed part of this trade</span></label>
+      <input name="price" type="number" min="0" step="0.000001" placeholder="Execution price" aria-label="Actual execution price" required />
+      <input name="quantity" type="number" min="0" step="0.00000001" placeholder="Actual quantity" aria-label="Actual quantity" required />
+      <input name="fee" type="number" min="0" step="0.01" defaultValue="0" placeholder="Fee" aria-label="Trading fee"/>
+      <label className="partial-fill"><input name="partial" type="checkbox"/><span>I only completed part of this trade</span></label>
     </>}
-    <button className="button primary" disabled={busy}>{needsPrice ? "Mark trade completed" : "Mark reviewed"}</button>
-    {error && <span className="error">{error}</span>}
+    <button className="button primary" disabled={busy}>{busy ? "Recording…" : needsPrice ? "Mark trade completed" : "Mark reviewed"}</button>
+    {error && <span className="error" role="alert">{error}</span>}
   </form>;
 }
 
