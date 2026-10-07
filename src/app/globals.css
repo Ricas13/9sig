@@ -730,3 +730,27 @@ html[data-theme="light"] .theme-toggle-icon {
   .theme-toggle { transition:none; }
   .theme-toggle:hover { transform:none; }
 }
+
+
+/* Plain-English action explanation */
+.plain-reason {
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  max-width:680px;
+  margin:13px 0 3px;
+  padding:10px 12px;
+  border:1px solid rgba(121,168,255,.14);
+  border-radius:13px;
+  color:#abc0d8;
+  background:rgba(121,168,255,.045);
+  font-size:12px;
+  font-weight:700;
+  line-height:1.5;
+}
+.plain-reason svg { flex:0 0 auto; margin-top:2px; color:var(--accent2); }
+html[data-theme="light"] .plain-reason {
+  color:#536b86;
+  border-color:rgba(71,127,240,.13);
+  background:rgba(71,127,240,.05);
+}
