@@ -236,7 +236,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         <p>You do not need to rebuild your old transaction history. Enter your current cash and holdings so we can calculate from here.</p>
       </div>
       {accountOptions.length>1&&capturedOpeningAccountCount>0&&pendingOpeningAccounts[0]&&<div className="resume-progress" role="status">
-        <span>Next</span><strong>{pendingOpeningAccounts[0].name}</strong><small>{pendingOpeningAccounts[0].wrapper} · {pendingOpeningAccounts[0].currency}</small>
+        <strong>Next: {pendingOpeningAccounts[0].name}</strong><small>{pendingOpeningAccounts[0].wrapper} · {pendingOpeningAccounts[0].currency}</small>
       </div>}
       <OpeningSnapshotForm id={id} accounts={accountOptions}/>
       {canMultiAccount&&<details className="resume-add-account">
