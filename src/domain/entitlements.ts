@@ -33,3 +33,8 @@ export function assertCanCreateStrategy(snapshot: EntitlementSnapshot, activeCou
   if (snapshot.maxActiveStrategies !== null && activeCount >= snapshot.maxActiveStrategies) throw new Error("PLAN_STRATEGY_LIMIT");
   if (snapshot.availableStrategyKeys && !snapshot.availableStrategyKeys.has(strategyKey)) throw new Error("STRATEGY_NOT_IN_PLAN");
 }
+
+
+export function assertStrategyFeatureAccess(snapshot:EntitlementSnapshot,input:{accountCount:number}){
+  if(input.accountCount>1&&!snapshot.features.has("multi_account"))throw new Error("MULTI_ACCOUNT_NOT_IN_PLAN");
+}
