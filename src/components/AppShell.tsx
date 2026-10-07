@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LayoutDashboard, Layers3, Bell, Settings, Shield, Plus, Sparkles } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function AppShell({ children, isAdmin=false }: { children:React.ReactNode; isAdmin?:boolean }) {
   return <div className="app-shell">
@@ -18,7 +19,7 @@ export function AppShell({ children, isAdmin=false }: { children:React.ReactNode
     <main className="app-main">
       <div className="app-topbar">
         <div className="topbar-status"><span className="status-dot"/>Your strategies are being tracked</div>
-        <Link href="/app/strategies/new" className="button primary compact"><Plus size={16}/>Add strategy</Link>
+        <div className="topbar-actions"><ThemeToggle/><Link href="/app/strategies/new" className="button primary compact"><Plus size={16}/>Add strategy</Link></div>
       </div>
       <div className="app-content">{children}</div>
     </main>
