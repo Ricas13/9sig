@@ -2,6 +2,7 @@ import {
   pgTable, uuid, text, timestamp, boolean, integer, numeric, jsonb,
   uniqueIndex, index, date, primaryKey
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -174,6 +175,7 @@ export const strategyAccounts = pgTable("strategy_accounts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (t) => [
   primaryKey({ columns: [t.strategyInstanceId, t.accountId] }),
+  uniqueIndex("strategy_accounts_primary_unique").on(t.strategyInstanceId).where(sql`${t.role} = 'PRIMARY'`),
   index("strategy_accounts_account_idx").on(t.accountId)
 ]);
 
@@ -264,9 +266,11 @@ export const ledgerEvents = pgTable("ledger_events", {
   correctionOfEventId: uuid("correction_of_event_id"),
   metadata: jsonb("metadata").notNull().default({}),
   createdBy: text("created_by").notNull().default("USER"),
+  requestKey: uuid("request_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (t) => [
-  index("ledger_instance_time_idx").on(t.strategyInstanceId, t.occurredAt, t.createdAt)
+  index("ledger_instance_time_idx").on(t.strategyInstanceId, t.occurredAt, t.createdAt),
+  uniqueIndex("ledger_events_strategy_request_unique").on(t.strategyInstanceId,t.requestKey).where(sql`${t.requestKey} IS NOT NULL`)
 ]);
 
 export const reconciliations = pgTable("reconciliations", {
@@ -280,8 +284,12 @@ export const reconciliations = pgTable("reconciliations", {
   reason: text("reason"),
   provenance: text("provenance").notNull().default("USER_CONFIRMED"),
   metadata: jsonb("metadata").notNull().default({}),
+  requestKey: uuid("request_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [index("reconciliation_instance_idx").on(t.strategyInstanceId, t.occurredAt)]);
+}, (t) => [
+  index("reconciliation_instance_idx").on(t.strategyInstanceId, t.occurredAt),
+  uniqueIndex("reconciliations_strategy_request_unique").on(t.strategyInstanceId,t.requestKey).where(sql`${t.requestKey} IS NOT NULL`)
+]);
 
 export const overrides = pgTable("overrides", {
   id: uuid("id").primaryKey().defaultRandom(),
