@@ -34,8 +34,10 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     const user=await requireUser();
     const {id}=await context.params;
     const entitlements=await loadEntitlements(user.id);
-    if(!entitlements.features.has("what_if"))return Response.json({error:"What-if previews are not included in your current plan."},{status:403});
     const input=schema.parse(await request.json());
+    if(input.type!=="STRATEGY_SWITCH"&&!entitlements.features.has("what_if")){
+      return Response.json({error:"What-if previews are not included in your current plan."},{status:403});
+    }
     const result=input.type==="EXECUTION_CONSTRAINTS"
       ?await previewExecutionConstraintsScenario(user.id,id,input.constraints)
       :input.type==="STRATEGY_SWITCH"
