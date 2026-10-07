@@ -172,19 +172,51 @@ export function StrategyLifecycleControls({ id, status }: { id: string; status: 
 
 type VersionInputField={key:string;label:string;type:"text"|"number"|"date"|"select"|"boolean";required?:boolean;help?:string;default?:string|number|boolean;options?:Array<{label:string;value:string}>;min?:string|number;max?:string|number};
 
+function readableConfigKey(key:string){
+  return key.replace(/([a-z0-9])([A-Z])/g,"$1 $2").replaceAll("_"," ").replace(/^./,(letter)=>letter.toUpperCase());
+}
+function conciseConfigValue(value:unknown){
+  if(value==null)return "Not set";
+  if(typeof value==="boolean")return value?"On":"Off";
+  if(typeof value==="string"||typeof value==="number")return String(value);
+  const text=JSON.stringify(value);
+  return text.length>90?text.slice(0,87)+"…":text;
+}
+
 export function StrategyVersionUpgrade({
-  id,currentVersion,targetVersionId,targetVersion,releaseNotes,upgradePolicy,inputSchema,currentSettings
+  id,currentVersion,targetVersionId,targetVersion,releaseNotes,upgradePolicy,inputSchema,currentSettings,currentConfig,targetConfig
 }:{
   id:string;currentVersion:string;targetVersionId:string;targetVersion:string;releaseNotes?:string|null;upgradePolicy:string;
-  inputSchema:VersionInputField[];currentSettings:Record<string,unknown>;
+  inputSchema:VersionInputField[];currentSettings:Record<string,unknown>;currentConfig:Record<string,unknown>;targetConfig:Record<string,unknown>;
 }){
   const router=useRouter();const[message,setMessage]=useState("");const[busy,setBusy]=useState(false);
-  return <section className="glass form-card" style={{marginTop:16}}>
-    <div className={"pill "+(upgradePolicy==="REQUIRED"?"bad":upgradePolicy==="RECOMMENDED"?"warn":"good")}>{upgradePolicy} UPDATE</div>
-    <h3>Strategy release v{targetVersion} is available</h3>
-    <p className="help">You are currently on v{currentVersion}. Updating changes future calculations only; historical actions keep the version that produced them.</p>
-    {releaseNotes&&<p>{releaseNotes}</p>}
-    <form className="form-grid" onSubmit={async(e)=>{
+  const changedKeys=[...new Set([...Object.keys(currentConfig),...Object.keys(targetConfig)])]
+    .filter((key)=>JSON.stringify(currentConfig[key])!==JSON.stringify(targetConfig[key]));
+  return <section className="glass version-upgrade">
+    <div className="version-upgrade-main">
+      <div>
+        <div className={"pill "+(upgradePolicy==="REQUIRED"?"bad":upgradePolicy==="RECOMMENDED"?"warn":"good")}>{upgradePolicy} UPDATE</div>
+        <h3>A newer version of your strategy is available.</h3>
+        <p>You are on v{currentVersion}. Version {targetVersion} changes future calculations only — your existing history stays exactly where it is.</p>
+      </div>
+      <div className="version-jump"><span>v{currentVersion}</span><b>→</b><strong>v{targetVersion}</strong></div>
+    </div>
+
+    <details className="version-comparison">
+      <summary>See what changes</summary>
+      <div className="version-comparison-content">
+        {releaseNotes&&<div className="release-notes"><span>Release notes</span><p>{releaseNotes}</p></div>}
+        {changedKeys.length?<div className="version-change-list">
+          {changedKeys.map((key)=><div className="version-change" key={key}>
+            <span>{readableConfigKey(key)}</span>
+            <div><del>{conciseConfigValue(currentConfig[key])}</del><b>→</b><ins>{conciseConfigValue(targetConfig[key])}</ins></div>
+          </div>)}
+        </div>:<p className="help">The strategy engine rules are unchanged. This release may contain wording, compatibility or setup improvements.</p>}
+        <p className="help">We do not silently move you to a new ruleset. Updating is an explicit, audited choice.</p>
+      </div>
+    </details>
+
+    <form className="version-upgrade-form" onSubmit={async(e)=>{
       e.preventDefault();setBusy(true);setMessage("");const f=new FormData(e.currentTarget);const settings:Record<string,unknown>={};
       for(const field of inputSchema){
         if(field.type==="boolean")settings[field.key]=Boolean(f.get("versionInput:"+field.key));
@@ -194,17 +226,24 @@ export function StrategyVersionUpgrade({
       const body=await response.json();setBusy(false);setMessage(response.ok?"Strategy updated to v"+targetVersion+".":body.error??"Could not update strategy.");
       if(response.ok)router.refresh();
     }}>
-      {inputSchema.map((field)=><div className="field full" key={field.key}><label>{field.label}</label>
-        {field.type==="select"?<select name={"versionInput:"+field.key} defaultValue={String(currentSettings[field.key]??field.default??"")} required={field.required}>{!field.required&&<option value="">Not set</option>}{field.options?.map((o)=><option key={o.value} value={o.value}>{o.label}</option>)}</select>:
-        field.type==="boolean"?<label><input name={"versionInput:"+field.key} type="checkbox" defaultChecked={Boolean(currentSettings[field.key]??field.default)}/> {field.help??field.label}</label>:
-        <input name={"versionInput:"+field.key} type={field.type} defaultValue={currentSettings[field.key]==null?(field.default==null?undefined:String(field.default)):String(currentSettings[field.key])} required={field.required} min={field.min==null?undefined:String(field.min)} max={field.max==null?undefined:String(field.max)}/>}
-        {field.help&&field.type!=="boolean"&&<div className="help">{field.help}</div>}
-      </div>)}
-      <div className="field full"><button className="button primary" disabled={busy}>Update to v{targetVersion}</button>{message&&<div className={message.startsWith("Strategy updated")?"success":"error"}>{message}</div>}</div>
+      {inputSchema.length>0&&<details className="advanced-details">
+        <summary>Review strategy-specific settings</summary>
+        <div className="form-grid version-inputs">
+          {inputSchema.map((field)=><div className="field full" key={field.key}><label>{field.label}</label>
+            {field.type==="select"?<select name={"versionInput:"+field.key} defaultValue={String(currentSettings[field.key]??field.default??"")} required={field.required}>{!field.required&&<option value="">Not set</option>}{field.options?.map((o)=><option key={o.value} value={o.value}>{o.label}</option>)}</select>:
+            field.type==="boolean"?<label className="toggle-row"><input name={"versionInput:"+field.key} type="checkbox" defaultChecked={Boolean(currentSettings[field.key]??field.default)}/><span>{field.help??field.label}</span></label>:
+            <input name={"versionInput:"+field.key} type={field.type} defaultValue={currentSettings[field.key]==null?(field.default==null?undefined:String(field.default)):String(currentSettings[field.key])} required={field.required} min={field.min==null?undefined:String(field.min)} max={field.max==null?undefined:String(field.max)}/>}
+            {field.help&&field.type!=="boolean"&&<div className="help">{field.help}</div>}
+          </div>)}
+        </div>
+      </details>}
+      <div className="version-upgrade-actions">
+        <button className="button primary" disabled={busy}>{busy?"Updating…":"Update to v"+targetVersion}</button>
+        {message&&<div className={message.startsWith("Strategy updated")?"success":"error"}>{message}</div>}
+      </div>
     </form>
   </section>;
 }
-
 
 export function CashEventForm({id}:{id:string}){
   const router=useRouter();const[message,setMessage]=useState("");
