@@ -36,8 +36,9 @@ describe("fixed allocation engine",()=>{
   });
 
   it("can finish a review with a cash-funded buy when the projected portfolio reaches threshold",()=>{
-    const result=fixedAllocationEngine.calculate(context({cash:"20",a:"40",b:"40",threshold:"0.01"}));
+    const result=fixedAllocationEngine.calculate(context({cash:"10",a:"50",b:"40",threshold:"0.01"}));
     expect(result.actionType).toBe("BUY");
+    expect(result.economicExposure).toBe("B");
     expect(result.amount?.toFixed(2)).toBe("10.00");
     expect(result.completesReview).toBe(true);
   });
