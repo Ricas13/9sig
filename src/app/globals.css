@@ -526,3 +526,13 @@ th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacin
 @media (max-width:760px) {
   .what-if { grid-template-columns:1fr; }
 }
+
+
+.correction-trigger { color:var(--muted); }
+.correction-inline { display:grid; grid-template-columns:minmax(130px,1fr) auto auto; gap:6px; align-items:center; width:min(100%,520px); }
+.correction-inline input { min-width:0; border:1px solid var(--line); border-radius:10px; padding:8px 9px; background:rgba(255,255,255,.04); color:var(--text); }
+.correction-inline .error { grid-column:1/-1; }
+@media (max-width:600px) {
+  .correction-inline { grid-template-columns:1fr 1fr; width:100%; }
+  .correction-inline input { grid-column:1/-1; }
+}
