@@ -233,8 +233,8 @@ export function OpeningSnapshotForm({ id, accounts=[] }: { id: string; accounts?
     router.refresh();
   }}>
     {accountChoices.length>1&&<div className="field">
-      <label>Account to capture</label>
-      <select value={effectiveAccountId} onChange={(event)=>{setAccountId(event.target.value);setMessage("")}}>
+      <label htmlFor={accountSelectId}>Account to capture</label>
+      <select id={accountSelectId} value={effectiveAccountId} onChange={(event)=>{setAccountId(event.target.value);setMessage("")}}>
         {accountChoices.map((account)=><option key={account.id} value={account.id}>{account.name} · {account.wrapper}</option>)}
       </select>
     </div>}
