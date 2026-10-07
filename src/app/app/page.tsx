@@ -15,6 +15,7 @@ export default async function OverviewPage(){
   const actions=await sql.unsafe("SELECT a.id,a.strategy_instance_id,a.action_type,a.title,a.instruction,a.due_at,a.confidence,i.name AS instance_name FROM actions a JOIN strategy_instances i ON i.id=a.strategy_instance_id WHERE i.user_id=$1 AND a.status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') AND a.action_type<>'NO_ACTION' ORDER BY COALESCE(a.due_at,a.created_at),a.created_at LIMIT 12",[user.id]);
   const values=await sql.unsafe("SELECT ps.strategy_instance_id,ps.value FROM performance_series ps JOIN strategy_instances i ON i.id=ps.strategy_instance_id WHERE i.user_id=$1 AND ps.series_type='USER_VALUE' AND ps.date=(SELECT max(p2.date) FROM performance_series p2 WHERE p2.strategy_instance_id=ps.strategy_instance_id AND p2.series_type='USER_VALUE')",[user.id]);
   const contributions=await sql.unsafe("SELECT COALESCE(sum(l.cash_amount),0) AS total FROM ledger_events l JOIN strategy_instances i ON i.id=l.strategy_instance_id WHERE i.user_id=$1 AND l.event_type='CONTRIBUTION'",[user.id]);
+  const reviewRows=await sql.unsafe("SELECT i.id,i.name,x.due_at FROM strategy_instances i LEFT JOIN LATERAL (SELECT a.due_at FROM actions a WHERE a.strategy_instance_id=i.id AND a.due_at IS NOT NULL ORDER BY a.created_at DESC LIMIT 1) x ON true WHERE i.user_id=$1 AND i.status='ACTIVE'",[user.id]);
   const knownValue=values.length?values.reduce((sum,r)=>sum+Number(r.value),0):null;
   const activeStrategies=strategies.filter((s:any)=>s.status==="ACTIVE");
   const primaryAction:any=actions[0];
@@ -24,6 +25,8 @@ export default async function OverviewPage(){
     .filter(({plan})=>plan?.enabled===true&&plan.nextDate)
     .sort((a,b)=>String(a.plan?.nextDate).localeCompare(String(b.plan?.nextDate)));
   const nextContribution=plannedContributions[0];
+  const nextReview=reviewRows.filter((row:any)=>row.due_at).sort((a:any,b:any)=>new Date(a.due_at).getTime()-new Date(b.due_at).getTime())[0];
+  const healthyCount=activeStrategies.filter((strategy:any)=>strategy.health_status==="HEALTHY").length;
 
   if(!strategies.length){
     return <section className="glass welcome-state">
@@ -76,9 +79,9 @@ export default async function OverviewPage(){
     </section>
 
     <div className="quick-strip">
-      <div><span>Portfolio</span><strong>{knownValue==null?"Waiting for first valuation":money(knownValue,user.baseCurrency)}</strong></div>
+      <div><span>Strategy health</span><strong>{activeStrategies.length?healthyCount+" of "+activeStrategies.length+" on track":"—"}</strong></div>
+      <div><span>Next review</span><strong>{nextReview?new Date(nextReview.due_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"}):"When needed"}</strong></div>
       <div><span>Next contribution</span><strong>{nextContribution?money(Number(nextContribution.plan?.amount??0),String(nextContribution.strategy.currency))+" · "+new Date(String(nextContribution.plan?.nextDate)+"T00:00:00Z").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):"Flexible"}</strong></div>
-      <div><span>Attention</span><strong>{actions.length?actions.length+" open":"None"}</strong></div>
     </div>
 
     <section className="home-section">
