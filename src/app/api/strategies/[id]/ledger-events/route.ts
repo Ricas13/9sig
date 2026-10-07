@@ -34,13 +34,13 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     if(String(strategy.status)==="CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
 
     const eventId=await sql.begin(async(tx)=>{
-      const locked=await tx.unsafe("SELECT id,status FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE",[id,user.id]);
+      const locked=await tx.unsafe("SELECT id,status,account_id FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE",[id,user.id]);
       if(!locked[0])throw new Error("STRATEGY_NOT_FOUND");
       if(String(locked[0].status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
       const rows=await tx.unsafe(
-        "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,fee_amount,provenance,confidence,metadata)"+
-        " VALUES ($1,$2,$3,$4,$5,$6,'USER_ENTERED','VERIFIED',$7::jsonb) RETURNING id",
-        [id,input.occurredAt?new Date(input.occurredAt):new Date(),input.eventType,strategy.currency,cashAmount.toString(),feeAmount.toString(),JSON.stringify({note:input.note??null})]
+        "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,fee_amount,provenance,confidence,metadata)"+
+        " VALUES ($1,$2,$3,$4,$5,$6,$7,'USER_ENTERED','VERIFIED',$8::jsonb) RETURNING id",
+        [id,locked[0].account_id,input.occurredAt?new Date(input.occurredAt):new Date(),input.eventType,strategy.currency,cashAmount.toString(),feeAmount.toString(),JSON.stringify({note:input.note??null})]
       );
       const ledgerEventId=String(rows[0].id);
       await tx.unsafe(

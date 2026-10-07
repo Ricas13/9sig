@@ -30,18 +30,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const resolved = difference.eq(0) || input.affectsCash;
 
     await sql.begin(async (tx) => {
-      const locked=await tx.unsafe("SELECT id,status FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE",[id,user.id]);
+      const locked=await tx.unsafe("SELECT id,status,account_id FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE",[id,user.id]);
       if(!locked[0])throw new Error("STRATEGY_NOT_FOUND");
       if(String(locked[0].status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
       await tx.unsafe(
-        "INSERT INTO reconciliations (strategy_instance_id,occurred_at,expected_value,broker_reported_value,difference,reason,provenance,metadata) VALUES ($1,now(),$2,$3,$4,$5,'USER_CONFIRMED',$6::jsonb)",
-        [id, expected.toString(), broker.toString(), difference.toString(), input.reason ?? null, JSON.stringify({ affectsCash: input.affectsCash, resolved })]
+        "INSERT INTO reconciliations (strategy_instance_id,account_id,occurred_at,expected_value,broker_reported_value,difference,reason,provenance,metadata) VALUES ($1,$2,now(),$3,$4,$5,$6,'USER_CONFIRMED',$7::jsonb)",
+        [id, locked[0].account_id, expected.toString(), broker.toString(), difference.toString(), input.reason ?? null, JSON.stringify({ affectsCash: input.affectsCash, resolved })]
       );
 
       if (!difference.eq(0) && input.affectsCash) {
         await tx.unsafe(
-          "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,provenance,confidence,metadata) VALUES ($1,now(),'BROKER_ADJUSTMENT',$2,$3,'USER_CONFIRMED','VERIFIED',$4::jsonb)",
-          [id, strategy.currency, difference.toString(), JSON.stringify({ reason: input.reason ?? "Cash adjustment", reconciliation: true })]
+          "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,provenance,confidence,metadata) VALUES ($1,$2,now(),'BROKER_ADJUSTMENT',$3,$4,'USER_CONFIRMED','VERIFIED',$5::jsonb)",
+          [id, locked[0].account_id, strategy.currency, difference.toString(), JSON.stringify({ reason: input.reason ?? "Cash adjustment", reconciliation: true })]
         );
       }
 

@@ -39,7 +39,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
 
     await sql.begin(async (tx) => {
-      const locked = await tx.unsafe("SELECT id,status FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE", [id, user.id]);
+      const locked = await tx.unsafe("SELECT id,status,account_id FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE", [id, user.id]);
       if (!locked[0]) throw new Error("STRATEGY_NOT_FOUND");
       if (String(locked[0].status) === "CLOSED") throw new Error("STRATEGY_CLOSED");
       const existing = await tx.unsafe(
@@ -50,8 +50,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
       if (cash.gt(0)) {
         await tx.unsafe(
-          "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,provenance,confidence,metadata) VALUES ($1,now(),'OPENING_CASH',$2,$3,'USER_CONFIRMED','VERIFIED',$4::jsonb)",
-          [id, strategy.currency, cash.toString(), JSON.stringify({ openingSnapshot: true })]
+          "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,provenance,confidence,metadata) VALUES ($1,$2,now(),'OPENING_CASH',$3,$4,'USER_CONFIRMED','VERIFIED',$5::jsonb)",
+          [id, locked[0].account_id, strategy.currency, cash.toString(), JSON.stringify({ openingSnapshot: true })]
         );
       }
 
@@ -62,8 +62,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         );
         if (!lines[0]) throw new Error("TRADING_LINE_NOT_FOUND:" + holding.ticker + ":" + holding.exchange);
         await tx.unsafe(
-          "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,provenance,confidence,metadata) VALUES ($1,now(),'OPENING_POSITION',$2,0,$3,$4,'USER_CONFIRMED','VERIFIED',$5::jsonb)",
-          [id, lines[0].currency, lines[0].instrument_id, holding.quantityDecimal.toString(), JSON.stringify({ openingSnapshot: true, tradingLineId: String(lines[0].id), ticker: holding.ticker, exchange: holding.exchange })]
+          "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,provenance,confidence,metadata) VALUES ($1,$2,now(),'OPENING_POSITION',$3,0,$4,$5,'USER_CONFIRMED','VERIFIED',$6::jsonb)",
+          [id, locked[0].account_id, lines[0].currency, lines[0].instrument_id, holding.quantityDecimal.toString(), JSON.stringify({ openingSnapshot: true, tradingLineId: String(lines[0].id), ticker: holding.ticker, exchange: holding.exchange })]
         );
       }
 
