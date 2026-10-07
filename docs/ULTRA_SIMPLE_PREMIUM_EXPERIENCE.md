@@ -670,7 +670,7 @@ Use this checklist as the shared cross-chat roadmap.
 - [x] next-review / contribution / allocation health
 - [x] partial / actual execution capture
 - [x] polished success / recalculation flow
-- [ ] recovery UX for drift and stale data
+- [x] recovery UX for drift and stale data
 
 ### Explore Mode
 
@@ -687,7 +687,7 @@ Use this checklist as the shared cross-chat roadmap.
 - [x] contribution preview
 - [x] withdrawal preview
 - [ ] strategy-switch preview
-- [ ] constraint-change preview
+- [x] constraint-change preview
 - [x] guarantee non-mutating simulation path
 
 ### Strategy evolution
