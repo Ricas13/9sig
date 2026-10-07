@@ -1,12 +1,15 @@
 import "server-only";
 import crypto from "node:crypto";
 import { sql } from "@/lib/db";
+import { assertTrustedRequestOrigin } from "@/domain/request-origin";
 
 export function assertSameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  const configured = process.env.NEXT_PUBLIC_APP_URL;
-  if (!origin || !configured) return;
-  if (new URL(origin).origin !== new URL(configured).origin) throw new Error("INVALID_ORIGIN");
+  assertTrustedRequestOrigin({
+    origin:request.headers.get("origin"),
+    secFetchSite:request.headers.get("sec-fetch-site"),
+    configuredUrl:process.env.NEXT_PUBLIC_APP_URL,
+    production:process.env.NODE_ENV==="production"
+  });
 }
 
 export function hashToken(token: string) {
