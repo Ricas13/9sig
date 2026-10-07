@@ -161,7 +161,7 @@ export async function migrateStrategyVersion(
     const instance=rows[0];
     if(!instance)throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
     if(String(instance.status)==="CLOSED")throw new Error("STRATEGY_ALREADY_CLOSED");
-    if(String(instance.strategy_version_id)===targetVersionId)return {changed:false};
+    if(String(instance.strategy_version_id)===targetVersionId)return {changed:false,status:String(instance.status)};
 
     const targets=await tx.unsafe(
       "SELECT id,strategy_definition_id,engine_key,input_schema,version FROM strategy_versions WHERE id=$1 AND lifecycle_status='PUBLISHED'"+
@@ -191,7 +191,7 @@ export async function migrateStrategyVersion(
       "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy.version-migrated','strategy_instance',$2,$3::jsonb)",
       [userId,instanceId,JSON.stringify({fromVersionId:String(instance.strategy_version_id),toVersionId:targetVersionId,toVersion:String(target.version)})]
     );
-    return {changed:true};
+    return {changed:true,status:String(instance.status)};
   });
 }
 
