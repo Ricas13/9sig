@@ -2,13 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft, ArrowRight, BarChart3, CalendarClock, ChevronRight, Sparkles, WalletCards } from "lucide-react";
 import { requireUser } from "@/lib/session";
-import { getStrategyForUser } from "@/lib/strategy-service";
+import { getStrategyForUser, listStrategyAccounts } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { loadEntitlements } from "@/lib/entitlement-service";
 import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { actionRecoveryGuidance, plainEnglishActionReason } from "@/domain/action-copy";
-import { CashEventForm, ContributionForm, ContributionPlanForm, ExecuteAction, ExecutionConstraintsForm, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategyVersionUpgrade, WhatIfPreview } from "@/components/StrategyActions";
+import { AddLinkedAccountForm, CashEventForm, ContributionForm, ContributionPlanForm, ExecuteAction, ExecutionConstraintsForm, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategyVersionUpgrade, WhatIfPreview } from "@/components/StrategyActions";
 
 function money(value:number,currency:string){
   return new Intl.NumberFormat("en-GB",{style:"currency",currency,maximumFractionDigits:0}).format(value);
@@ -53,8 +53,21 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   const {id}=await params;
   const s:any=await getStrategyForUser(user.id,id);
   if(!s)notFound();
-  const entitlements=await loadEntitlements(user.id);
+  const [entitlements,strategyAccounts]=await Promise.all([
+    loadEntitlements(user.id),
+    listStrategyAccounts(user.id,id)
+  ]);
   const canWhatIf=entitlements.features.has("what_if");
+  const canMultiAccount=entitlements.features.has("multi_account");
+  const accountOptions=strategyAccounts.map((account:any)=>({
+    id:String(account.id),
+    name:String(account.name),
+    wrapper:String(account.wrapper),
+    currency:String(account.currency),
+    brokerName:account.broker_name?String(account.broker_name):null,
+    role:String(account.role)
+  }));
+  const supportedWrappers=Array.isArray(s.supported_wrappers)?s.supported_wrappers.map(String):[];
 
   const actionRows=await sql.unsafe("SELECT id,action_type,status,title,instruction,amount,currency,explanation,confidence,due_at,created_at FROM actions WHERE strategy_instance_id=$1 AND status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') ORDER BY created_at DESC LIMIT 1",[id]);
   const action=actionRows[0];
@@ -224,7 +237,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         </div>
         <div className="focus-stat">
           <span>Account</span>
-          <strong>{s.wrapper}</strong>
+          <strong>{accountOptions.length>1?accountOptions.length+" accounts":s.wrapper}</strong>
         </div>
       </div>
 
@@ -250,11 +263,11 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         <summary><span><WalletCards size={18}/>Update portfolio</span><ChevronRight size={16}/></summary>
         <div className="quick-drawer-content">
           <div className="detail-grid">
-            <section><h3>Add money</h3><p className="help">Record a contribution. Cash stays cash until a purchase is confirmed.</p><ContributionForm id={id}/></section>
-            <section><h3>Other cash movement</h3><p className="help">Withdrawals, dividends, interest, fees and tax belong here.</p><CashEventForm id={id}/></section>
+            <section><h3>Add money</h3><p className="help">Record a contribution. Cash stays cash until a purchase is confirmed.</p><ContributionForm id={id} accounts={accountOptions}/></section>
+            <section><h3>Other cash movement</h3><p className="help">Withdrawals, dividends, interest, fees and tax belong here.</p><CashEventForm id={id} accounts={accountOptions}/></section>
           </div>
           <section className="drawer-section contribution-plan-settings"><h3>Regular contribution</h3><p className="help">Optional reminder only. Planned money never appears in your portfolio until you record the real deposit.</p><ContributionPlanForm id={id} plan={(s.contribution_plan??{}) as Record<string,unknown>}/></section>
-          <section className="drawer-section"><h3>Match your broker</h3><p className="help">If the app and broker differ, reconcile them here. Unexplained differences block financial actions instead of being guessed.</p><ReconcileForm id={id} expected={latestValue?Number(latestValue.value):null}/></section>
+          <section className="drawer-section"><h3>Match your broker</h3><p className="help">If the app and broker differ, reconcile them here. Unexplained differences block financial actions instead of being guessed.</p><ReconcileForm id={id} expected={latestValue?Number(latestValue.value):null} accounts={accountOptions}/></section>
         </div>
       </details>
 
@@ -292,6 +305,16 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
             <section className="drawer-section" id="strategy-health"><div className="eyebrow">Strategy health</div><h3>{isHealthy?"Everything looks good":"Needs attention"}</h3><p className="help">High-confidence actions are suppressed whenever critical holdings, FX, market data or reconciliation state is stale, missing or unresolved.</p><div className="strategy-meta"><span className="pill">Version {s.version}</span><span className="pill">{s.currency}</span><span className="pill">{s.onboarding_mode.replaceAll("_"," ")}</span><span className="pill">{s.status}</span></div></section>
             <section className="drawer-section"><div className="eyebrow">Lifecycle</div><h3>Pause, resume or stop</h3><p className="help">These controls preserve your history. They never erase the journey you have already recorded.</p><StrategyLifecycleControls id={id} status={s.status}/></section>
           </div>
+          <section className="drawer-section linked-accounts-section">
+            <div className="eyebrow">Linked accounts</div>
+            <h3>{accountOptions.length>1?"One strategy, several accounts.":"Your strategy account"}</h3>
+            <p className="help">{accountOptions.length>1?"Actions are calculated across these linked accounts, while cash movements and reconciliation stay attached to the account where they happened.":"You can keep this simple with one account. Add another only if the same strategy genuinely spans more than one account."}</p>
+            <div className="linked-account-list">{strategyAccounts.map((account:any)=><div className="linked-account-card" key={String(account.id)}>
+              <div><strong>{String(account.name)}</strong><span>{String(account.wrapper)}{account.broker_name?" · "+String(account.broker_name):""}</span></div>
+              <div className="linked-account-meta"><span className="pill">{String(account.role)==="PRIMARY"?"Primary":"Linked"}</span><span className="pill">{String(account.currency)}</span></div>
+            </div>)}</div>
+            {canMultiAccount?<details className="linked-account-add"><summary>Add another account</summary><AddLinkedAccountForm id={id} currency={String(s.currency)} wrappers={supportedWrappers}/></details>:accountOptions.length===1?<p className="help">Multiple linked accounts are available on plans that include multi-account support.</p>:null}
+          </section>
           <section className="drawer-section execution-settings" id="trade-preferences"><div className="eyebrow">Trade preferences</div><h3>Make the strategy fit your broker.</h3><p className="help">These preferences change how an ideal strategy action is translated into a practical order. They do not change the strategy rules themselves.</p><ExecutionConstraintsForm id={id} constraints={(s.execution_constraints??{}) as Record<string,unknown>}/></section>
           <section className="drawer-section rules-section">
             <div className="eyebrow">Rules & disclosure</div>
