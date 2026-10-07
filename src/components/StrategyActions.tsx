@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Plus } from "lucide-react";
 
@@ -168,17 +168,13 @@ export function OpeningSnapshotForm({ id, accounts=[] }: { id: string; accounts?
   const [holdings, setHoldings] = useState([{ ticker: "", exchange: "LSE", quantity: "" }]);
   const [message, setMessage] = useState("");
 
-  useEffect(()=>{
-    const available=accounts.filter((account)=>(account.ledgerEventCount??0)===0);
-    if(available.length&&!available.some((account)=>account.id===accountId))setAccountId(available[0].id);
-  },[accounts,accountId]);
-
   function update(index: number, field: "ticker" | "exchange" | "quantity", value: string) {
     setHoldings((rows) => rows.map((row, i) => i === index ? { ...row, [field]: value } : row));
   }
 
   const accountChoices=pendingAccounts.length?pendingAccounts:accounts;
-  const selected=accountChoices.find((account)=>account.id===accountId)??accountChoices[0];
+  const effectiveAccountId=accountChoices.some((account)=>account.id===accountId)?accountId:(accountChoices[0]?.id??"");
+  const selected=accountChoices.find((account)=>account.id===effectiveAccountId)??accountChoices[0];
 
   return <form className="stack opening-snapshot-form" onSubmit={async (e) => {
     e.preventDefault();
@@ -187,7 +183,7 @@ export function OpeningSnapshotForm({ id, accounts=[] }: { id: string; accounts?
     const response = await fetch("/api/strategies/" + id + "/opening-snapshot", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ accountId:accountId||undefined, cash, holdings: cleanHoldings })
+      body: JSON.stringify({ accountId:effectiveAccountId||undefined, cash, holdings: cleanHoldings })
     });
     const body = await response.json();
     if(!response.ok){
@@ -203,7 +199,7 @@ export function OpeningSnapshotForm({ id, accounts=[] }: { id: string; accounts?
   }}>
     {accountChoices.length>1&&<div className="field">
       <label>Account to capture</label>
-      <select value={accountId} onChange={(event)=>{setAccountId(event.target.value);setMessage("")}}>
+      <select value={effectiveAccountId} onChange={(event)=>{setAccountId(event.target.value);setMessage("")}}>
         {accountChoices.map((account)=><option key={account.id} value={account.id}>{account.name} · {account.wrapper}</option>)}
       </select>
     </div>}
