@@ -60,6 +60,18 @@ test("new user can start a strategy through the three-step simple flow",async({p
 
   await page.waitForURL(/\/app\/strategies\//);
   await expect(page.getByRole("heading",{name:"My 9Sig"})).toBeVisible();
+  const detailDimensions=await page.evaluate(()=>({
+    scrollWidth:document.documentElement.scrollWidth,
+    clientWidth:document.documentElement.clientWidth
+  }));
+  expect(detailDimensions.scrollWidth).toBeLessThanOrEqual(detailDimensions.clientWidth+1);
+  const detailButtons=await page.locator("button:visible").evaluateAll((buttons)=>buttons.map((button)=>({
+    label:button.getAttribute("aria-label")||button.textContent?.trim()||"",
+    height:Math.round(button.getBoundingClientRect().height)
+  })));
+  if(page.viewportSize()&&page.viewportSize()!.width<=680){
+    expect(detailButtons.filter((button)=>button.label).every((button)=>button.height>=40)).toBe(true);
+  }
   await expect(page.getByText("What if?")).not.toBeVisible();
   await page.locator("summary").filter({hasText:"Strategy settings & rules"}).click();
   await expect(page.getByText("Switch strategy")).toBeVisible();
