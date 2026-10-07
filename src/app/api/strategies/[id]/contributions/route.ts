@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/session";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { calculateAction } from "@/lib/action-service";
+import { advanceContributionPlan, normalizeContributionPlan } from "@/domain/contribution-plan";
 import { assertSameOrigin } from "@/lib/security";
 
 const schema = z.object({
@@ -25,15 +26,24 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return Response.json({ error: "Enter a positive contribution." }, { status: 400 });
     }
 
+    const occurredAt=input.occurredAt ? new Date(input.occurredAt) : new Date();
     const eventId=await sql.begin(async(tx)=>{
       const rows=await tx.unsafe(
         "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,provenance,confidence) VALUES ($1,$2,'CONTRIBUTION',$3,$4,'USER_ENTERED','VERIFIED') RETURNING id",
-        [id, input.occurredAt ? new Date(input.occurredAt) : new Date(), strategy.currency, amount.toString()]
+        [id, occurredAt, strategy.currency, amount.toString()]
       );
       const ledgerEventId=String(rows[0].id);
+      const currentPlan=normalizeContributionPlan(strategy.contribution_plan);
+      let nextPlan=currentPlan;
+      if(currentPlan.enabled){
+        nextPlan=advanceContributionPlan(currentPlan,occurredAt.toISOString().slice(0,10));
+        if(nextPlan.nextDate!==currentPlan.nextDate){
+          await tx.unsafe("UPDATE strategy_instances SET contribution_plan=$1::jsonb,updated_at=now() WHERE id=$2",[JSON.stringify(nextPlan),id]);
+        }
+      }
       await tx.unsafe(
         "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'ledger.contribution-created','ledger_event',$2,$3::jsonb)",
-        [user.id,ledgerEventId,JSON.stringify({strategyInstanceId:id,amount:amount.toString()})]
+        [user.id,ledgerEventId,JSON.stringify({strategyInstanceId:id,amount:amount.toString(),nextContributionDate:nextPlan.nextDate})]
       );
       return ledgerEventId;
     });
