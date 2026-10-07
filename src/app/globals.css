@@ -14,7 +14,17 @@
   --ink: #102036;
   --ink-muted: #687a91;
   --radius: 24px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --surface-soft: rgba(255,255,255,.025);
+  --surface-raised: rgba(255,255,255,.045);
   --shadow: 0 24px 70px rgba(0,0,0,.22);
+  --shadow-soft: 0 14px 40px rgba(0,0,0,.14);
+  --motion-fast: 160ms;
+  --motion-base: 220ms;
+  --motion-slow: 650ms;
+  --ease-premium: cubic-bezier(.2,.8,.2,1);
 }
 * { box-sizing: border-box; }
 html { background: var(--bg); scroll-behavior: smooth; }
@@ -1175,4 +1185,38 @@ html[data-theme="light"] {
   --chart-comparison-4:#168aa0;
   --chart-comparison-5:#668f25;
   --chart-comparison-6:#b46925;
+}
+
+
+/* Core premium design system tokens */
+.portfolio-value,
+.metric strong,
+.kpi strong,
+.focus-stat strong,
+.what-if-value strong,
+.billing-usage strong,
+.price strong {
+  font-variant-numeric:tabular-nums lining-nums;
+  font-feature-settings:"tnum" 1,"lnum" 1;
+}
+.card,
+.glass,
+.today-card,
+.quick-drawer,
+.billing-plan,
+.linked-account-card {
+  transition:
+    border-color var(--motion-base) var(--ease-premium),
+    background var(--motion-base) var(--ease-premium),
+    box-shadow var(--motion-base) var(--ease-premium),
+    transform var(--motion-base) var(--ease-premium);
+}
+.premium-card:hover {
+  transform:translateY(-2px);
+  border-color:rgba(121,168,255,.22);
+  box-shadow:0 22px 56px rgba(0,0,0,.17);
+}
+html[data-theme="light"] .premium-card:hover {
+  border-color:rgba(71,127,240,.18);
+  box-shadow:0 22px 56px rgba(31,55,82,.11);
 }
