@@ -14,6 +14,40 @@ function money(value:number,currency:string){
   return new Intl.NumberFormat("en-GB",{style:"currency",currency,maximumFractionDigits:0}).format(value);
 }
 
+function readableExposure(value:unknown){
+  return String(value??"").replaceAll("_"," ").replace(/\b\w/g,(letter)=>letter.toUpperCase());
+}
+
+function percent(value:unknown){
+  const number=Number(value);
+  return Number.isFinite(number)?new Intl.NumberFormat("en-GB",{style:"percent",maximumFractionDigits:2}).format(number):"—";
+}
+
+function strategyRuleRows(engine:string,config:Record<string,unknown>){
+  if(engine==="VALUE_TARGET"){
+    return [
+      {label:"Target exposure",value:readableExposure(config.targetExposure)},
+      {label:"Review rhythm",value:readableExposure(config.reviewFrequency??"Quarterly")},
+      {label:"Target growth per review",value:percent(config.targetRate??0)},
+      {label:"New-money target share",value:percent(config.contributionTargetRatio??0)},
+      {label:"Trade tolerance",value:percent(config.tolerance??0)},
+      {label:"Maximum cash used per action",value:percent(config.maxCashUse??1)}
+    ];
+  }
+  if(engine==="FIXED_ALLOCATION"){
+    const allocations=Array.isArray(config.allocations)?config.allocations as Array<Record<string,unknown>>:[];
+    return [
+      ...allocations.map((allocation)=>({label:readableExposure(allocation.exposure),value:percent(allocation.weight)})),
+      {label:"Review rhythm",value:readableExposure(config.reviewFrequency??"Quarterly")},
+      {label:"Rebalance threshold",value:percent(config.rebalanceThreshold??0)}
+    ];
+  }
+  return Object.entries(config)
+    .filter(([,value])=>["string","number","boolean"].includes(typeof value))
+    .slice(0,8)
+    .map(([key,value])=>({label:readableExposure(key),value:String(value)}));
+}
+
 export default async function StrategyPage({params}:{params:Promise<{id:string}>}){
   const user=await requireUser();
   const {id}=await params;
@@ -90,6 +124,8 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   const actionReady=Boolean(action)&&isActive;
   const nextReview=action?.due_at?new Date(action.due_at):null;
   const plainReason=action?plainEnglishActionReason({actionType:String(action.action_type),instruction:String(action.instruction??"")}):null;
+  const ruleRows=strategyRuleRows(String(s.engine),(s.config??{}) as Record<string,unknown>);
+  const canSeeTechnicalConfig=user.role==="ADMIN"||!Boolean(s.proprietary);
 
   return <>
     <Link href="/app/strategies" className="back-link"><ArrowLeft size={14}/>Portfolio</Link>
@@ -201,7 +237,13 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
             <section className="drawer-section"><div className="eyebrow">Lifecycle</div><h3>Pause, resume or stop</h3><p className="help">These controls preserve your history. They never erase the journey you have already recorded.</p><StrategyLifecycleControls id={id} status={s.status}/></section>
           </div>
           <section className="drawer-section execution-settings"><div className="eyebrow">Trade preferences</div><h3>Make the strategy fit your broker.</h3><p className="help">These preferences change how an ideal strategy action is translated into a practical order. They do not change the strategy rules themselves.</p><ExecutionConstraintsForm id={id} constraints={(s.execution_constraints??{}) as Record<string,unknown>}/></section>
-          <section className="drawer-section rules-section"><div className="eyebrow">Rules & disclosure</div><h3>Versioned strategy definition</h3><p>{s.disclosure}</p><details><summary>Show configured engine inputs</summary><pre>{JSON.stringify(s.config,null,2)}</pre></details></section>
+          <section className="drawer-section rules-section">
+            <div className="eyebrow">Rules & disclosure</div>
+            <h3>How this version operates</h3>
+            <p>{s.disclosure}</p>
+            <div className="rule-summary-grid">{ruleRows.map((row)=><div className="rule-summary-row" key={row.label}><span>{row.label}</span><strong>{row.value}</strong></div>)}</div>
+            {canSeeTechnicalConfig?<details><summary>Show technical configuration</summary><pre>{JSON.stringify(s.config,null,2)}</pre></details>:<p className="help">The customer view shows the operational rules you need without exposing the strategy author&apos;s internal configuration format.</p>}
+          </section>
         </div>
       </details>
     </div>
