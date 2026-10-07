@@ -12,6 +12,7 @@ function AccountSelect({accounts}:{accounts:AccountOption[]}){
 
 
 export function AddLinkedAccountForm({id,currency,wrappers}:{id:string;currency:string;wrappers:string[]}){
+  const router=useRouter();
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
   const options=wrappers.length?wrappers:["ISA","SIPP","GIA"];
@@ -625,7 +626,6 @@ export function WhatIfPreview({
 }){
   const [type,setType]=useState<"CONTRIBUTION"|"WITHDRAWAL"|"EXECUTION_CONSTRAINTS"|"STRATEGY_SWITCH">("CONTRIBUTION");
   const [switchKey,setSwitchKey]=useState(switchOptions[0]?.key??"");
-  const router=useRouter();
   const [result,setResult]=useState<WhatIfResult|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
