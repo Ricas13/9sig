@@ -253,7 +253,8 @@ export async function changeStrategyStatus(
 export async function listStrategyAccounts(userId:string,instanceId:string){
   return sql.unsafe(
     "SELECT a.id,a.name,a.wrapper,a.country,a.currency,a.broker_name,sa.role,"+
-    "(SELECT count(*)::int FROM ledger_events l WHERE l.strategy_instance_id=sa.strategy_instance_id AND l.account_id=a.id) AS ledger_event_count "+
+    "(SELECT count(*)::int FROM ledger_events l WHERE l.strategy_instance_id=sa.strategy_instance_id AND l.account_id=a.id) AS ledger_event_count,"+
+    "(SELECT count(*)::int FROM ledger_events l WHERE l.strategy_instance_id=sa.strategy_instance_id AND l.account_id=a.id AND l.event_type IN ('OPENING_CASH','OPENING_POSITION')) AS opening_event_count "+
     "FROM strategy_accounts sa JOIN accounts a ON a.id=sa.account_id JOIN strategy_instances i ON i.id=sa.strategy_instance_id "+
     "WHERE sa.strategy_instance_id=$1 AND i.user_id=$2 ORDER BY CASE WHEN sa.role='PRIMARY' THEN 0 ELSE 1 END,a.created_at,a.name",
     [instanceId,userId]
