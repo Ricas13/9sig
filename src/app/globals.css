@@ -935,3 +935,60 @@ html[data-theme="light"] .preview-constraint-summary span {
 @media (max-width:560px) {
   .scenario-switch.three { grid-template-columns:1fr; }
 }
+
+
+/* Linked account management */
+.linked-accounts-section { margin-top:18px; }
+.linked-account-list {
+  display:grid;
+  gap:8px;
+  margin-top:14px;
+}
+.linked-account-card {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:12px 13px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:rgba(255,255,255,.018);
+}
+.linked-account-card > div:first-child { min-width:0; display:grid; gap:3px; }
+.linked-account-card strong { font-size:12px; }
+.linked-account-card span { color:var(--muted); font-size:10px; }
+.linked-account-meta { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.linked-account-meta .pill { color:var(--muted); }
+.linked-account-add {
+  margin-top:12px;
+  border-top:1px solid var(--line);
+  padding-top:12px;
+}
+.linked-account-add > summary {
+  cursor:pointer;
+  color:var(--accent2);
+  font-size:11px;
+  font-weight:850;
+}
+.linked-account-form { margin-top:13px; }
+.linked-account-currency {
+  display:flex!important;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  color:var(--muted);
+  background:rgba(255,255,255,.018);
+  font-size:11px;
+}
+.linked-account-currency strong { color:var(--text); }
+html[data-theme="light"] .linked-account-card,
+html[data-theme="light"] .linked-account-currency {
+  background:rgba(31,57,87,.025);
+}
+@media (max-width:600px) {
+  .linked-account-card { align-items:flex-start; flex-direction:column; }
+  .linked-account-meta { justify-content:flex-start; }
+}
