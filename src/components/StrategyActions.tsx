@@ -273,3 +273,38 @@ export function ExecutionConstraintsForm({id,constraints}:{id:string;constraints
     <div className="inline"><button className="button" disabled={busy}>{busy?"Saving…":"Save trade preferences"}</button>{message&&<span className={message.startsWith("Saved")?"success":"error"}>{message}</span>}</div>
   </form>;
 }
+
+
+export function ContributionPlanForm({id,plan}:{id:string;plan?:Record<string,unknown>|null}){
+  const router=useRouter();
+  const value=plan??{};
+  const [enabled,setEnabled]=useState(value.enabled===true);
+  const [busy,setBusy]=useState(false);
+  const [message,setMessage]=useState("");
+  return <form className="stack contribution-plan-form" onSubmit={async(e)=>{
+    e.preventDefault();setBusy(true);setMessage("");
+    const f=new FormData(e.currentTarget);
+    const response=await fetch("/api/strategies/"+id+"/contribution-plan",{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({
+        enabled,
+        amount:enabled?String(f.get("amount")||"0"):"0",
+        frequency:String(f.get("frequency")||"MONTHLY"),
+        nextDate:enabled&&f.get("nextDate")?String(f.get("nextDate")):null
+      })
+    });
+    const body=await response.json();setBusy(false);
+    if(!response.ok)return setMessage(body.error??"Could not save contribution plan.");
+    setMessage(enabled?"Saved. We will use this only as a reminder.":"Regular contribution reminders are off.");
+    router.refresh();
+  }}>
+    <label className="toggle-row"><input type="checkbox" checked={enabled} onChange={(e)=>setEnabled(e.target.checked)}/><span><b>Regular contribution reminder</b><small>Your portfolio cash changes only when you record an actual contribution.</small></span></label>
+    {enabled&&<div className="form-grid">
+      <div className="field"><label>Usual amount</label><input name="amount" type="number" min="0.01" step="0.01" defaultValue={String(value.amount??"")||undefined} required/></div>
+      <div className="field"><label>Frequency</label><select name="frequency" defaultValue={String(value.frequency??"MONTHLY")}><option value="WEEKLY">Weekly</option><option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option></select></div>
+      <div className="field full"><label>Next date</label><input name="nextDate" type="date" defaultValue={value.nextDate?String(value.nextDate):undefined}/></div>
+    </div>}
+    <div className="inline"><button className="button" disabled={busy}>{busy?"Saving…":"Save contribution plan"}</button>{message&&<span className="success">{message}</span>}</div>
+  </form>;
+}
