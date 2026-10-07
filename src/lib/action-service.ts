@@ -389,7 +389,12 @@ export async function previewStrategySwitchScenario(
 
   return {
     preview:true,
-    targetStrategy:{key:String(target.key),name:String(target.name),version:String(target.version)},
+    scenario:{
+      type:"STRATEGY_SWITCH" as const,
+      currency:String(calculation.instance.currency),
+      targetStrategy:{key:String(target.key),name:String(target.name),version:String(target.version)}
+    },
+    portfolioValueAfter:calculation.totalValue.toString(),
     action:{
       actionType:calculation.proposal.actionType,
       title:calculation.proposal.title,
