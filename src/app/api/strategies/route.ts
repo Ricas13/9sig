@@ -20,6 +20,12 @@ const schema = z.object({
     cashBufferAmount:z.string().regex(/^\d+(?:\.\d{1,8})?$/).optional(),
     flatFee:z.string().regex(/^\d+(?:\.\d{1,8})?$/).optional(),
     allowSelling:z.boolean().optional()
+  }).optional(),
+  contributionPlan:z.object({
+    enabled:z.boolean(),
+    amount:z.string().regex(/^\d+(?:\.\d{1,8})?$/),
+    frequency:z.enum(["WEEKLY","MONTHLY","QUARTERLY"]),
+    nextDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable()
   }).optional()
 });
 
