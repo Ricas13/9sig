@@ -147,7 +147,7 @@ test("Pro user can link another account without complicating the main flow",asyn
   await page.getByLabel("Broker (optional)").fill("Example Broker");
   await page.getByRole("button",{name:"Add linked account"}).click();
 
-  await expect(page.getByText("Pension account")).toBeVisible();
+  await expect(page.locator(".linked-account-card strong",{hasText:"Pension account"}).first()).toBeVisible();
 
   await page.locator("summary").filter({hasText:"Update portfolio"}).click();
   await expect(page.getByLabel("Account").first()).toBeVisible();
@@ -205,7 +205,7 @@ test("Pro customer can resume an existing strategy across multiple accounts",asy
   await page.getByLabel("Account name").fill("Pension account");
   await page.getByLabel("Account type").selectOption("SIPP");
   await page.getByRole("button",{name:"Add linked account"}).click();
-  await expect(page.getByText("Pension account")).toBeVisible();
+  await expect(page.locator(".linked-account-card strong",{hasText:"Pension account"}).first()).toBeVisible();
 
   await page.getByLabel("Current cash balance").fill("5000");
   await page.getByRole("button",{name:"Save this account"}).click();
