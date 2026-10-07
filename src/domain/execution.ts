@@ -86,7 +86,7 @@ export function planPracticalTrade(input: {
   price: Decimal.Value;
   availableCash: Decimal.Value;
   heldQuantity: Decimal.Value;
-  constraints?: ExecutionConstraintsInput | null;
+  constraints?: unknown;
 }): PracticalTradePlan {
   const proposed = new Decimal(input.proposedAmount);
   const price = new Decimal(input.price);
