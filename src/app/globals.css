@@ -1257,3 +1257,39 @@ html[data-theme="light"] .premium-card:hover {
 .resume-add-account > .help { margin-top:9px; }
 .resume-add-account .linked-account-form { margin-top:12px; }
 html[data-theme="light"] .snapshot-account-progress { background:rgba(31,57,87,.025); }
+
+
+/* Confirmed strategy switching */
+.switch-apply-button {
+  width:100%;
+  margin-top:14px;
+}
+.switch-confirmation {
+  display:grid;
+  gap:13px;
+  margin-top:14px;
+  padding:14px;
+  border:1px solid rgba(121,168,255,.16);
+  border-radius:15px;
+  background:linear-gradient(135deg,rgba(121,168,255,.055),rgba(120,243,198,.028));
+}
+.switch-confirmation > div:first-child {
+  display:grid;
+  gap:4px;
+}
+.switch-confirmation strong {
+  font-size:12px;
+}
+.switch-confirmation span {
+  color:var(--muted);
+  font-size:11px;
+  line-height:1.5;
+}
+html[data-theme="light"] .switch-confirmation {
+  border-color:rgba(49,95,182,.13);
+  background:linear-gradient(135deg,rgba(49,95,182,.045),rgba(8,121,93,.025));
+}
+@media (max-width:600px) {
+  .switch-confirmation .inline { display:grid; grid-template-columns:1fr; }
+  .switch-confirmation .button { width:100%; }
+}
