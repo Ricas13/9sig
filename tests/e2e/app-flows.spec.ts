@@ -205,7 +205,9 @@ test("Pro customer can resume an existing strategy across multiple accounts",asy
   await page.getByLabel("Account name").fill("Pension account");
   await page.getByLabel("Account type").selectOption("SIPP");
   await page.getByRole("button",{name:"Add linked account"}).click();
-  await expect(page.locator(".linked-account-card strong",{hasText:"Pension account"}).first()).toBeVisible();
+  const accountToCapture=page.getByLabel("Account to capture");
+  await expect(accountToCapture).toBeVisible();
+  await expect(accountToCapture.getByRole("option",{name:/Pension account · SIPP/})).toHaveCount(1);
 
   await page.getByLabel("Current cash balance").fill("5000");
   await page.getByRole("button",{name:"Save this account"}).click();
