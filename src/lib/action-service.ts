@@ -250,6 +250,7 @@ export async function previewExecutionConstraintsScenario(
   return {
     scenario:{
       type:"EXECUTION_CONSTRAINTS" as const,
+      currency:String(calculation.instance.currency),
       constraints:{
         fractionalShares:normalized.fractionalShares,
         minimumTradeAmount:normalized.minimumTradeAmount.toString(),
