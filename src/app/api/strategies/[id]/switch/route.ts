@@ -30,7 +30,10 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       MULTI_ACCOUNT_NOT_IN_PLAN:"Your current plan does not support the linked accounts used by this strategy.",
       STRATEGY_NOT_SUPPORTED_IN_REGION:"The target strategy does not support one of your linked account regions.",
       STRATEGY_NOT_SUPPORTED_FOR_WRAPPER:"The target strategy does not support one of your linked account types.",
+      STRATEGY_SWITCH_REQUIRES_RECONCILIATION:"Resolve the current portfolio discrepancy before switching strategies.",
       SWITCH_FOREIGN_CASH_UNSUPPORTED:"Convert foreign-currency cash before switching strategies.",
+      SWITCH_MIXED_ACCOUNT_CURRENCIES_UNSUPPORTED:"Linked accounts must use one currency before switching strategies.",
+      SWITCH_NEGATIVE_CASH_UNSUPPORTED:"Resolve the negative cash balance before switching strategies.",
       STRATEGY_ACCOUNT_MISSING:"This strategy has no account to carry into the new journey."
     };
     if(code.startsWith("MISSING_STRATEGY_INPUT:"))return Response.json({error:"The target strategy needs additional setup information."},{status:409});
