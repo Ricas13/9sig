@@ -18,8 +18,8 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     const user=await requireUser();
     const {id}=await context.params;
     const input=schema.parse(await request.json().catch(()=>({})));
-    await executeAction(user.id,id,input);
-    return Response.json({ok:true});
+    const result=await executeAction(user.id,id,input);
+    return Response.json({ok:true,...result});
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Enter valid price, quantity and fee values."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
