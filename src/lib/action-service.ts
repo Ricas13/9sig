@@ -128,6 +128,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
           proposal={
             ...proposal,
             amount:practical.amount,
+            completesReview:practical.constrained?false:proposal.completesReview,
             title:(proposal.actionType==="BUY"?"Buy ":"Sell ")+(executionTicker??"the selected instrument"),
             instruction:(proposal.actionType==="BUY"?"Buy ":"Sell ")+quantityText+" "+(executionTicker??"units")+" for about "+amountText+" "+String(instance.currency)+".",
             explanation:[
@@ -150,7 +151,12 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
     effectiveCash.toString(),contributionsSinceReview.toString(),stablePositions,dataStatus
   ].join("|");
   const fingerprint=crypto.createHash("sha256").update(material).digest("hex");
-  const nextState=["BUY","SELL","REBALANCE","HOLD"].includes(proposal.actionType)?{...proposal.nextState,lastReviewAt:new Date().toISOString(),forceReview:false}:proposal.nextState;
+  const reviewAction=["BUY","SELL","REBALANCE","HOLD"].includes(proposal.actionType);
+  const nextState=reviewAction
+    ? proposal.completesReview===false
+      ? {...state,forceReview:true}
+      : {...proposal.nextState,lastReviewAt:new Date().toISOString(),forceReview:false}
+    : proposal.nextState;
   const totalValue=exposurePositions.reduce((sum,p)=>sum.plus(p.value),effectiveCash);
   return {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId};
 }
