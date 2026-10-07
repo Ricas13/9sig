@@ -4,6 +4,7 @@ import { ArrowLeft, BarChart3, CalendarClock, CheckCircle2, ChevronRight, Sparkl
 import { requireUser } from "@/lib/session";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
+import { loadEntitlements } from "@/lib/entitlement-service";
 import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { CashEventForm, ContributionForm, ContributionPlanForm, ExecuteAction, ExecutionConstraintsForm, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategyVersionUpgrade, WhatIfPreview } from "@/components/StrategyActions";
@@ -17,6 +18,8 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   const {id}=await params;
   const s:any=await getStrategyForUser(user.id,id);
   if(!s)notFound();
+  const entitlements=await loadEntitlements(user.id);
+  const canWhatIf=entitlements.features.has("what_if");
 
   const actionRows=await sql.unsafe("SELECT id,action_type,status,title,instruction,amount,currency,explanation,confidence,due_at,created_at FROM actions WHERE strategy_instance_id=$1 AND status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') ORDER BY created_at DESC LIMIT 1",[id]);
   const action=actionRows[0];
@@ -179,13 +182,13 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         </div>
       </details>
 
-      <details className="glass quick-drawer">
+      {canWhatIf&&      <details className="glass quick-drawer">
         <summary><span><Sparkles size={18}/>What if?</span><ChevronRight size={16}/></summary>
         <div className="quick-drawer-content">
           <div className="section-head"><div><h2>Preview a change.</h2><p>See what the strategy would say without touching your real portfolio.</p></div></div>
           <WhatIfPreview id={id} currency={String(s.currency)}/>
         </div>
-      </details>
+      </details>}
 
       <details className="glass quick-drawer">
         <summary><span><CalendarClock size={18}/>Strategy settings & rules</span><ChevronRight size={16}/></summary>
