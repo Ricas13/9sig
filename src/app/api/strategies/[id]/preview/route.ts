@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { assertSameOrigin } from "@/lib/security";
 import { previewCashScenario } from "@/lib/action-service";
+import { loadEntitlements } from "@/lib/entitlement-service";
 
 const schema=z.object({
   type:z.enum(["CONTRIBUTION","WITHDRAWAL"]),
@@ -13,6 +14,8 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     assertSameOrigin(request);
     const user=await requireUser();
     const {id}=await context.params;
+    const entitlements=await loadEntitlements(user.id);
+    if(!entitlements.features.has("what_if"))return Response.json({error:"What-if previews are not included in your current plan."},{status:403});
     const input=schema.parse(await request.json());
     const result=await previewCashScenario(user.id,id,input);
     return Response.json({ok:true,preview:true,result});
