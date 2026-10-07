@@ -297,9 +297,9 @@ export async function calculateAction(strategyInstanceId:string){
     await tx.unsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[strategyInstanceId]);
 
     const calculation=await buildActionCalculation(strategyInstanceId);
-    const {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId}=calculation;
+    const {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId,executionAccountId}=calculation;
     if(dataStatus==="CURRENT")await tx.unsafe("INSERT INTO performance_series (strategy_instance_id,series_type,date,value,metadata) VALUES ($1,'USER_VALUE',current_date,$2,$3::jsonb) ON CONFLICT (strategy_instance_id,series_type,date) DO UPDATE SET value=EXCLUDED.value,metadata=EXCLUDED.metadata",[strategyInstanceId,totalValue.toString(),JSON.stringify({source:"ledger+market"})]);
-    const inserted=await tx.unsafe("INSERT INTO actions (strategy_instance_id,strategy_version_id,fingerprint,action_type,status,title,instruction,amount,currency,trading_line_id,explanation,next_state,confidence,due_at) VALUES ($1,$2,$3,$4,'CALCULATED',$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13) ON CONFLICT (strategy_instance_id,fingerprint) DO UPDATE SET updated_at=now() RETURNING id",[strategyInstanceId,instance.strategy_version_id,fingerprint,proposal.actionType,proposal.title,proposal.instruction,proposal.amount?.toString()??null,proposal.currency??null,tradingLineId,JSON.stringify(proposal.explanation),JSON.stringify(nextState),proposal.confidence,proposal.dueAt??null]);
+    const inserted=await tx.unsafe("INSERT INTO actions (strategy_instance_id,account_id,strategy_version_id,fingerprint,action_type,status,title,instruction,amount,currency,trading_line_id,explanation,next_state,confidence,due_at) VALUES ($1,$2,$3,$4,$5,'CALCULATED',$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14) ON CONFLICT (strategy_instance_id,fingerprint) DO UPDATE SET account_id=EXCLUDED.account_id,updated_at=now() RETURNING id",[strategyInstanceId,executionAccountId,instance.strategy_version_id,fingerprint,proposal.actionType,proposal.title,proposal.instruction,proposal.amount?.toString()??null,proposal.currency??null,tradingLineId,JSON.stringify(proposal.explanation),JSON.stringify(nextState),proposal.confidence,proposal.dueAt??null]);
     const actionId=String(inserted[0].id);
     await tx.unsafe("UPDATE actions SET status='SUPERSEDED',superseded_by_action_id=$1,updated_at=now() WHERE strategy_instance_id=$2 AND id<>$1 AND status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') AND action_type<>'NO_ACTION'",[actionId,strategyInstanceId]);
     const healthy=dataStatus==="CURRENT"&&proposal.actionType!=="DATA_REQUIRED";
@@ -323,7 +323,7 @@ export async function executeAction(
 
     // Keep lock ordering consistent with pause/close flows: strategy first, then action.
     const strategyRows=await tx.unsafe(
-      "SELECT i.id,i.status,i.execution_constraints,acc.currency FROM strategy_instances i JOIN accounts acc ON acc.id=i.account_id WHERE i.id=$1 AND i.user_id=$2 FOR UPDATE OF i",
+      "SELECT i.id,i.status,i.execution_constraints FROM strategy_instances i WHERE i.id=$1 AND i.user_id=$2 FOR UPDATE OF i",
       [ownership[0].strategy_instance_id,userId]
     );
     const strategy=strategyRows[0];
@@ -331,7 +331,7 @@ export async function executeAction(
     if(String(strategy.status)!=="ACTIVE")throw new Error("STRATEGY_NOT_ACTIVE");
 
     const actionRows=await tx.unsafe(
-      "SELECT a.*,tl.instrument_id FROM actions a LEFT JOIN trading_lines tl ON tl.id=a.trading_line_id WHERE a.id=$1 AND a.strategy_instance_id=$2 FOR UPDATE OF a",
+      "SELECT a.*,tl.instrument_id,acc.currency AS account_currency FROM actions a LEFT JOIN trading_lines tl ON tl.id=a.trading_line_id LEFT JOIN accounts acc ON acc.id=a.account_id WHERE a.id=$1 AND a.strategy_instance_id=$2 FOR UPDATE OF a",
       [actionId,strategy.id]
     );
     const action=actionRows[0];
@@ -347,13 +347,13 @@ export async function executeAction(
 
     if(["BUY","SELL"].includes(actionType)){
       if(!execution?.price||!execution?.quantity||!action.instrument_id||!action.amount)throw new Error("EXECUTION_DETAILS_REQUIRED");
-      if(!action.currency||String(action.currency)!==String(strategy.currency)){
+      if(!action.account_id||!action.account_currency||!action.currency||String(action.currency)!==String(action.account_currency)){
         throw new Error("EXECUTION_CURRENCY_MISMATCH");
       }
 
       const ledgerRows=await tx.unsafe(
-        "SELECT event_type,currency,cash_amount,fee_amount,instrument_id,quantity FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",
-        [action.strategy_instance_id]
+        "SELECT event_type,currency,cash_amount,fee_amount,instrument_id,quantity FROM ledger_events WHERE strategy_instance_id=$1 AND account_id=$2 ORDER BY occurred_at,created_at",
+        [action.strategy_instance_id,action.account_id]
       );
       const position=foldLedger(ledgerRows.map((r)=>({
         eventType:String(r.event_type),
@@ -362,7 +362,7 @@ export async function executeAction(
         feeAmount:String(r.fee_amount),
         instrumentId:r.instrument_id?String(r.instrument_id):null,
         quantity:String(r.quantity)
-      })),String(strategy.currency));
+})),String(action.account_currency));
       const held=position.quantities.get(String(action.instrument_id))??new Decimal(0);
       const constraints=normalizeExecutionConstraints(strategy.execution_constraints);
       if(actionType==="SELL"&&!constraints.allowSelling)throw new Error("SELLING_DISABLED");
@@ -382,9 +382,10 @@ export async function executeAction(
       if(validated.grossNotional.lt(constraints.minimumTradeAmount))throw new Error("BELOW_MINIMUM_TRADE");
 
       const inserted=await tx.unsafe(
-        "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,now(),$2,$3,$4,$5,$6,$7,$8,'USER_ENTERED','VERIFIED',$9::jsonb) RETURNING id",
+        "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,$2,now(),$3,$4,$5,$6,$7,$8,$9,'USER_ENTERED','VERIFIED',$10::jsonb) RETURNING id",
         [
           action.strategy_instance_id,
+          action.account_id,
           actionType,
           action.currency,
           validated.cashAmount.toString(),
