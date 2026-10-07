@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft, ArrowRight, BarChart3, CalendarClock, ChevronRight, Sparkles, WalletCards } from "lucide-react";
 import { requireUser } from "@/lib/session";
-import { getStrategyForUser, listStrategyAccounts } from "@/lib/strategy-service";
+import { getStrategyForUser, listAvailableStrategies, listStrategyAccounts } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { loadEntitlements } from "@/lib/entitlement-service";
 import { simulateSameCashFlows } from "@/domain/comparison";
@@ -53,9 +53,10 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   const {id}=await params;
   const s:any=await getStrategyForUser(user.id,id);
   if(!s)notFound();
-  const [entitlements,strategyAccounts]=await Promise.all([
+  const [entitlements,strategyAccounts,availableStrategies]=await Promise.all([
     loadEntitlements(user.id),
-    listStrategyAccounts(user.id,id)
+    listStrategyAccounts(user.id,id),
+    listAvailableStrategies()
   ]);
   const canWhatIf=entitlements.features.has("what_if");
   const canMultiAccount=entitlements.features.has("multi_account");
@@ -68,6 +69,23 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     role:String(account.role)
   }));
   const supportedWrappers=Array.isArray(s.supported_wrappers)?s.supported_wrappers.map(String):[];
+  const switchOptions=availableStrategies
+    .filter((strategy:any)=>String(strategy.key)!==String(s.strategy_key))
+    .filter((strategy:any)=>!entitlements.availableStrategyKeys||entitlements.availableStrategyKeys.has(String(strategy.key)))
+    .filter((strategy:any)=>{
+      const regions=Array.isArray(strategy.supported_regions)?strategy.supported_regions.map(String):[];
+      const wrappers=Array.isArray(strategy.supported_wrappers)?strategy.supported_wrappers.map(String):[];
+      return strategyAccounts.every((account:any)=>
+        (!regions.length||regions.includes(String(account.country)))&&
+        (!wrappers.length||wrappers.includes(String(account.wrapper)))
+      );
+    })
+    .map((strategy:any)=>({
+      key:String(strategy.key),
+      name:String(strategy.name),
+      version:String(strategy.version),
+      inputSchema:Array.isArray(strategy.input_schema)?strategy.input_schema:[]
+    }));
 
   const actionRows=await sql.unsafe("SELECT a.id,a.action_type,a.status,a.title,a.instruction,a.amount,a.currency,a.explanation,a.confidence,a.due_at,a.created_at,acc.name AS account_name,acc.wrapper AS account_wrapper FROM actions a LEFT JOIN accounts acc ON acc.id=a.account_id WHERE a.strategy_instance_id=$1 AND a.status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') ORDER BY a.created_at DESC LIMIT 1",[id]);
   const action=actionRows[0];
@@ -295,7 +313,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         <summary><span><Sparkles size={18}/>What if?</span><ChevronRight size={16}/></summary>
         <div className="quick-drawer-content">
           <div className="section-head"><div><h2>Preview a change.</h2><p>See what the strategy would say without touching your real portfolio.</p></div></div>
-          <WhatIfPreview id={id} currency={String(s.currency)}/>
+          <WhatIfPreview id={id} currency={String(s.currency)} switchOptions={switchOptions}/>
         </div>
       </details>}
 
