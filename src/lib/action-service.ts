@@ -191,16 +191,22 @@ export async function previewCashScenario(
 }
 
 export async function calculateAction(strategyInstanceId:string){
-  const calculation=await buildActionCalculation(strategyInstanceId);
-  const {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId}=calculation;
-  if(dataStatus==="CURRENT")await sql.unsafe("INSERT INTO performance_series (strategy_instance_id,series_type,date,value,metadata) VALUES ($1,'USER_VALUE',current_date,$2,$3::jsonb) ON CONFLICT (strategy_instance_id,series_type,date) DO UPDATE SET value=EXCLUDED.value,metadata=EXCLUDED.metadata",[strategyInstanceId,totalValue.toString(),JSON.stringify({source:"ledger+market"})]);
-  const inserted=await sql.unsafe("INSERT INTO actions (strategy_instance_id,strategy_version_id,fingerprint,action_type,status,title,instruction,amount,currency,trading_line_id,explanation,next_state,confidence,due_at) VALUES ($1,$2,$3,$4,'CALCULATED',$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13) ON CONFLICT (strategy_instance_id,fingerprint) DO UPDATE SET updated_at=now() RETURNING id",[strategyInstanceId,instance.strategy_version_id,fingerprint,proposal.actionType,proposal.title,proposal.instruction,proposal.amount?.toString()??null,proposal.currency??null,tradingLineId,JSON.stringify(proposal.explanation),JSON.stringify(nextState),proposal.confidence,proposal.dueAt??null]);
-  const actionId=String(inserted[0].id);
-  await sql.unsafe("UPDATE actions SET status='SUPERSEDED',superseded_by_action_id=$1,updated_at=now() WHERE strategy_instance_id=$2 AND id<>$1 AND status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') AND action_type<>'NO_ACTION'",[actionId,strategyInstanceId]);
-  const healthy=dataStatus==="CURRENT"&&proposal.actionType!=="DATA_REQUIRED";
-  await sql.unsafe("UPDATE strategy_instances SET health_status=$1,updated_at=now() WHERE id=$2",[healthy?"HEALTHY":"NEEDS_ATTENTION",strategyInstanceId]);
-  if(proposal.actionType!=="NO_ACTION")await sql.unsafe("INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION',$3,$4) ON CONFLICT DO NOTHING",[instance.user_id,actionId,proposal.title,proposal.instruction]);
-  return {actionId,proposal,totalValue:totalValue.toString()};
+  return sql.begin(async(tx)=>{
+    // Serialise calculations per strategy. Fingerprints dedupe identical results,
+    // while this mutex prevents an older calculation from finishing after a newer one.
+    await tx.unsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[strategyInstanceId]);
+
+    const calculation=await buildActionCalculation(strategyInstanceId);
+    const {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId}=calculation;
+    if(dataStatus==="CURRENT")await tx.unsafe("INSERT INTO performance_series (strategy_instance_id,series_type,date,value,metadata) VALUES ($1,'USER_VALUE',current_date,$2,$3::jsonb) ON CONFLICT (strategy_instance_id,series_type,date) DO UPDATE SET value=EXCLUDED.value,metadata=EXCLUDED.metadata",[strategyInstanceId,totalValue.toString(),JSON.stringify({source:"ledger+market"})]);
+    const inserted=await tx.unsafe("INSERT INTO actions (strategy_instance_id,strategy_version_id,fingerprint,action_type,status,title,instruction,amount,currency,trading_line_id,explanation,next_state,confidence,due_at) VALUES ($1,$2,$3,$4,'CALCULATED',$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13) ON CONFLICT (strategy_instance_id,fingerprint) DO UPDATE SET updated_at=now() RETURNING id",[strategyInstanceId,instance.strategy_version_id,fingerprint,proposal.actionType,proposal.title,proposal.instruction,proposal.amount?.toString()??null,proposal.currency??null,tradingLineId,JSON.stringify(proposal.explanation),JSON.stringify(nextState),proposal.confidence,proposal.dueAt??null]);
+    const actionId=String(inserted[0].id);
+    await tx.unsafe("UPDATE actions SET status='SUPERSEDED',superseded_by_action_id=$1,updated_at=now() WHERE strategy_instance_id=$2 AND id<>$1 AND status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') AND action_type<>'NO_ACTION'",[actionId,strategyInstanceId]);
+    const healthy=dataStatus==="CURRENT"&&proposal.actionType!=="DATA_REQUIRED";
+    await tx.unsafe("UPDATE strategy_instances SET health_status=$1,updated_at=now() WHERE id=$2",[healthy?"HEALTHY":"NEEDS_ATTENTION",strategyInstanceId]);
+    if(proposal.actionType!=="NO_ACTION")await tx.unsafe("INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION',$3,$4) ON CONFLICT DO NOTHING",[instance.user_id,actionId,proposal.title,proposal.instruction]);
+    return {actionId,proposal,totalValue:totalValue.toString()};
+  });
 }
 
 export async function executeAction(
