@@ -13,7 +13,14 @@ const schema = z.object({
   onboardingMode:z.enum(["START_NEW","RESUME"]),
   startingCash:z.string().optional(),
   approximateValue:z.string().optional(),
-  settings:z.record(z.string(),z.unknown()).optional()
+  settings:z.record(z.string(),z.unknown()).optional(),
+  executionConstraints:z.object({
+    fractionalShares:z.boolean().optional(),
+    minimumTradeAmount:z.string().regex(/^\d+(?:\.\d{1,8})?$/).optional(),
+    cashBufferAmount:z.string().regex(/^\d+(?:\.\d{1,8})?$/).optional(),
+    flatFee:z.string().regex(/^\d+(?:\.\d{1,8})?$/).optional(),
+    allowSelling:z.boolean().optional()
+  }).optional()
 });
 
 export async function POST(request: Request) {
