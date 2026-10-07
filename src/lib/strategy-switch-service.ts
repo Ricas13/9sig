@@ -16,13 +16,15 @@ export async function switchStrategy(
     if(!userRows[0])throw new Error("UNAUTHENTICATED");
 
     const currentRows=await tx.unsafe(
-      "SELECT i.*,d.key AS strategy_key FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id "+
+      "SELECT i.*,d.key AS strategy_key,s.state FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_states s ON s.strategy_instance_id=i.id "+
       "WHERE i.id=$1 AND i.user_id=$2 FOR UPDATE OF i",
       [strategyInstanceId,userId]
     );
     const current=currentRows[0];
     if(!current)throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
     if(String(current.status)==="CLOSED")throw new Error("STRATEGY_ALREADY_CLOSED");
+    const currentState=(current.state??{}) as Record<string,unknown>;
+    if(currentState.resumeNeedsReconciliation||currentState.unresolvedReconciliation)throw new Error("STRATEGY_SWITCH_REQUIRES_RECONCILIATION");
 
     const targets=await tx.unsafe(
       "SELECT d.id AS definition_id,d.key,d.name,d.supported_regions,d.supported_wrappers,v.id AS version_id,v.version,v.engine_key,v.config,v.input_schema "+
@@ -64,6 +66,8 @@ export async function switchStrategy(
     );
     if(!accounts.length)throw new Error("STRATEGY_ACCOUNT_MISSING");
     assertStrategyFeatureAccess(entitlements,{accountCount:accounts.length});
+    const accountCurrencies=new Set(accounts.map((account)=>String(account.currency).toUpperCase()));
+    if(accountCurrencies.size!==1)throw new Error("SWITCH_MIXED_ACCOUNT_CURRENCIES_UNSUPPORTED");
 
     const regions=Array.isArray(target.supported_regions)?target.supported_regions.map(String):[];
     const wrappers=Array.isArray(target.supported_wrappers)?target.supported_wrappers.map(String):[];
@@ -98,6 +102,7 @@ export async function switchStrategy(
       })),String(account.currency));
       const foreign=[...folded.cashByCurrency.entries()].filter(([currency,value])=>currency!==String(account.currency).toUpperCase()&&!value.eq(0));
       if(foreign.length)throw new Error("SWITCH_FOREIGN_CASH_UNSUPPORTED");
+      if(folded.cash.lt(0))throw new Error("SWITCH_NEGATIVE_CASH_UNSUPPORTED");
       snapshots.push({
         account,
         cash:folded.cash.toString(),
