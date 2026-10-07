@@ -566,3 +566,14 @@ th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacin
 @media (prefers-reduced-motion:reduce) {
   .skeleton:after { animation:none; display:none; }
 }
+
+
+.strategy-lifecycle { display:grid; gap:12px; }
+.quiet-danger { color:#d99aaa; background:transparent; }
+.close-confirmation { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 14px; border:1px solid rgba(255,124,141,.18); border-radius:14px; background:rgba(255,124,141,.045); }
+.close-confirmation > div:first-child { display:grid; gap:3px; }
+.close-confirmation strong { color:#efb1bd; font-size:12px; }
+.close-confirmation span { color:#9e7782; font-size:11px; line-height:1.45; }
+@media (max-width:680px) {
+  .close-confirmation { align-items:flex-start; flex-direction:column; }
+}
