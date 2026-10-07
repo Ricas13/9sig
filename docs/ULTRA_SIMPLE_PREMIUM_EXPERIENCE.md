@@ -699,25 +699,25 @@ Use this checklist as the shared cross-chat roadmap.
 
 ### Visual system
 
-- [ ] define premium design tokens
+- [x] define premium design tokens
 - [x] dark mode
 - [x] light mode
 - [ ] typography and number formatting
-- [ ] cards / surfaces / gradients / depth
-- [ ] icon system
+- [x] cards / surfaces / gradients / depth
+- [x] icon system
 - [x] animation / motion primitives
 - [x] reduced-motion path
 - [x] loading / empty / error / success states
 
 ### Responsive / accessibility
 
-- [ ] mobile-first dashboard
-- [ ] responsive charts
+- [x] mobile-first dashboard
+- [x] responsive charts
 - [x] compact navigation
-- [ ] keyboard audit
+- [x] keyboard audit
 - [ ] contrast audit
-- [ ] screen-reader labels
-- [ ] mobile touch-target audit
+- [x] screen-reader labels
+- [x] mobile touch-target audit
 
 ### Commercial experience
 
@@ -833,3 +833,16 @@ Still intentionally open: multi-account strategy ownership/execution, strategy-s
 - mixed-currency linked strategies remain fail-closed until explicit FX support exists
 - execution currency matching is now a tested domain invariant rather than an inline string comparison
 - browser coverage includes both new and resumed multi-account journeys
+
+
+## UX verification checkpoint — 7 October 2026
+
+- premium colors, surfaces, radii, shadows, chart colors and motion timings are centralized as CSS design tokens
+- customer UI uses a consistent Lucide icon system rather than mixed icon libraries
+- authenticated browser coverage checks mobile overflow and primary touch-target sizing
+- the main chart uses a responsive container, touch-friendly toggles, semantic labels and Recharts' accessibility layer
+- keyboard coverage verifies the skip link and visible focus treatment
+- browser coverage rejects unnamed buttons in the authenticated shell
+- reduced-motion CSS and chart animation behavior are explicitly supported
+
+Still open for sign-off: typography / numeric-formatting polish, a dedicated contrast audit, visual-regression screenshots, and the final full release gate.
