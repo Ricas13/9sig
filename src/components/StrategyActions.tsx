@@ -61,12 +61,13 @@ export function ExecuteAction({ action }: { action: { id: string; actionType: st
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [recalculationPending,setRecalculationPending]=useState(false);
   const needsPrice = ["BUY", "SELL"].includes(action.actionType);
 
   if (completed) {
     return <div className="action-complete" role="status" aria-live="polite">
       <span className="action-complete-icon"><CheckCircle2 size={20}/></span>
-      <span><strong>{needsPrice ? "Trade recorded." : "Review completed."}</strong><small>Recalculating what comes next…</small></span>
+      <span><strong>{needsPrice ? "Trade recorded." : "Review completed."}</strong><small>{recalculationPending?"Saved safely. The strategy needs attention before the next action is ready.":"Recalculating what comes next…"}</small></span>
     </div>;
   }
 
@@ -83,6 +84,7 @@ export function ExecuteAction({ action }: { action: { id: string; actionType: st
     const body = await response.json();
     setBusy(false);
     if (!response.ok) return setError(body.error ?? "Could not complete action.");
+    setRecalculationPending(Boolean(body.recalculationPending));
     setCompleted(true);
     window.setTimeout(() => router.refresh(), 550);
   }}>
@@ -117,7 +119,7 @@ export function ContributionForm({ id, accounts=[] }: { id: string; accounts?:Ac
         body: JSON.stringify({ amount: String(f.get("amount")), occurredAt, accountId:f.get("accountId")||undefined, requestKey:mutationKey })
       });
       const body=await r.json().catch(()=>({}));
-      setMessage(r.ok ? "Contribution recorded as cash." : body.error??"Could not record contribution.");
+      setMessage(r.ok ? (body.recalculationPending?"Contribution recorded. Recalculation needs attention.":"Contribution recorded as cash.") : body.error??"Could not record contribution.");
       if (r.ok) {
         requestKey.current=null;
         form.reset();
@@ -160,11 +162,13 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
       });
       const b = await r.json().catch(()=>({}));
       setMessage(r.ok
-        ? (b.strategyResolved
-          ? "Reconciliation resolved."
-          : b.resolved
-            ? "This account is matched, but another linked account still needs attention."
-            : "Reconciliation recorded, but the strategy remains blocked until the discrepancy is resolved.")
+        ? (b.recalculationPending
+          ? "Reconciliation saved. Recalculation needs attention."
+          : b.strategyResolved
+            ? "Reconciliation resolved."
+            : b.resolved
+              ? "This account is matched, but another linked account still needs attention."
+              : "Reconciliation recorded, but the strategy remains blocked until the discrepancy is resolved.")
         : b.error??"Could not reconcile strategy.");
       if (r.ok) {requestKey.current=null;router.refresh();}
     }catch{
@@ -218,9 +222,11 @@ export function OpeningSnapshotForm({ id, accounts=[] }: { id: string; accounts?
     }
     setCash("0");
     setHoldings([{ticker:"",exchange:"LSE",quantity:""}]);
-    setMessage(body.complete
-      ? "Opening snapshot complete. Your strategy can now calculate from today."
-      : "Saved for "+(selected?.name??"this account")+". Next: "+(body.pendingAccountNames?.[0]??"the remaining account")+".");
+    setMessage(body.recalculationPending
+      ? "Opening snapshot saved. Recalculation needs attention."
+      : body.complete
+        ? "Opening snapshot complete. Your strategy can now calculate from today."
+        : "Saved for "+(selected?.name??"this account")+". Next: "+(body.pendingAccountNames?.[0]??"the remaining account")+".");
     router.refresh();
   }}>
     {accountChoices.length>1&&<div className="field">
@@ -265,7 +271,7 @@ export function StrategyLifecycleControls({ id, status }: { id: string; status: 
     });
     const body = await response.json();
     setBusy(false);
-    setMessage(response.ok ? "Strategy status updated." : body.error ?? "Could not update status.");
+    setMessage(response.ok ? (body.recalculationPending?"Strategy status updated. Recalculation needs attention.":"Strategy status updated.") : body.error ?? "Could not update status.");
     if (response.ok) {
       setConfirmClose(false);
       router.refresh();
@@ -370,7 +376,7 @@ export function StrategyVersionUpgrade({
       e.preventDefault();setBusy(true);setMessage("");
       const settings=collectSettings(e.currentTarget);
       const response=await fetch("/api/strategies/"+id+"/version",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({targetVersionId,settings})});
-      const body=await response.json();setBusy(false);setMessage(response.ok?"Strategy updated to v"+targetVersion+".":body.error??"Could not update strategy.");
+      const body=await response.json();setBusy(false);setMessage(response.ok?(body.recalculationPending?"Strategy updated to v"+targetVersion+". Recalculation needs attention.":"Strategy updated to v"+targetVersion+"."):body.error??"Could not update strategy.");
       if(response.ok)router.refresh();
     }}>
       {inputSchema.length>0&&<details className="advanced-details">
@@ -409,7 +415,7 @@ export function CashEventForm({id,accounts=[]}:{id:string;accounts?:AccountOptio
         eventType:f.get("eventType"),amount:String(f.get("amount")),occurredAt:when?new Date(when).toISOString():undefined,note:f.get("note")||undefined,accountId:f.get("accountId")||undefined,requestKey:mutationKey
       })});
       const body=await response.json().catch(()=>({}));
-      setMessage(response.ok?"Cash event recorded.":body.error??"Could not record cash event.");
+      setMessage(response.ok?(body.recalculationPending?"Cash event recorded. Recalculation needs attention.":"Cash event recorded."):body.error??"Could not record cash event.");
       if(response.ok){requestKey.current=null;form.reset();router.refresh();}
     }catch{
       setMessage("Connection interrupted. Try again — the same cash event will be reused safely.");
