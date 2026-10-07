@@ -906,3 +906,32 @@ html[data-theme="light"] .recovery-banner-icon {
   .recovery-banner-copy { width:calc(100% - 50px); }
   .recovery-banner .button { width:100%; margin-left:48px; }
 }
+
+
+/* What-if trade-settings preview */
+.scenario-switch.three { grid-template-columns:repeat(3,1fr); }
+.preview-settings { display:grid; gap:13px; }
+.preview-settings .button { width:100%; }
+.preview-constraint-summary {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:14px;
+  padding-top:14px;
+  border-top:1px solid var(--line);
+}
+.preview-constraint-summary span {
+  padding:5px 8px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  color:var(--muted);
+  background:rgba(255,255,255,.025);
+  font-size:9px;
+  font-weight:850;
+}
+html[data-theme="light"] .preview-constraint-summary span {
+  background:rgba(31,57,87,.035);
+}
+@media (max-width:560px) {
+  .scenario-switch.three { grid-template-columns:1fr; }
+}
