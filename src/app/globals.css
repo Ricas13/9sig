@@ -616,12 +616,12 @@ html[data-theme="light"] {
   --panel-solid:#ffffff;
   --panel-light:#ffffff;
   --text:#102036;
-  --muted:#64758a;
+  --muted:#5f7187;
   --line:rgba(31,57,87,.12);
-  --accent:#0c9f76;
-  --accent2:#477ff0;
-  --danger:#d84a63;
-  --warning:#a96f00;
+  --accent:#08795d;
+  --accent2:#315fb6;
+  --danger:#b1324b;
+  --warning:#8c5b00;
   --ink:#102036;
   --ink-muted:#687a91;
   --shadow:0 24px 70px rgba(31,55,82,.12);
