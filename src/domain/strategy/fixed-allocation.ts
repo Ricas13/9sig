@@ -93,17 +93,52 @@ export const fixedAllocationEngine: StrategyEngine = {
       };
     }
 
+    const underweight=[...rows].filter((row)=>row.delta.gt(0)).sort((a,b)=>b.delta.cmp(a.delta))[0];
+    if(underweight&&ctx.cash.gt(0)){
+      const amount=Decimal.min(underweight.delta,ctx.cash);
+      const projected=rows.map((row)=>row.exposure===underweight.exposure?{...row,current:row.current.plus(amount)}:row);
+      const projectedWorst=projected.reduce((max,row)=>Decimal.max(max,row.target.minus(row.current).abs().div(total)),new Decimal(0));
+      return {
+        actionType:"BUY",
+        title:"Use available cash on "+underweight.exposure,
+        instruction:"Buy "+money(amount)+" "+ctx.baseCurrency+" of "+underweight.exposure+". This moves the portfolio toward its target without an unnecessary sale.",
+        amount,
+        currency:ctx.baseCurrency,
+        economicExposure:underweight.exposure,
+        explanation,
+        nextState:{...ctx.state,lastCalculatedAt:ctx.now.toISOString()},
+        confidence:"HIGH",
+        dueAt:ctx.now,
+        completesReview:projectedWorst.lte(threshold)
+      };
+    }
+
+    const overweight=[...rows].filter((row)=>row.delta.lt(0)).sort((a,b)=>a.delta.cmp(b.delta))[0];
+    if(overweight){
+      const amount=overweight.delta.abs();
+      return {
+        actionType:"SELL",
+        title:"Free cash from "+overweight.exposure,
+        instruction:"Sell about "+money(amount)+" "+ctx.baseCurrency+" of "+overweight.exposure+". We will recalculate the next step from the actual fill.",
+        amount,
+        currency:ctx.baseCurrency,
+        economicExposure:overweight.exposure,
+        explanation,
+        nextState:{...ctx.state,lastCalculatedAt:ctx.now.toISOString()},
+        confidence:"HIGH",
+        dueAt:ctx.now,
+        completesReview:false
+      };
+    }
+
     return {
-      actionType: "REBALANCE",
-      title: "Rebalance required",
-      instruction: "Under the strategy rules you selected, adjust the portfolio toward the target allocations shown below.",
-      amount: worst.delta.abs(),
-      currency: ctx.baseCurrency,
-      economicExposure: worst.exposure,
+      actionType:"DATA_REQUIRED",
+      title:"Rebalance needs attention",
+      instruction:"The allocation is outside its threshold but no executable rebalance step could be determined.",
       explanation,
-      nextState: { ...ctx.state, lastCalculatedAt: ctx.now.toISOString() },
-      confidence: "HIGH",
-      dueAt: ctx.now
+      nextState:ctx.state,
+      confidence:"LOW",
+      dueAt:ctx.now
     };
   }
 };
