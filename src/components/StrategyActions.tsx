@@ -10,6 +10,40 @@ function AccountSelect({accounts}:{accounts:AccountOption[]}){
   return <div className="field full"><label>Account</label><select name="accountId" defaultValue={accounts.find((account)=>account.role==="PRIMARY")?.id??accounts[0]?.id}>{accounts.map((account)=><option key={account.id} value={account.id}>{account.name} · {account.wrapper}{account.brokerName?" · "+account.brokerName:""}</option>)}</select></div>;
 }
 
+
+export function AddLinkedAccountForm({id,currency,wrappers}:{id:string;currency:string;wrappers:string[]}){
+  const router=useRouter();
+  const [busy,setBusy]=useState(false);
+  const [message,setMessage]=useState("");
+  const options=wrappers.length?wrappers:["ISA","SIPP","GIA"];
+
+  return <form className="form-grid linked-account-form" onSubmit={async(e)=>{
+    e.preventDefault();setBusy(true);setMessage("");
+    const f=new FormData(e.currentTarget);
+    const response=await fetch("/api/strategies/"+id+"/accounts",{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({
+        name:String(f.get("name")||""),
+        wrapper:String(f.get("wrapper")||""),
+        broker:String(f.get("broker")||"")||null,
+        currency
+      })
+    });
+    const body=await response.json();setBusy(false);
+    if(!response.ok)return setMessage(body.error??"Could not add this account.");
+    setMessage("Account linked.");
+    e.currentTarget.reset();
+    router.refresh();
+  }}>
+    <div className="field"><label>Account name</label><input name="name" maxLength={80} placeholder="e.g. SIPP at InvestEngine" required/></div>
+    <div className="field"><label>Account type</label><select name="wrapper" required>{options.map((wrapper)=><option key={wrapper} value={wrapper}>{wrapper}</option>)}</select></div>
+    <div className="field full"><label>Broker (optional)</label><input name="broker" maxLength={80} placeholder="Broker name"/></div>
+    <div className="field full linked-account-currency"><span>Uses strategy currency</span><strong>{currency}</strong></div>
+    <div className="field full"><button className="button" disabled={busy}><Plus size={15}/>{busy?"Adding…":"Add linked account"}</button>{message&&<span className={message==="Account linked."?"success":"error"}>{message}</span>}</div>
+  </form>;
+}
+
 export function RecalculateButton({ id }: { id: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
