@@ -96,6 +96,15 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
     }
   }
 
+  const aggregatedExposureMap=new Map<string,Decimal>();
+  for(const position of exposurePositions){
+    aggregatedExposureMap.set(
+      position.economicExposure,
+      (aggregatedExposureMap.get(position.economicExposure)??new Decimal(0)).plus(position.value)
+    );
+  }
+  const engineExposures=[...aggregatedExposureMap.entries()].map(([economicExposure,value])=>({economicExposure,value}));
+
   const frequency=String(config.reviewFrequency??"QUARTERLY");
   const lastReview=state.lastReviewAt?new Date(String(state.lastReviewAt)):new Date(instance.started_at);
   const reviewTimezone=String(config.reviewTimezone??instance.user_timezone??"UTC");
@@ -113,7 +122,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
   const contributionRows=await sql.unsafe("SELECT COALESCE(sum(cash_amount),0) AS amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' AND occurred_at>$2",[strategyInstanceId,lastReview]);
   const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0)).plus(new Decimal(scenario?.contributionDelta??0));
   const engine=getStrategyEngine(String(instance.engine));
-  let proposal=engine.calculate({strategyInstanceId,strategyVersionId:String(instance.strategy_version_id),now:new Date(),baseCurrency:String(instance.currency),cash:effectiveCash,exposures:exposurePositions,contributionsSinceReview,state,config,settings:(instance.settings??{}) as Record<string,unknown>,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
+  let proposal=engine.calculate({strategyInstanceId,strategyVersionId:String(instance.strategy_version_id),now:new Date(),baseCurrency:String(instance.currency),cash:effectiveCash,exposures:engineExposures,contributionsSinceReview,state,config,settings:(instance.settings??{}) as Record<string,unknown>,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
 
   let tradingLineId:string|null=null;
   let executionTicker:string|null=null;
