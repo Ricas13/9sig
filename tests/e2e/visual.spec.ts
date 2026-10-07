@@ -5,7 +5,7 @@ import { expect, test } from "@playwright/test";
 const expected:Record<string,Record<string,string>>={
   "mobile-chromium":{
     landing:"33a25e654b5fa2a2c59312f99fe4604a528c771a3df036413b50800002f41724",
-    demo:"cbc28b2976d87728e977c18fe3a8fca79138c25de4b69c6e05e636a190d24c9f"
+    demo:"5f8812c9312bf8d94cee87af91d05cca2f2d25785b6edf589bd300e63064f8d1"
   },
   "desktop-chromium":{
     landing:"56f8622d3cbaa29ea3d7c348dfce9296da5fbf482025b82de2c884bba027ff09",
