@@ -17,7 +17,7 @@ type CalculationScenario={
   forceReview?:boolean;
   versionOverride?:{
     strategyVersionId:string;
-    effectiveFrom:unknown;
+    effectiveFrom:string;
     engineKey:string;
     config:Record<string,unknown>;
     settings:Record<string,unknown>;
@@ -57,7 +57,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
   const effectiveCash=folded.cash.plus(new Decimal(scenario?.cashDelta??0));
   const calculationVersionId=scenario?.versionOverride?.strategyVersionId??String(instance.strategy_version_id);
   const calculationEngineKey=scenario?.versionOverride?.engineKey??String(instance.engine);
-  const calculationEffectiveFrom=scenario?.versionOverride?.effectiveFrom??instance.version_effective_from;
+  const calculationEffectiveFrom=scenario?.versionOverride?.effectiveFrom??isoDate(instance.version_effective_from);
   const config=scenario?.versionOverride?.config??((instance.config??{}) as Record<string,unknown>);
   const settings=scenario?.versionOverride?.settings??((instance.settings??{}) as Record<string,unknown>);
   const state={...((instance.state??{}) as Record<string,unknown>)};
@@ -349,7 +349,7 @@ export async function previewStrategyVersionScenario(
     forceReview:true,
     versionOverride:{
       strategyVersionId:String(target.target_version_id),
-      effectiveFrom:target.effective_from,
+      effectiveFrom:isoDate(target.effective_from),
       engineKey:String(target.engine_key),
       config,
       settings
