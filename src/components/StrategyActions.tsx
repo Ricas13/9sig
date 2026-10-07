@@ -110,17 +110,23 @@ export function ContributionForm({ id, accounts=[] }: { id: string; accounts?:Ac
     const f = new FormData(form);
     const value = String(f.get("when") || "");
     const occurredAt = value ? new Date(value).toISOString() : undefined;
-    const r = await fetch("/api/strategies/" + id + "/contributions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ amount: String(f.get("amount")), occurredAt, accountId:f.get("accountId")||undefined, requestKey:mutationKey })
-    });
-    setBusy(false);
-    setMessage(r.ok ? "Contribution recorded as cash." : "Could not record contribution.");
-    if (r.ok) {
-      requestKey.current=null;
-      form.reset();
-      router.refresh();
+    try{
+      const r = await fetch("/api/strategies/" + id + "/contributions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amount: String(f.get("amount")), occurredAt, accountId:f.get("accountId")||undefined, requestKey:mutationKey })
+      });
+      const body=await r.json().catch(()=>({}));
+      setMessage(r.ok ? "Contribution recorded as cash." : body.error??"Could not record contribution.");
+      if (r.ok) {
+        requestKey.current=null;
+        form.reset();
+        router.refresh();
+      }
+    }catch{
+      setMessage("Connection interrupted. Try again — the same request will be reused safely.");
+    }finally{
+      setBusy(false);
     }
   }}>
     <AccountSelect accounts={accounts}/><div className="field"><label>Contribution</label><input name="amount" type="number" min="0.01" step="0.01" required /></div>
@@ -139,27 +145,33 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
     const mutationKey=requestKey.current??crypto.randomUUID();
     requestKey.current=mutationKey;
     const f = new FormData(e.currentTarget);
-    const r = await fetch("/api/strategies/" + id + "/reconcile", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        expectedValue: String(f.get("expected")),
-        brokerValue: String(f.get("broker")),
-        reason: f.get("reason") || undefined,
-        affectsCash: Boolean(f.get("affectsCash")),
-        accountId: f.get("accountId") || undefined,
-        requestKey: mutationKey
-      })
-    });
-    const b = await r.json();setBusy(false);
-    setMessage(r.ok
-      ? (b.strategyResolved
-        ? "Reconciliation resolved."
-        : b.resolved
-          ? "This account is matched, but another linked account still needs attention."
-          : "Reconciliation recorded, but the strategy remains blocked until the discrepancy is resolved.")
-      : b.error);
-    if (r.ok) {requestKey.current=null;router.refresh();}
+    try{
+      const r = await fetch("/api/strategies/" + id + "/reconcile", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          expectedValue: String(f.get("expected")),
+          brokerValue: String(f.get("broker")),
+          reason: f.get("reason") || undefined,
+          affectsCash: Boolean(f.get("affectsCash")),
+          accountId: f.get("accountId") || undefined,
+          requestKey: mutationKey
+        })
+      });
+      const b = await r.json().catch(()=>({}));
+      setMessage(r.ok
+        ? (b.strategyResolved
+          ? "Reconciliation resolved."
+          : b.resolved
+            ? "This account is matched, but another linked account still needs attention."
+            : "Reconciliation recorded, but the strategy remains blocked until the discrepancy is resolved.")
+        : b.error??"Could not reconcile strategy.");
+      if (r.ok) {requestKey.current=null;router.refresh();}
+    }catch{
+      setMessage("Connection interrupted. Try again — the same reconciliation will be reused safely.");
+    }finally{
+      setBusy(false);
+    }
   }}>
     <AccountSelect accounts={accounts}/><div className="field"><label>Expected value</label><input name="expected" type="number" min="0" step="0.01" defaultValue={expected ?? undefined} required /></div>
     <div className="field"><label>Broker reported value</label><input name="broker" type="number" min="0" step="0.01" required /></div>
