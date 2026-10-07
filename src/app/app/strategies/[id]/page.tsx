@@ -146,7 +146,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
       <CheckCircle2 size={20}/>
     </div>}
 
-    {hasVersionUpdate&&<StrategyVersionUpgrade id={id} currentVersion={String(s.version)} targetVersionId={String(s.latest_version_id)} targetVersion={String(s.latest_version)} releaseNotes={s.latest_release_notes?String(s.latest_release_notes):null} upgradePolicy={String(s.latest_upgrade_policy??"OPTIONAL")} inputSchema={Array.isArray(s.latest_input_schema)?s.latest_input_schema:[]} currentSettings={(s.settings??{}) as Record<string,unknown>}/>}
+    {hasVersionUpdate&&<StrategyVersionUpgrade id={id} currentVersion={String(s.version)} targetVersionId={String(s.latest_version_id)} targetVersion={String(s.latest_version)} releaseNotes={s.latest_release_notes?String(s.latest_release_notes):null} upgradePolicy={String(s.latest_upgrade_policy??"OPTIONAL")} inputSchema={Array.isArray(s.latest_input_schema)?s.latest_input_schema:[]} currentSettings={(s.settings??{}) as Record<string,unknown>} currentConfig={(s.config??{}) as Record<string,unknown>} targetConfig={(s.latest_config??{}) as Record<string,unknown>}/>}
 
     <div className="strategy-shortcuts">
       <details className="glass quick-drawer">
