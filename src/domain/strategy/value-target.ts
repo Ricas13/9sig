@@ -31,8 +31,9 @@ export const valueTargetEngine: StrategyEngine = {
     }
 
     const exposureKey=String(ctx.config.targetExposure ?? "");
-    const exposure=ctx.exposures.find((x)=>x.economicExposure===exposureKey);
-    const current=exposure?.value ?? new Decimal(0);
+    const current=ctx.exposures
+      .filter((x)=>x.economicExposure===exposureKey)
+      .reduce((sum,x)=>sum.plus(x.value),new Decimal(0));
     const isInitial=ctx.state.targetValue == null;
     const previousTarget=new Decimal(String(ctx.state.targetValue ?? current.toString()));
     const target=isInitial
