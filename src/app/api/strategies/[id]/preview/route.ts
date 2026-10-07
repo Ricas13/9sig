@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { assertSameOrigin } from "@/lib/security";
-import { previewCashScenario, previewExecutionConstraintsScenario } from "@/lib/action-service";
+import { previewCashScenario, previewExecutionConstraintsScenario, previewStrategySwitchScenario } from "@/lib/action-service";
 import { loadEntitlements } from "@/lib/entitlement-service";
 
 const cashSchema=z.object({
@@ -20,7 +20,13 @@ const constraintsSchema=z.object({
   })
 });
 
-const schema=z.discriminatedUnion("type",[cashSchema,constraintsSchema]);
+const switchSchema=z.object({
+  type:z.literal("STRATEGY_SWITCH"),
+  targetStrategyKey:z.string().min(1).max(80),
+  settings:z.record(z.string(),z.unknown()).optional()
+});
+
+const schema=z.discriminatedUnion("type",[cashSchema,constraintsSchema,switchSchema]);
 
 export async function POST(request:Request,context:{params:Promise<{id:string}>}){
   try{
@@ -32,13 +38,23 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     const input=schema.parse(await request.json());
     const result=input.type==="EXECUTION_CONSTRAINTS"
       ?await previewExecutionConstraintsScenario(user.id,id,input.constraints)
-      :await previewCashScenario(user.id,id,input);
+      :input.type==="STRATEGY_SWITCH"
+        ?await previewStrategySwitchScenario(user.id,id,input.targetStrategyKey,input.settings,entitlements.availableStrategyKeys)
+        :await previewCashScenario(user.id,id,input);
     return Response.json({ok:true,preview:true,result});
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Enter valid preview settings."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     if(code==="STRATEGY_INSTANCE_NOT_FOUND")return Response.json({error:"Strategy not found."},{status:404});
     if(code==="INVALID_PREVIEW_AMOUNT")return Response.json({error:"Enter an amount greater than zero."},{status:400});
-    return Response.json({error:"Could not preview that scenario."},{status:400});
+    const messages:Record<string,string>={
+      STRATEGY_NOT_AVAILABLE:"That strategy is not currently available.",
+      STRATEGY_NOT_IN_PLAN:"That strategy is not included in your current plan.",
+      STRATEGY_ALREADY_SELECTED:"You are already using that strategy.",
+      STRATEGY_NOT_SUPPORTED_IN_REGION:"That strategy does not support one of your linked account regions.",
+      STRATEGY_NOT_SUPPORTED_FOR_WRAPPER:"That strategy does not support one of your linked account types."
+    };
+    if(code.startsWith("MISSING_STRATEGY_INPUT:"))return Response.json({error:"This strategy needs additional setup information before it can be previewed."},{status:409});
+    return Response.json({error:messages[code]??"Could not preview that scenario."},{status:400});
   }
 }
