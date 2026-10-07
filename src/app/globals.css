@@ -992,3 +992,35 @@ html[data-theme="light"] .linked-account-currency {
   .linked-account-card { align-items:flex-start; flex-direction:column; }
   .linked-account-meta { justify-content:flex-start; }
 }
+
+
+/* Accessibility and mobile interaction polish */
+.nav-label,.activity-date,.tracking-boundary { color:var(--muted); }
+button,a,summary,input,select { touch-action:manipulation; }
+@media (max-width:680px) {
+  .button,
+  .nav-link,
+  .theme-toggle,
+  .timeframe,
+  .series-chip,
+  .quick-drawer > summary,
+  .version-comparison > summary,
+  .linked-account-add > summary {
+    min-height:44px;
+  }
+  .timeframe { padding-inline:10px; }
+  .series-chip { padding-inline:11px; }
+  .app-topbar { min-height:68px; height:auto; padding-block:10px; }
+  .topbar-status { line-height:1.35; }
+}
+@media (prefers-reduced-motion:reduce) {
+  html { scroll-behavior:auto; }
+  *,
+  *::before,
+  *::after {
+    animation-duration:.001ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.001ms!important;
+    scroll-behavior:auto!important;
+  }
+}
