@@ -52,6 +52,19 @@ export const fixedAllocationEngine: StrategyEngine = {
     }
 
     const allocations = (ctx.config.allocations ?? []) as Allocation[];
+    const managedExposures=new Set(allocations.map((allocation)=>String(allocation.exposure)));
+    const unmanaged=ctx.exposures.filter((position)=>!managedExposures.has(position.economicExposure)&&!position.value.eq(0));
+    if(unmanaged.length){
+      return {
+        actionType:"DATA_REQUIRED",
+        title:"A holding needs classification",
+        instruction:"This portfolio contains a holding outside the strategy allocation. Move it out of this strategy or reconcile the account before rebalancing.",
+        explanation:unmanaged.map((item)=>({label:"Outside strategy",value:item.economicExposure,kind:"text" as const})),
+        nextState:ctx.state,
+        confidence:"LOW",
+        dueAt:ctx.now
+      };
+    }
     const threshold = new Decimal(String(ctx.config.rebalanceThreshold ?? "0.05"));
     const invested = ctx.exposures.reduce((sum, p) => sum.plus(p.value), new Decimal(0));
     const total = invested.plus(ctx.cash);
