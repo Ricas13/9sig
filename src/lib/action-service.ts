@@ -16,12 +16,15 @@ type CalculationScenario={
   executionConstraints?:Record<string,unknown>;
   forceReview?:boolean;
   versionOverride?:{
+    strategyDefinitionId?:string;
     strategyVersionId:string;
     effectiveFrom:string;
     engineKey:string;
     config:Record<string,unknown>;
     settings:Record<string,unknown>;
   };
+  stateOverride?:Record<string,unknown>;
+  resetTimeline?:boolean;
 };
 
 async function buildActionCalculation(strategyInstanceId:string,scenario?:CalculationScenario){
@@ -55,19 +58,22 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
     accountPositions.set(accountId,foldLedger(ownRows.map(asLedgerEvent),String(account.currency)));
   }
   const effectiveCash=folded.cash.plus(new Decimal(scenario?.cashDelta??0));
+  const calculationDefinitionId=scenario?.versionOverride?.strategyDefinitionId??String(instance.strategy_definition_id);
   const calculationVersionId=scenario?.versionOverride?.strategyVersionId??String(instance.strategy_version_id);
   const calculationEngineKey=scenario?.versionOverride?.engineKey??String(instance.engine);
   const calculationEffectiveFrom=scenario?.versionOverride?.effectiveFrom??isoDate(instance.version_effective_from);
   const config=scenario?.versionOverride?.config??((instance.config??{}) as Record<string,unknown>);
   const settings=scenario?.versionOverride?.settings??((instance.settings??{}) as Record<string,unknown>);
-  const state={...((instance.state??{}) as Record<string,unknown>)};
+  const state={...(scenario?.stateOverride??((instance.state??{}) as Record<string,unknown>))};
   if(scenario?.forceReview)state.forceReview=true;
   const requiredRelease=await sql.unsafe(
     "SELECT id,version FROM strategy_versions WHERE strategy_definition_id=$1 AND lifecycle_status='PUBLISHED' AND upgrade_policy='REQUIRED' AND effective_from>$2 AND effective_from<=current_date AND (effective_to IS NULL OR effective_to>=current_date) ORDER BY effective_from DESC,published_at DESC NULLS LAST LIMIT 1",
-    [instance.strategy_definition_id,calculationEffectiveFrom]
+    [calculationDefinitionId,calculationEffectiveFrom]
   );
-  const targetOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key='strategy_state.targetValue' AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId]);
-  if(targetOverride[0]?.manual_value!=null) state.targetValue=String(targetOverride[0].manual_value);
+  if(calculationDefinitionId===String(instance.strategy_definition_id)){
+    const targetOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key='strategy_state.targetValue' AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId]);
+    if(targetOverride[0]?.manual_value!=null) state.targetValue=String(targetOverride[0].manual_value);
+  }
 
   const exposurePositions:Array<{economicExposure:string;value:Decimal;tradingLineId?:string;accountId:string;accountName:string}>=[];
   const foreignCash=[...folded.cashByCurrency.entries()].filter(([currency,value])=>currency!==baseCurrency&&!value.eq(0));
@@ -126,7 +132,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
   const engineExposures=[...aggregatedExposureMap.entries()].map(([economicExposure,value])=>({economicExposure,value}));
 
   const frequency=String(config.reviewFrequency??"QUARTERLY");
-  const lastReview=state.lastReviewAt?new Date(String(state.lastReviewAt)):new Date(instance.started_at);
+  const lastReview=scenario?.resetTimeline?new Date():state.lastReviewAt?new Date(String(state.lastReviewAt)):new Date(instance.started_at);
   const reviewTimezone=String(config.reviewTimezone??instance.user_timezone??"UTC");
   const holidayDates=Array.isArray(config.marketHolidays)?config.marketHolidays.filter((v):v is string=>typeof v==="string"):[];
   const convention=config.businessDayConvention==="NEXT"?"NEXT":"PREVIOUS";
@@ -139,7 +145,9 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
     convention
   });
   const reviewDue=Boolean(state.forceReview)||new Date()>=dueAt;
-  const contributionRows=await sql.unsafe("SELECT COALESCE(sum(cash_amount),0) AS amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' AND occurred_at>$2",[strategyInstanceId,lastReview]);
+  const contributionRows=scenario?.resetTimeline
+    ?[{amount:"0"}]
+    :await sql.unsafe("SELECT COALESCE(sum(cash_amount),0) AS amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' AND occurred_at>$2",[strategyInstanceId,lastReview]);
   const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0)).plus(new Decimal(scenario?.contributionDelta??0));
   const engine=getStrategyEngine(calculationEngineKey);
   let proposal=engine.calculate({strategyInstanceId,strategyVersionId:calculationVersionId,now:new Date(),baseCurrency:String(instance.currency),cash:effectiveCash,exposures:engineExposures,contributionsSinceReview,state,config,settings,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
@@ -310,6 +318,78 @@ export async function previewCashScenario(
   return {
     scenario:{type:input.type,amount:amount.toString(),currency:String(calculation.instance.currency)},
     portfolioValueAfter:calculation.totalValue.toString(),
+    action:{
+      actionType:calculation.proposal.actionType,
+      title:calculation.proposal.title,
+      instruction:calculation.proposal.instruction,
+      amount:calculation.proposal.amount?.toString()??null,
+      currency:calculation.proposal.currency??null,
+      confidence:calculation.proposal.confidence,
+      explanation:calculation.proposal.explanation
+    }
+  };
+}
+
+export async function previewStrategySwitchScenario(
+  userId:string,
+  strategyInstanceId:string,
+  targetStrategyKey:string,
+  suppliedSettings:Record<string,unknown>|undefined,
+  allowedStrategyKeys:Set<string>|null
+){
+  const targets=await sql.unsafe(
+    "SELECT d.id AS definition_id,d.key,d.name,d.supported_regions,d.supported_wrappers,v.id AS version_id,v.version,v.effective_from,v.engine_key,v.config,v.input_schema "+
+    "FROM strategy_definitions d JOIN LATERAL ("+
+    " SELECT * FROM strategy_versions v WHERE v.strategy_definition_id=d.id AND v.lifecycle_status='PUBLISHED' "+
+    " AND v.effective_from<=current_date AND (v.effective_to IS NULL OR v.effective_to>=current_date) "+
+    " ORDER BY v.effective_from DESC,v.published_at DESC NULLS LAST LIMIT 1"+
+    ") v ON true WHERE d.key=$1 AND d.enabled=true LIMIT 1",
+    [targetStrategyKey]
+  );
+  const target=targets[0];
+  if(!target)throw new Error("STRATEGY_NOT_AVAILABLE");
+  if(allowedStrategyKeys&&!allowedStrategyKeys.has(String(target.key)))throw new Error("STRATEGY_NOT_IN_PLAN");
+
+  const ownership=await sql.unsafe(
+    "SELECT i.strategy_definition_id FROM strategy_instances i WHERE i.id=$1 AND i.user_id=$2 AND i.status<>'CLOSED' LIMIT 1",
+    [strategyInstanceId,userId]
+  );
+  if(!ownership[0])throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
+  if(String(ownership[0].strategy_definition_id)===String(target.definition_id))throw new Error("STRATEGY_ALREADY_SELECTED");
+
+  const linkedAccounts=await sql.unsafe(
+    "SELECT a.country,a.wrapper FROM strategy_accounts sa JOIN accounts a ON a.id=sa.account_id WHERE sa.strategy_instance_id=$1 ORDER BY sa.created_at",
+    [strategyInstanceId]
+  );
+  const regions=Array.isArray(target.supported_regions)?target.supported_regions.map(String):[];
+  const wrappers=Array.isArray(target.supported_wrappers)?target.supported_wrappers.map(String):[];
+  for(const account of linkedAccounts){
+    if(regions.length&&!regions.includes(String(account.country)))throw new Error("STRATEGY_NOT_SUPPORTED_IN_REGION");
+    if(wrappers.length&&!wrappers.includes(String(account.wrapper)))throw new Error("STRATEGY_NOT_SUPPORTED_FOR_WRAPPER");
+  }
+
+  const engine=getStrategyEngine(String(target.engine_key));
+  const config=(target.config??{}) as Record<string,unknown>;
+  engine.validateConfig(config);
+  const settings=validateInstanceSettings(parseInputSchema(target.input_schema),suppliedSettings);
+
+  const calculation=await buildActionCalculation(strategyInstanceId,{
+    forceReview:true,
+    resetTimeline:true,
+    stateOverride:{forceReview:true},
+    versionOverride:{
+      strategyDefinitionId:String(target.definition_id),
+      strategyVersionId:String(target.version_id),
+      effectiveFrom:isoDate(target.effective_from),
+      engineKey:String(target.engine_key),
+      config,
+      settings
+    }
+  });
+
+  return {
+    preview:true,
+    targetStrategy:{key:String(target.key),name:String(target.name),version:String(target.version)},
     action:{
       actionType:calculation.proposal.actionType,
       title:calculation.proposal.title,
