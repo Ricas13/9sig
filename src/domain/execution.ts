@@ -21,6 +21,123 @@ export type ValidatedExecution = {
   ledgerQuantity: Decimal;
 };
 
+export type ExecutionConstraintsInput = {
+  fractionalShares?: boolean;
+  minimumTradeAmount?: Decimal.Value;
+  cashBufferAmount?: Decimal.Value;
+  flatFee?: Decimal.Value;
+  allowSelling?: boolean;
+};
+
+export type NormalizedExecutionConstraints = {
+  fractionalShares: boolean;
+  minimumTradeAmount: Decimal;
+  cashBufferAmount: Decimal;
+  flatFee: Decimal;
+  allowSelling: boolean;
+};
+
+export type PracticalTradePlan =
+  | {
+      status: "EXECUTABLE";
+      amount: Decimal;
+      quantity: Decimal;
+      estimatedFee: Decimal;
+      constrained: boolean;
+      note?: string;
+    }
+  | {
+      status: "BLOCKED";
+      reason: "SELLING_DISABLED" | "INSUFFICIENT_SPENDABLE_CASH" | "BELOW_ONE_SHARE" | "BELOW_MINIMUM_TRADE" | "NO_HOLDINGS";
+      estimatedFee: Decimal;
+    };
+
+function nonNegative(value: Decimal.Value | undefined, fallback: string, code: string) {
+  const parsed = new Decimal(value ?? fallback);
+  if (!parsed.isFinite() || parsed.lt(0)) throw new Error(code);
+  return parsed;
+}
+
+export function normalizeExecutionConstraints(raw: unknown): NormalizedExecutionConstraints {
+  const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  return {
+    fractionalShares: value.fractionalShares == null ? true : value.fractionalShares === true || value.fractionalShares === "true",
+    minimumTradeAmount: nonNegative(value.minimumTradeAmount as Decimal.Value | undefined, "0", "INVALID_MINIMUM_TRADE_AMOUNT"),
+    cashBufferAmount: nonNegative(value.cashBufferAmount as Decimal.Value | undefined, "0", "INVALID_CASH_BUFFER"),
+    flatFee: nonNegative(value.flatFee as Decimal.Value | undefined, "0", "INVALID_FLAT_FEE"),
+    allowSelling: value.allowSelling == null ? true : value.allowSelling === true || value.allowSelling === "true"
+  };
+}
+
+export function serializeExecutionConstraints(raw: unknown) {
+  const parsed = normalizeExecutionConstraints(raw);
+  return {
+    fractionalShares: parsed.fractionalShares,
+    minimumTradeAmount: parsed.minimumTradeAmount.toString(),
+    cashBufferAmount: parsed.cashBufferAmount.toString(),
+    flatFee: parsed.flatFee.toString(),
+    allowSelling: parsed.allowSelling
+  };
+}
+
+export function planPracticalTrade(input: {
+  side: TradeSide;
+  proposedAmount: Decimal.Value;
+  price: Decimal.Value;
+  availableCash: Decimal.Value;
+  heldQuantity: Decimal.Value;
+  constraints?: ExecutionConstraintsInput | null;
+}): PracticalTradePlan {
+  const proposed = new Decimal(input.proposedAmount);
+  const price = new Decimal(input.price);
+  const availableCash = new Decimal(input.availableCash);
+  const heldQuantity = new Decimal(input.heldQuantity);
+  const constraints = normalizeExecutionConstraints(input.constraints);
+
+  if (!proposed.isFinite() || proposed.lte(0)) throw new Error("INVALID_PROPOSED_AMOUNT");
+  if (!price.isFinite() || price.lte(0)) throw new Error("INVALID_PRICE");
+  if (!availableCash.isFinite() || !heldQuantity.isFinite() || availableCash.lt(0) || heldQuantity.lt(0)) throw new Error("INVALID_ACCOUNT_STATE");
+
+  if (input.side === "SELL" && !constraints.allowSelling) {
+    return { status:"BLOCKED", reason:"SELLING_DISABLED", estimatedFee:constraints.flatFee };
+  }
+
+  let maximumNotional = proposed;
+  if (input.side === "BUY") {
+    maximumNotional = Decimal.min(
+      proposed,
+      Decimal.max(availableCash.minus(constraints.cashBufferAmount).minus(constraints.flatFee), 0)
+    );
+    if (maximumNotional.lte(0)) {
+      return { status:"BLOCKED", reason:"INSUFFICIENT_SPENDABLE_CASH", estimatedFee:constraints.flatFee };
+    }
+  } else {
+    if (heldQuantity.lte(0)) return { status:"BLOCKED", reason:"NO_HOLDINGS", estimatedFee:constraints.flatFee };
+    maximumNotional = Decimal.min(proposed, heldQuantity.mul(price));
+  }
+
+  let quantity = maximumNotional.div(price);
+  if (!constraints.fractionalShares) quantity = quantity.floor();
+  if (input.side === "SELL") quantity = Decimal.min(quantity, heldQuantity);
+
+  if (quantity.lte(0)) {
+    return { status:"BLOCKED", reason:"BELOW_ONE_SHARE", estimatedFee:constraints.flatFee };
+  }
+
+  const amount = quantity.mul(price);
+  if (amount.lt(constraints.minimumTradeAmount)) {
+    return { status:"BLOCKED", reason:"BELOW_MINIMUM_TRADE", estimatedFee:constraints.flatFee };
+  }
+
+  const constrained = amount.minus(proposed).abs().gt("0.00000001");
+  let note: string | undefined;
+  if (!constraints.fractionalShares && constrained) note = "Rounded down to whole shares.";
+  else if (input.side === "BUY" && constrained) note = "Adjusted to preserve your cash buffer and estimated fee.";
+  else if (input.side === "SELL" && constrained) note = "Adjusted to the quantity currently held.";
+
+  return { status:"EXECUTABLE", amount, quantity, estimatedFee:constraints.flatFee, constrained, note };
+}
+
 export function validateExecution(input: ExecutionInput): ValidatedExecution {
   const proposed = new Decimal(input.proposedAmount);
   const price = new Decimal(input.price);
