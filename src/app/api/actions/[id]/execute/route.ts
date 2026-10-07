@@ -28,7 +28,10 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       EXECUTION_NOTIONAL_MISMATCH:"The actual fill differs too much from the calculated action. Recalculate before confirming it.",
       INSUFFICIENT_CASH:"This execution would use more cash than the strategy ledger currently has.",
       INSUFFICIENT_HOLDINGS:"This execution would sell more units than the strategy ledger currently holds.",
-      EXECUTION_CURRENCY_MISMATCH:"The execution currency does not match the account currency."
+      EXECUTION_CURRENCY_MISMATCH:"The execution currency does not match the account currency.",
+      SELLING_DISABLED:"Sell recommendations are disabled in your trade preferences.",
+      FRACTIONAL_SHARES_DISABLED:"Your broker is set to whole shares only. Enter a whole-share quantity or recalculate.",
+      BELOW_MINIMUM_TRADE:"This execution is below your configured minimum trade size."
     };
     return Response.json({error:messages[code]??"Could not complete this action."},{status:400});
   }
