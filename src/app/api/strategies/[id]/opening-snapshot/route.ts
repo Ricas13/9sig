@@ -23,6 +23,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const strategy = await getStrategyForUser(user.id, id);
     if (!strategy) return Response.json({ error: "Not found." }, { status: 404 });
+    if (String(strategy.status) === "CLOSED") return Response.json({ error: "Closed strategies are read-only." }, { status: 409 });
     if (String(strategy.onboarding_mode) !== "RESUME") {
       return Response.json({ error: "Opening snapshots are only available for resumed strategies." }, { status: 409 });
     }
@@ -38,8 +39,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
 
     await sql.begin(async (tx) => {
-      const locked = await tx.unsafe("SELECT id FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE", [id, user.id]);
+      const locked = await tx.unsafe("SELECT id,status FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE", [id, user.id]);
       if (!locked[0]) throw new Error("STRATEGY_NOT_FOUND");
+      if (String(locked[0].status) === "CLOSED") throw new Error("STRATEGY_CLOSED");
       const existing = await tx.unsafe(
         "SELECT count(*)::int AS count FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('OPENING_CASH','OPENING_POSITION')",
         [id]
@@ -86,6 +88,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ error: "Check the opening cash and holding quantities." }, { status: 400 });
     const code = error instanceof Error ? error.message : "FAILED";
+    if (code === "STRATEGY_CLOSED") return Response.json({ error: "Closed strategies are read-only." }, { status: 409 });
     if (code === "OPENING_SNAPSHOT_EXISTS") return Response.json({ error: "An opening snapshot already exists for this strategy." }, { status: 409 });
     if (code.startsWith("TRADING_LINE_NOT_FOUND:")) {
       const [, ticker, exchange] = code.split(":");
