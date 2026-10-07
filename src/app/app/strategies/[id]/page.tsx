@@ -68,6 +68,10 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     "SELECT date,value,benchmark_value FROM canonical_model_performance WHERE strategy_version_id=$1 ORDER BY date",
     [s.strategy_version_id]
   );
+  const configuredBenchmarkRows=await sql.unsafe(
+    "SELECT b.key,svb.label,svb.default_visible,svb.sort_order,bp.date,bp.value FROM strategy_version_benchmarks svb JOIN benchmarks b ON b.id=svb.benchmark_id JOIN benchmark_performance bp ON bp.benchmark_id=b.id WHERE svb.strategy_version_id=$1 ORDER BY svb.sort_order,b.key,bp.date",
+    [s.strategy_version_id]
+  );
   const externalFlows=await sql.unsafe(
     "SELECT occurred_at::date AS date,event_type,cash_amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('CONTRIBUTION','WITHDRAWAL') ORDER BY occurred_at,created_at",
     [id]
@@ -77,7 +81,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     [id]
   );
 
-  const byDate=new Map<string,{date:string;actual?:number;model?:number;benchmark?:number}>();
+  const byDate=new Map<string,{date:string;actual?:number;model?:number;benchmark?:number;benchmarkValues?:Record<string,number>}>();
   const comparisonWarnings:string[]=[];
   for(const point of actualPoints){
     byDate.set(point.date,{date:point.date,actual:Number(point.value)});
@@ -120,6 +124,32 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         }
       }catch{
         comparisonWarnings.push("Benchmark comparison is unavailable for part of this history because a withdrawal exceeds the counterfactual value.");
+      }
+    }
+  }
+
+
+  const comparisonSeriesMap=new Map<string,{key:string;label:string;defaultVisible:boolean;points:Array<{date:string;value:string}>}>();
+  for(const row of configuredBenchmarkRows){
+    const key=String(row.key);
+    const item=comparisonSeriesMap.get(key)??{key,label:String(row.label),defaultVisible:Boolean(row.default_visible),points:[]};
+    item.points.push({date:String(row.date).slice(0,10),value:String(row.value)});
+    comparisonSeriesMap.set(key,item);
+  }
+  const comparisonSeries=[...comparisonSeriesMap.values()];
+  if(actualPoints.length&&comparisonSeries.length){
+    const anchorPoint=actualPoints[0];
+    const flows=externalFlows.map((flow:any)=>({date:String(flow.date).slice(0,10),amount:String(flow.cash_amount)}));
+    for(const series of comparisonSeries){
+      try{
+        const simulated=simulateSameCashFlows({index:series.points,anchorDate:anchorPoint.date,anchorValue:anchorPoint.value,flows});
+        for(const point of simulated){
+          const item=byDate.get(point.date)??{date:point.date};
+          item.benchmarkValues={...(item.benchmarkValues??{}),[series.key]:point.value.toNumber()};
+          byDate.set(point.date,item);
+        }
+      }catch{
+        comparisonWarnings.push(series.label+" comparison is unavailable for part of this history because a withdrawal exceeds the counterfactual value.");
       }
     }
   }
@@ -228,7 +258,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         <div className="quick-drawer-content">
           <section className="chart-card explore-chart">
             <div className="section-head"><div><h2>Performance</h2><p>Your account versus the same cash flows applied to the strategy model and benchmark.</p></div></div>
-            <PerformanceChart data={chartData} markers={chartMarkers}/>
+            <PerformanceChart data={chartData} markers={chartMarkers} comparisons={comparisonSeries.map(({key,label,defaultVisible})=>({key,label,defaultVisible}))}/>
             <p className="help">Contributions and withdrawals are applied across comparison series so adding money is not mistaken for investment performance.</p>
             {comparisonWarnings.map((warning)=><p className="help comparison-warning" key={warning}>{warning}</p>)}
             <div className="tracking-boundary"><span>Tracked by StrategyOS since {new Date(s.started_at).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}.</span>{s.onboarding_mode==="RESUME"&&<span>Performance before that date is not reconstructed from incomplete history.</span>}</div>
