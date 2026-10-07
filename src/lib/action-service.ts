@@ -39,34 +39,51 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
   const targetOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key='strategy_state.targetValue' AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId]);
   if(targetOverride[0]?.manual_value!=null) state.targetValue=String(targetOverride[0].manual_value);
 
-  const exposurePositions:Array<{economicExposure:string;value:Decimal;tradingLineId?:string}>=[];
-  const foreignCash=[...folded.cashByCurrency.entries()].filter(([currency,value])=>currency!==String(instance.currency).toUpperCase()&&!value.eq(0));
+  const exposurePositions:Array<{economicExposure:string;value:Decimal;tradingLineId?:string;accountId:string;accountName:string}>=[];
+  const foreignCash=[...folded.cashByCurrency.entries()].filter(([currency,value])=>currency!==baseCurrency&&!value.eq(0));
   let dataStatus:"CURRENT"|"STALE"|"MISSING"=state.resumeNeedsReconciliation||state.unresolvedReconciliation?"MISSING":"CURRENT";
   let dataMessage=state.resumeNeedsReconciliation?"Quick resume needs an opening holdings snapshot before a high-confidence action can be calculated.":state.unresolvedReconciliation?"An unresolved broker discrepancy must be classified before financial actions resume.":undefined;
+  if(accountCurrencies.size!==1||!accountCurrencies.has(baseCurrency)){dataStatus="MISSING";dataMessage="Linked accounts use different currencies. Explicit FX support is required before this strategy can calculate a trade.";}
   if(foreignCash.length){dataStatus="MISSING";dataMessage="Foreign-currency cash is present. An explicit FX conversion is required before financial actions can resume.";}
   if(requiredRelease[0]){dataStatus="MISSING";dataMessage="Strategy version "+String(requiredRelease[0].version)+" is a required rules update. Update this strategy before new financial actions are calculated.";}
   if(effectiveCash.lt(0)){dataStatus="MISSING";dataMessage="This scenario needs more cash than is currently available. Reduce the withdrawal or sell investments first.";}
 
-  for(const [instrumentId,quantity] of folded.quantities.entries()){
-    if(quantity.eq(0))continue;
-    const market=await sql.unsafe("SELECT i.economic_exposure,o.price,o.observed_at,o.currency AS observation_currency,tl.currency AS trading_currency,tl.id AS trading_line_id FROM instruments i LEFT JOIN trading_lines tl ON tl.instrument_id=i.id AND tl.effective_from<=current_date AND (tl.effective_to IS NULL OR tl.effective_to>=current_date) LEFT JOIN LATERAL (SELECT price,observed_at,currency FROM market_data_observations m WHERE m.trading_line_id=tl.id ORDER BY observed_at DESC LIMIT 1) o ON true WHERE i.id=$1 LIMIT 1",[instrumentId]);
-    const m=market[0];
-    const priceOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key=$2 AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId,"market_price:"+instrumentId]);
-    const priceCurrency=String(m?.observation_currency??m?.trading_currency??"");
-    if(priceCurrency&&priceCurrency!==String(instance.currency)){
-      dataStatus="MISSING";
-      dataMessage="FX conversion is required for a held instrument; actions are suppressed until an explicit FX source is configured.";
-      continue;
+  for(const account of accounts){
+    const accountId=String(account.id);
+    const accountName=String(account.name);
+    const accountCurrency=String(account.currency).toUpperCase();
+    const position=accountPositions.get(accountId);
+    if(!position)continue;
+    for(const [instrumentId,quantity] of position.quantities.entries()){
+      if(quantity.eq(0))continue;
+      const market=await sql.unsafe(
+        "SELECT i.economic_exposure,q.price,q.observed_at,q.observation_currency,q.trading_currency,q.trading_line_id "+
+        "FROM instruments i LEFT JOIN LATERAL ("+
+        " SELECT tl.id AS trading_line_id,tl.currency AS trading_currency,o.price,o.observed_at,o.currency AS observation_currency"+
+        " FROM trading_lines tl LEFT JOIN LATERAL (SELECT price,observed_at,currency FROM market_data_observations m WHERE m.trading_line_id=tl.id ORDER BY observed_at DESC LIMIT 1) o ON true"+
+        " WHERE tl.instrument_id=i.id AND upper(tl.currency)=upper($2) AND tl.effective_from<=current_date AND (tl.effective_to IS NULL OR tl.effective_to>=current_date)"+
+        " ORDER BY o.observed_at DESC NULLS LAST,tl.id LIMIT 1"+
+        ") q ON true WHERE i.id=$1 LIMIT 1",
+        [instrumentId,accountCurrency]
+      );
+      const m=market[0];
+      const priceOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key=$2 AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId,"market_price:"+instrumentId]);
+      const priceCurrency=String(m?.observation_currency??m?.trading_currency??"").toUpperCase();
+      if(priceCurrency&&priceCurrency!==accountCurrency){
+        dataStatus="MISSING";
+        dataMessage="FX conversion is required for a held instrument; actions are suppressed until an explicit FX source is configured.";
+        continue;
+      }
+      const manualPrice=priceOverride[0]?.manual_value==null?null:new Decimal(String(priceOverride[0].manual_value));
+      if(manualPrice){
+        exposurePositions.push({economicExposure:String(m?.economic_exposure??""),value:quantity.mul(manualPrice),tradingLineId:m?.trading_line_id?String(m.trading_line_id):undefined,accountId,accountName});
+        continue;
+      }
+      if(!m?.price){dataStatus="MISSING";dataMessage="A held instrument has no current market price in "+accountName+".";continue;}
+      const observedAt=new Date(m.observed_at);
+      if((Date.now()-observedAt.getTime())/3600000>36&&dataStatus!=="MISSING"){dataStatus="STALE";dataMessage="Market data is stale; financial actions are suppressed until data is current or confirmed.";}
+      exposurePositions.push({economicExposure:String(m.economic_exposure),value:quantity.mul(new Decimal(String(m.price))),tradingLineId:m.trading_line_id?String(m.trading_line_id):undefined,accountId,accountName});
     }
-    const manualPrice=priceOverride[0]?.manual_value==null?null:new Decimal(String(priceOverride[0].manual_value));
-    if(manualPrice){
-      exposurePositions.push({economicExposure:String(m?.economic_exposure??""),value:quantity.mul(manualPrice),tradingLineId:m?.trading_line_id?String(m.trading_line_id):undefined});
-      continue;
-    }
-    if(!m?.price){dataStatus="MISSING";dataMessage="A held instrument has no current market price.";continue;}
-    const observedAt=new Date(m.observed_at);
-    if((Date.now()-observedAt.getTime())/3600000>36&&dataStatus!=="MISSING"){dataStatus="STALE";dataMessage="Market data is stale; financial actions are suppressed until data is current or confirmed.";}
-    exposurePositions.push({economicExposure:String(m.economic_exposure),value:quantity.mul(new Decimal(String(m.price))),tradingLineId:m.trading_line_id?String(m.trading_line_id):undefined});
   }
 
   const frequency=String(config.reviewFrequency??"QUARTERLY");
