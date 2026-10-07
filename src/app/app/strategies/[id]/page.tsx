@@ -66,7 +66,9 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     wrapper:String(account.wrapper),
     currency:String(account.currency),
     brokerName:account.broker_name?String(account.broker_name):null,
-    role:String(account.role)
+    role:String(account.role),
+    ledgerEventCount:Number(account.ledger_event_count??0),
+    openingSnapshotComplete:Number(account.opening_event_count??0)>0
   }));
   const supportedWrappers=Array.isArray(s.supported_wrappers)?s.supported_wrappers.map(String):[];
   const switchOptions=availableStrategies
@@ -231,7 +233,12 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         <h2>Tell us what you own today.</h2>
         <p>You do not need to rebuild your old transaction history. Enter your current cash and holdings so we can calculate from here.</p>
       </div>
-      <OpeningSnapshotForm id={id}/>
+      <OpeningSnapshotForm id={id} accounts={accountOptions}/>
+      {canMultiAccount&&<details className="resume-add-account">
+        <summary>Add another account first</summary>
+        <p className="help">If this strategy already spans another account, link it now and then enter that account’s current holdings too.</p>
+        <AddLinkedAccountForm id={id} currency={String(s.currency)} wrappers={supportedWrappers}/>
+      </details>}
     </section>:<section className={"glass strategy-focus "+(isHealthy?"healthy":"attention")}>
       <div className="strategy-focus-main">
         <div className="focus-topline">
@@ -333,6 +340,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
               <div className="linked-account-meta"><span className="pill">{String(account.role)==="PRIMARY"?"Primary":"Linked"}</span><span className="pill">{String(account.currency)}</span></div>
             </div>)}</div>
             {canMultiAccount?<details className="linked-account-add"><summary>Add another account</summary><AddLinkedAccountForm id={id} currency={String(s.currency)} wrappers={supportedWrappers}/></details>:accountOptions.length===1?<p className="help">Multiple linked accounts are available on plans that include multi-account support.</p>:null}
+            {accountOptions.some((account)=>account.ledgerEventCount===0)&&<details className="linked-account-add"><summary>Add current holdings to an empty linked account</summary><p className="help">Use this only for an account that already held investments before you linked it here.</p><OpeningSnapshotForm id={id} accounts={accountOptions.filter((account)=>account.ledgerEventCount===0)}/></details>}
           </section>
           <section className="drawer-section execution-settings" id="trade-preferences"><div className="eyebrow">Trade preferences</div><h3>Make the strategy fit your broker.</h3><p className="help">These preferences change how an ideal strategy action is translated into a practical order. They do not change the strategy rules themselves.</p><ExecutionConstraintsForm id={id} constraints={(s.execution_constraints??{}) as Record<string,unknown>}/></section>
           <section className="drawer-section rules-section">
