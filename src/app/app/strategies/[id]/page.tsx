@@ -1,10 +1,16 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft, BarChart3, CalendarClock, CheckCircle2, ChevronRight, WalletCards } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { CashEventForm, ContributionForm, ExecuteAction, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategyVersionUpgrade } from "@/components/StrategyActions";
+
+function money(value:number,currency:string){
+  return new Intl.NumberFormat("en-GB",{style:"currency",currency,maximumFractionDigits:0}).format(value);
+}
 
 export default async function StrategyPage({params}:{params:Promise<{id:string}>}){
   const user=await requireUser();
@@ -75,70 +81,112 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   const explanation=Array.isArray(action?.explanation)?action.explanation:[];
   const needsOpeningSnapshot=Boolean(s.state?.resumeNeedsReconciliation);
   const hasVersionUpdate=Boolean(s.latest_version_id)&&String(s.latest_version_id)!==String(s.strategy_version_id);
+  const isHealthy=s.health_status==="HEALTHY";
+  const isActive=s.status==="ACTIVE";
+  const actionReady=Boolean(action)&&isActive;
+  const nextReview=action?.due_at?new Date(action.due_at):null;
 
   return <>
-    <div className="page-title">
-      <div><div className="eyebrow">{s.strategy_name} · v{s.version}</div><h1>{s.name}</h1><p>{s.description}</p></div>
-      <div className="inline">
-        <span className={"pill "+(s.health_status==="HEALTHY"?"good":"warn")}>{s.health_status.replaceAll("_"," ")}</span>
-        {s.status==="ACTIVE"&&<RecalculateButton id={id}/>}
-        <StrategyLifecycleControls id={id} status={s.status}/>
+    <Link href="/app/strategies" className="back-link"><ArrowLeft size={14}/>Portfolio</Link>
+
+    <div className="strategy-heading">
+      <div>
+        <div className="eyebrow">{s.strategy_name} · v{s.version}</div>
+        <h1>{s.name}</h1>
+        <p>{s.description}</p>
+      </div>
+      <div className="strategy-heading-actions">
+        <span className={"pill "+(isHealthy?"good":"warn")}>{isHealthy?"On track":"Needs attention"}</span>
+        {isActive&&<RecalculateButton id={id}/>}
       </div>
     </div>
 
-    <div className="metrics">
-      <div className="glass metric"><small>Current tracked value</small><strong>{latestValue?new Intl.NumberFormat("en-GB",{style:"currency",currency:s.currency,maximumFractionDigits:0}).format(Number(latestValue.value)):"—"}</strong></div>
-      <div className="glass metric"><small>Account</small><strong>{s.wrapper}</strong></div>
-      <div className="glass metric"><small>Last reconciliation</small><strong>{s.last_reconciled_at?new Date(s.last_reconciled_at).toLocaleDateString("en-GB"):"Never"}</strong></div>
-      <div className="glass metric"><small>Data confidence</small><strong>{action?.confidence??s.state_confidence??"—"}</strong></div>
-    </div>
-
-    <div className="detail-grid">
-      <section className="glass action-card">
-        <div className={"pill "+(action?.confidence==="HIGH"?"good":"warn")}>NEXT ACTION</div>
-        <h2>{action?.title??(s.status==="ACTIVE"?"No calculated action":"Strategy "+String(s.status).toLowerCase())}</h2>
-        <p>{action?.instruction??(s.status==="ACTIVE"?"Recalculate when your ledger and market data are ready.":"Resume this strategy to calculate new actions.")}</p>
-        {explanation.length>0&&<div className="why"><div className="eyebrow">Why?</div>{explanation.map((row:any,i:number)=><div className="why-row" key={i}><span>{row.label}</span><b>{row.value}</b></div>)}</div>}
-        {action&&s.status==="ACTIVE"&&action.action_type!=="DATA_REQUIRED"&&action.action_type!=="NO_ACTION"&&<div style={{marginTop:18}}><ExecuteAction action={{id:String(action.id),actionType:String(action.action_type)}}/></div>}
-      </section>
-      <section className="glass form-card">
-        <div className="eyebrow">Strategy health</div>
-        <h3>{s.health_status==="HEALTHY"?"Healthy":"Needs attention"}</h3>
-        <p className="help">A high-confidence financial action is suppressed whenever critical holdings, FX, market data or reconciliation state is stale, missing or unresolved.</p>
-        <div className="strategy-meta"><span className="pill">Version {s.version}</span><span className="pill">{s.currency}</span><span className="pill">{s.onboarding_mode.replaceAll("_"," ")}</span><span className="pill">{s.status}</span></div>
-      </section>
-    </div>
-
-    {hasVersionUpdate&&<StrategyVersionUpgrade id={id} currentVersion={String(s.version)} targetVersionId={String(s.latest_version_id)} targetVersion={String(s.latest_version)} releaseNotes={s.latest_release_notes?String(s.latest_release_notes):null} upgradePolicy={String(s.latest_upgrade_policy??"OPTIONAL")} inputSchema={Array.isArray(s.latest_input_schema)?s.latest_input_schema:[]} currentSettings={(s.settings??{}) as Record<string,unknown>}/>}
-    {needsOpeningSnapshot&&<section className="glass form-card" style={{marginTop:16}}>
-      <div className="eyebrow">Quick Resume</div><h3>Enter your current holdings snapshot</h3>
-      <p className="help">Actions remain blocked until current cash and holdings are recorded.</p>
+    {needsOpeningSnapshot?<section className="glass resume-focus">
+      <div className="resume-focus-icon"><WalletCards size={24}/></div>
+      <div>
+        <div className="eyebrow">One last step</div>
+        <h2>Tell us what you own today.</h2>
+        <p>You do not need to rebuild your old transaction history. Enter your current cash and holdings so we can calculate from here.</p>
+      </div>
       <OpeningSnapshotForm id={id}/>
+    </section>:<section className={"glass strategy-focus "+(isHealthy?"healthy":"attention")}>
+      <div className="strategy-focus-main">
+        <div className="focus-topline">
+          <span className="soft-label">{isActive?"What to do now":"Strategy status"}</span>
+          {action?.confidence&&<span className={"pill "+(action.confidence==="HIGH"?"good":"warn")}>{action.confidence} confidence</span>}
+        </div>
+        <h2>{actionReady?action.title:isActive?"Nothing to do right now.":"Strategy "+String(s.status).toLowerCase()}</h2>
+        <p>{actionReady?action.instruction:isActive?"We will show your next action here as soon as the strategy needs you.":"Resume this strategy when you want new actions to be calculated."}</p>
+        {action&&isActive&&action.action_type!=="DATA_REQUIRED"&&action.action_type!=="NO_ACTION"&&<div className="focus-action"><ExecuteAction action={{id:String(action.id),actionType:String(action.action_type)}}/></div>}
+      </div>
+
+      <div className="strategy-focus-side">
+        <div className="focus-stat">
+          <span>Current value</span>
+          <strong>{latestValue?money(Number(latestValue.value),s.currency):"—"}</strong>
+        </div>
+        <div className="focus-stat">
+          <span>Next review</span>
+          <strong>{nextReview?nextReview.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):"When needed"}</strong>
+        </div>
+        <div className="focus-stat">
+          <span>Account</span>
+          <strong>{s.wrapper}</strong>
+        </div>
+      </div>
+
+      {explanation.length>0&&<details className="focus-why">
+        <summary>Why this action? <ChevronRight size={15}/></summary>
+        <div>{explanation.map((row:any,i:number)=><div className="why-row" key={i}><span>{row.label}</span><b>{row.value}</b></div>)}</div>
+      </details>}
     </section>}
 
-    <section className="glass chart-card">
-      <div className="section-head"><div><h2>Performance</h2><p>Actual account value vs the same cash flows applied to the canonical model and benchmark.</p></div></div>
-      <PerformanceChart data={chartData}/>
-      <p className="help">Model and benchmark lines begin only when canonical history exists. Contributions and withdrawals after the first tracked value are applied to every comparison series so deposits are not mistaken for outperformance.</p>
-    </section>
+    {!isHealthy&&!needsOpeningSnapshot&&<div className="attention-banner">
+      <div><strong>We need a little more information before we can be fully confident.</strong><span>We will never guess when holdings, prices, FX or reconciliation data is uncertain.</span></div>
+      <CheckCircle2 size={20}/>
+    </div>}
 
-    <div className="detail-grid">
-      <section className="glass form-card"><h3>Record contribution</h3><p className="help">A contribution is cash first. It does not imply a security purchase.</p><ContributionForm id={id}/></section>
-      <section className="glass form-card"><h3>Other cash event</h3><p className="help">Record ordinary account cash movements without misclassifying them as contributions or reconciliation drift.</p><CashEventForm id={id}/></section>
-    </div>
-    <div className="detail-grid">
-      <section className="glass form-card"><h3>Reconcile to broker</h3><p className="help">Known cash differences create adjustment events. Unexplained valuation differences block new financial actions instead of rewriting history.</p><ReconcileForm id={id} expected={latestValue?Number(latestValue.value):null}/></section>
-      <section className="card"><h3>Recent cash events</h3>{cashEvents.length?cashEvents.map((event:any)=><div className="why-row" key={String(event.occurred_at)+String(event.event_type)}><span>{new Date(event.occurred_at).toLocaleDateString("en-GB")} · {String(event.event_type).replaceAll("_"," ")}</span><span className="inline"><b>{new Intl.NumberFormat("en-GB",{style:"currency",currency:s.currency}).format(Math.abs(Number(event.cash_amount||event.fee_amount||0)))}</b><ReverseLedgerEventButton strategyId={id} eventId={String(event.id)}/></span></div>):<p className="help">No withdrawals, income, fees or tax recorded yet.</p>}</section>
-    </div>
+    {hasVersionUpdate&&<StrategyVersionUpgrade id={id} currentVersion={String(s.version)} targetVersionId={String(s.latest_version_id)} targetVersion={String(s.latest_version)} releaseNotes={s.latest_release_notes?String(s.latest_release_notes):null} upgradePolicy={String(s.latest_upgrade_policy??"OPTIONAL")} inputSchema={Array.isArray(s.latest_input_schema)?s.latest_input_schema:[]} currentSettings={(s.settings??{}) as Record<string,unknown>}/>}
 
-    <div className="detail-grid">
-      <section className="card"><h3>Contribution history</h3>{contributions.length?contributions.map((c:any,i:number)=><div className="why-row" key={i}><span>{new Date(c.occurred_at).toLocaleString("en-GB")}</span><span className="inline"><b>{new Intl.NumberFormat("en-GB",{style:"currency",currency:s.currency}).format(Number(c.cash_amount))}</b><ReverseLedgerEventButton strategyId={id} eventId={String(c.id)}/></span></div>):<p className="help">No contributions recorded.</p>}</section>
-      <section className="card"><h3>Reconciliation history</h3>{reconciliations.length?reconciliations.map((r:any,i:number)=><div className="why-row" key={i}><span>{new Date(r.occurred_at).toLocaleDateString("en-GB")} · {r.reason??"Adjustment"}</span><b>{Number(r.difference).toFixed(2)}</b></div>):<p className="help">No reconciliations yet.</p>}</section>
-    </div>
+    <div className="strategy-shortcuts">
+      <details className="glass quick-drawer">
+        <summary><span><WalletCards size={18}/>Update portfolio</span><ChevronRight size={16}/></summary>
+        <div className="quick-drawer-content">
+          <div className="detail-grid">
+            <section><h3>Add money</h3><p className="help">Record a contribution. Cash stays cash until a purchase is confirmed.</p><ContributionForm id={id}/></section>
+            <section><h3>Other cash movement</h3><p className="help">Withdrawals, dividends, interest, fees and tax belong here.</p><CashEventForm id={id}/></section>
+          </div>
+          <section className="drawer-section"><h3>Match your broker</h3><p className="help">If the app and broker differ, reconcile them here. Unexplained differences block financial actions instead of being guessed.</p><ReconcileForm id={id} expected={latestValue?Number(latestValue.value):null}/></section>
+        </div>
+      </details>
 
-    <section className="card" style={{marginTop:16}}>
-      <div className="eyebrow">Rules & disclosure</div><h3>Versioned strategy definition</h3><p>{s.disclosure}</p>
-      <details><summary>Show configured engine inputs</summary><pre style={{whiteSpace:"pre-wrap",color:"var(--muted)"}}>{JSON.stringify(s.config,null,2)}</pre></details>
-    </section>
+      <details className="glass quick-drawer">
+        <summary><span><BarChart3 size={18}/>Explore performance & history</span><ChevronRight size={16}/></summary>
+        <div className="quick-drawer-content">
+          <section className="chart-card explore-chart">
+            <div className="section-head"><div><h2>Performance</h2><p>Your account versus the same cash flows applied to the strategy model and benchmark.</p></div></div>
+            <PerformanceChart data={chartData}/>
+            <p className="help">Contributions and withdrawals are applied across comparison series so adding money is not mistaken for investment performance.</p>
+          </section>
+
+          <div className="detail-grid history-grid">
+            <section className="drawer-section"><h3>Recent contributions</h3>{contributions.length?contributions.map((c:any)=><div className="why-row" key={String(c.id)}><span>{new Date(c.occurred_at).toLocaleDateString("en-GB")}</span><span className="inline"><b>{new Intl.NumberFormat("en-GB",{style:"currency",currency:s.currency}).format(Number(c.cash_amount))}</b><ReverseLedgerEventButton strategyId={id} eventId={String(c.id)}/></span></div>):<p className="help">No contributions recorded yet.</p>}</section>
+            <section className="drawer-section"><h3>Other cash events</h3>{cashEvents.length?cashEvents.map((event:any)=><div className="why-row" key={String(event.id)}><span>{new Date(event.occurred_at).toLocaleDateString("en-GB")} · {String(event.event_type).replaceAll("_"," ")}</span><span className="inline"><b>{new Intl.NumberFormat("en-GB",{style:"currency",currency:s.currency}).format(Math.abs(Number(event.cash_amount||event.fee_amount||0)))}</b><ReverseLedgerEventButton strategyId={id} eventId={String(event.id)}/></span></div>):<p className="help">No other cash events yet.</p>}</section>
+          </div>
+          <section className="drawer-section"><h3>Reconciliation history</h3>{reconciliations.length?reconciliations.map((r:any,i:number)=><div className="why-row" key={i}><span>{new Date(r.occurred_at).toLocaleDateString("en-GB")} · {r.reason??"Adjustment"}</span><b>{Number(r.difference).toFixed(2)}</b></div>):<p className="help">No reconciliations yet.</p>}</section>
+        </div>
+      </details>
+
+      <details className="glass quick-drawer">
+        <summary><span><CalendarClock size={18}/>Strategy settings & rules</span><ChevronRight size={16}/></summary>
+        <div className="quick-drawer-content">
+          <div className="detail-grid">
+            <section className="drawer-section"><div className="eyebrow">Strategy health</div><h3>{isHealthy?"Everything looks good":"Needs attention"}</h3><p className="help">High-confidence actions are suppressed whenever critical holdings, FX, market data or reconciliation state is stale, missing or unresolved.</p><div className="strategy-meta"><span className="pill">Version {s.version}</span><span className="pill">{s.currency}</span><span className="pill">{s.onboarding_mode.replaceAll("_"," ")}</span><span className="pill">{s.status}</span></div></section>
+            <section className="drawer-section"><div className="eyebrow">Lifecycle</div><h3>Pause, resume or stop</h3><p className="help">These controls preserve your history. They never erase the journey you have already recorded.</p><StrategyLifecycleControls id={id} status={s.status}/></section>
+          </div>
+          <section className="drawer-section rules-section"><div className="eyebrow">Rules & disclosure</div><h3>Versioned strategy definition</h3><p>{s.disclosure}</p><details><summary>Show configured engine inputs</summary><pre>{JSON.stringify(s.config,null,2)}</pre></details></section>
+        </div>
+      </details>
+    </div>
   </>;
 }
