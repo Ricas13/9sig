@@ -720,7 +720,7 @@ export async function executeAction(
 
     return {strategyInstanceId:String(action.strategy_instance_id),partial,actualNotional};
   });
-  try{await calculateAction(result.strategyInstanceId);}catch{}
-  return result;
+  const recalc=await recalculateAfterMutation(result.strategyInstanceId,userId,"action-execution");
+  return {...result,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending};
 }
 
