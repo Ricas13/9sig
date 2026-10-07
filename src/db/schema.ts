@@ -376,6 +376,25 @@ export const benchmarks = pgTable("benchmarks", {
   description: text("description").notNull().default("")
 });
 
+export const benchmarkPerformance = pgTable("benchmark_performance", {
+  benchmarkId: uuid("benchmark_id").notNull().references(() => benchmarks.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  value: numeric("value", { precision: 28, scale: 10 }).notNull(),
+  source: text("source").notNull().default("ADMIN"),
+  metadata: jsonb("metadata").notNull().default({})
+}, (t) => [primaryKey({ columns: [t.benchmarkId, t.date] })]);
+
+export const strategyVersionBenchmarks = pgTable("strategy_version_benchmarks", {
+  strategyVersionId: uuid("strategy_version_id").notNull().references(() => strategyVersions.id, { onDelete: "cascade" }),
+  benchmarkId: uuid("benchmark_id").notNull().references(() => benchmarks.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  defaultVisible: boolean("default_visible").notNull().default(false)
+}, (t) => [
+  primaryKey({ columns: [t.strategyVersionId, t.benchmarkId] }),
+  index("strategy_version_benchmark_order_idx").on(t.strategyVersionId, t.sortOrder)
+]);
+
 export const canonicalModelPerformance = pgTable("canonical_model_performance", {
   strategyVersionId: uuid("strategy_version_id").notNull().references(() => strategyVersions.id, { onDelete: "cascade" }),
   date: date("date").notNull(),
