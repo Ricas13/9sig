@@ -7,9 +7,24 @@ import { getStrategyEngine } from "@/domain/strategy/registry";
 import { exposureLeverage, resolveMapping, type MappingCandidate } from "@/domain/instruments";
 import { normalizeExecutionConstraints, planPracticalTrade, validateExecution } from "@/domain/execution";
 import { nextReviewDueAt } from "@/domain/schedule";
+import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/config";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
-async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashDelta?:Decimal.Value;contributionDelta?:Decimal.Value;executionConstraints?:Record<string,unknown>}){
+type CalculationScenario={
+  cashDelta?:Decimal.Value;
+  contributionDelta?:Decimal.Value;
+  executionConstraints?:Record<string,unknown>;
+  forceReview?:boolean;
+  versionOverride?:{
+    strategyVersionId:string;
+    effectiveFrom:unknown;
+    engineKey:string;
+    config:Record<string,unknown>;
+    settings:Record<string,unknown>;
+  };
+};
+
+async function buildActionCalculation(strategyInstanceId:string,scenario?:CalculationScenario){
   const rows=await sql.unsafe("SELECT i.id,i.user_id,i.account_id,i.strategy_definition_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,v.effective_from AS version_effective_from,v.engine_key AS engine,v.config,i.settings,i.execution_constraints,a.name AS primary_account_name,a.country,a.wrapper,a.currency,a.broker_name,s.state,u.timezone AS user_timezone FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN users u ON u.id=i.user_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
   const instance=rows[0];if(!instance)throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
   const linkedAccounts=await sql.unsafe(
@@ -40,11 +55,16 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
     accountPositions.set(accountId,foldLedger(ownRows.map(asLedgerEvent),String(account.currency)));
   }
   const effectiveCash=folded.cash.plus(new Decimal(scenario?.cashDelta??0));
-  const config=(instance.config??{}) as Record<string,unknown>;
+  const calculationVersionId=scenario?.versionOverride?.strategyVersionId??String(instance.strategy_version_id);
+  const calculationEngineKey=scenario?.versionOverride?.engineKey??String(instance.engine);
+  const calculationEffectiveFrom=scenario?.versionOverride?.effectiveFrom??instance.version_effective_from;
+  const config=scenario?.versionOverride?.config??((instance.config??{}) as Record<string,unknown>);
+  const settings=scenario?.versionOverride?.settings??((instance.settings??{}) as Record<string,unknown>);
   const state={...((instance.state??{}) as Record<string,unknown>)};
+  if(scenario?.forceReview)state.forceReview=true;
   const requiredRelease=await sql.unsafe(
     "SELECT id,version FROM strategy_versions WHERE strategy_definition_id=$1 AND lifecycle_status='PUBLISHED' AND upgrade_policy='REQUIRED' AND effective_from>$2 AND effective_from<=current_date AND (effective_to IS NULL OR effective_to>=current_date) ORDER BY effective_from DESC,published_at DESC NULLS LAST LIMIT 1",
-    [instance.strategy_definition_id,instance.version_effective_from]
+    [instance.strategy_definition_id,calculationEffectiveFrom]
   );
   const targetOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key='strategy_state.targetValue' AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId]);
   if(targetOverride[0]?.manual_value!=null) state.targetValue=String(targetOverride[0].manual_value);
@@ -121,8 +141,8 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
   const reviewDue=Boolean(state.forceReview)||new Date()>=dueAt;
   const contributionRows=await sql.unsafe("SELECT COALESCE(sum(cash_amount),0) AS amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' AND occurred_at>$2",[strategyInstanceId,lastReview]);
   const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0)).plus(new Decimal(scenario?.contributionDelta??0));
-  const engine=getStrategyEngine(String(instance.engine));
-  let proposal=engine.calculate({strategyInstanceId,strategyVersionId:String(instance.strategy_version_id),now:new Date(),baseCurrency:String(instance.currency),cash:effectiveCash,exposures:engineExposures,contributionsSinceReview,state,config,settings:(instance.settings??{}) as Record<string,unknown>,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
+  const engine=getStrategyEngine(calculationEngineKey);
+  let proposal=engine.calculate({strategyInstanceId,strategyVersionId:calculationVersionId,now:new Date(),baseCurrency:String(instance.currency),cash:effectiveCash,exposures:engineExposures,contributionsSinceReview,state,config,settings,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
 
   let tradingLineId:string|null=null;
   let executionTicker:string|null=null;
@@ -258,7 +278,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
 
   const stablePositions=exposurePositions.map((p)=>p.accountId+":"+p.economicExposure+":"+p.value.toString()+":"+(p.tradingLineId??"")).sort().join(",");
   const material=[
-    strategyInstanceId,String(instance.strategy_version_id),lastReview.toISOString(),proposal.actionType,
+    strategyInstanceId,calculationVersionId,lastReview.toISOString(),proposal.actionType,
     proposal.amount?.toString()??"",proposal.currency??"",proposal.economicExposure??"",proposal.leverage??"",tradingLineId??"",executionAccountId??"",
     effectiveCash.toString(),contributionsSinceReview.toString(),stablePositions,dataStatus
   ].join("|");
@@ -290,6 +310,55 @@ export async function previewCashScenario(
   return {
     scenario:{type:input.type,amount:amount.toString(),currency:String(calculation.instance.currency)},
     portfolioValueAfter:calculation.totalValue.toString(),
+    action:{
+      actionType:calculation.proposal.actionType,
+      title:calculation.proposal.title,
+      instruction:calculation.proposal.instruction,
+      amount:calculation.proposal.amount?.toString()??null,
+      currency:calculation.proposal.currency??null,
+      confidence:calculation.proposal.confidence,
+      explanation:calculation.proposal.explanation
+    }
+  };
+}
+
+export async function previewStrategyVersionScenario(
+  userId:string,
+  strategyInstanceId:string,
+  targetVersionId:string,
+  suppliedSettings?:Record<string,unknown>
+){
+  const rows=await sql.unsafe(
+    "SELECT i.strategy_definition_id,i.strategy_version_id,i.settings,cv.engine_key AS current_engine,tv.id AS target_version_id,tv.version AS target_version,tv.effective_from,tv.engine_key,tv.config,tv.input_schema "+
+    "FROM strategy_instances i JOIN strategy_versions cv ON cv.id=i.strategy_version_id JOIN strategy_versions tv ON tv.id=$3 "+
+    "WHERE i.id=$1 AND i.user_id=$2 AND tv.strategy_definition_id=i.strategy_definition_id AND tv.lifecycle_status='PUBLISHED' "+
+    "AND tv.effective_from<=current_date AND (tv.effective_to IS NULL OR tv.effective_to>=current_date) LIMIT 1",
+    [strategyInstanceId,userId,targetVersionId]
+  );
+  const target=rows[0];
+  if(!target)throw new Error("INVALID_TARGET_VERSION");
+  if(String(target.engine_key)!==String(target.current_engine))throw new Error("ENGINE_MIGRATION_NOT_SUPPORTED");
+
+  const engine=getStrategyEngine(String(target.engine_key));
+  const config=(target.config??{}) as Record<string,unknown>;
+  engine.validateConfig(config);
+  const mergedSettings={...((target.settings??{}) as Record<string,unknown>),...(suppliedSettings??{})};
+  const settings=validateInstanceSettings(parseInputSchema(target.input_schema),mergedSettings);
+
+  const calculation=await buildActionCalculation(strategyInstanceId,{
+    forceReview:true,
+    versionOverride:{
+      strategyVersionId:String(target.target_version_id),
+      effectiveFrom:target.effective_from,
+      engineKey:String(target.engine_key),
+      config,
+      settings
+    }
+  });
+
+  return {
+    preview:true,
+    targetVersion:String(target.target_version),
     action:{
       actionType:calculation.proposal.actionType,
       title:calculation.proposal.title,
