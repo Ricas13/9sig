@@ -14,6 +14,18 @@ function context(input?:{cash?:string;a?:string;b?:string;threshold?:string}){
 }
 
 describe("fixed allocation engine",()=>{
+  it("sums duplicate holdings for the same configured exposure",()=>{
+    const result=fixedAllocationEngine.calculate({
+      ...context(),
+      exposures:[
+        {economicExposure:"A",value:new Decimal("26")},
+        {economicExposure:"A",value:new Decimal("26")},
+        {economicExposure:"B",value:new Decimal("48")}
+      ]
+    });
+    expect(result.actionType).toBe("HOLD");
+  });
+
   it("does not rebalance within threshold",()=>{
     const result=fixedAllocationEngine.calculate(context());
     expect(result.actionType).toBe("HOLD");
