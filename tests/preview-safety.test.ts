@@ -20,4 +20,30 @@ describe("What-if preview safety boundary",()=>{
     expect(source).not.toContain('from "@/lib/db"');
     expect(source).not.toMatch(/\bsql\./);
   });
+
+  it("keeps version impact previews separate from the migration write path",()=>{
+    const route=readFileSync(new URL("../src/app/api/strategies/[id]/version/route.ts",import.meta.url),"utf8");
+    const postStart=route.indexOf("export async function POST");
+    const patchStart=route.indexOf("export async function PATCH");
+    expect(postStart).toBeGreaterThanOrEqual(0);
+    expect(patchStart).toBeGreaterThan(postStart);
+    const previewHandler=route.slice(postStart,patchStart);
+    expect(previewHandler).toContain("previewStrategyVersionScenario");
+    expect(previewHandler).not.toContain("migrateStrategyVersion");
+    expect(previewHandler).not.toContain("calculateAction");
+  });
+
+  it("keeps the version preview helper free of database mutations",()=>{
+    const source=readFileSync(new URL("../src/lib/action-service.ts",import.meta.url),"utf8");
+    const start=source.indexOf("export async function previewStrategyVersionScenario");
+    const end=source.indexOf("export async function previewExecutionConstraintsScenario",start);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const preview=source.slice(start,end);
+    expect(preview).not.toMatch(/sql\.unsafe\(\s*["'`]INSERT\b/i);
+    expect(preview).not.toMatch(/sql\.unsafe\(\s*["'`]UPDATE\b/i);
+    expect(preview).not.toMatch(/sql\.unsafe\(\s*["'`]DELETE\b/i);
+    expect(preview).not.toMatch(/sql\.begin\(/i);
+  });
+
 });
