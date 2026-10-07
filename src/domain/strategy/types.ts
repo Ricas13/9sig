@@ -45,6 +45,7 @@ export type ProposedAction = {
   nextState: Record<string, unknown>;
   confidence: "HIGH" | "MEDIUM" | "LOW";
   dueAt?: Date | null;
+  completesReview?: boolean;
 };
 
 export interface StrategyEngine {
