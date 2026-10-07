@@ -651,7 +651,7 @@ Use this checklist as the shared cross-chat roadmap.
 - [x] add / extend customer constraint model
 - [x] add execution optimizer for practical trade recommendations
 - [x] add pause / resume / stop lifecycle where incomplete
-- [ ] verify multi-account abstraction
+- [x] verify multi-account abstraction
 - [x] verify instrument-substitution safety path
 
 ### Onboarding
@@ -822,3 +822,14 @@ Additional implementation completed during the continuing PR #3 sweep:
 - generic multi-benchmark histories are supported per strategy version, allowing QQQ / 3QQQ / future comparisons with the user's same cash flows
 
 Still intentionally open: multi-account strategy ownership/execution, strategy-switch and constraint-change What-If previews, immediate-action preview for version upgrades, authenticated browser/visual regression expansion, final accessibility/mobile audit, and the final release/security/financial sweep.
+
+
+## Multi-account verification checkpoint — 7 October 2026
+
+- linked accounts are entitlement-gated and ownership-scoped
+- cash, holdings, opening snapshots and reconciliation remain account-specific
+- strategy calculations aggregate economic exposure while execution remains pinned to the selected account
+- BUY routing chooses an eligible account / trading line and SELL routing uses an account that actually holds the exposure
+- mixed-currency linked strategies remain fail-closed until explicit FX support exists
+- execution currency matching is now a tested domain invariant rather than an inline string comparison
+- browser coverage includes both new and resumed multi-account journeys
