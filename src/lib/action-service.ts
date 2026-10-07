@@ -9,11 +9,12 @@ import { normalizeExecutionConstraints, planPracticalTrade, validateExecution } 
 import { nextReviewDueAt } from "@/domain/schedule";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
-export async function calculateAction(strategyInstanceId:string){
+async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashDelta?:Decimal.Value;contributionDelta?:Decimal.Value}){
   const rows=await sql.unsafe("SELECT i.id,i.user_id,i.strategy_definition_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,v.effective_from AS version_effective_from,v.engine_key AS engine,v.config,i.settings,i.execution_constraints,a.country,a.wrapper,a.currency,a.broker_name,s.state,u.timezone AS user_timezone FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN users u ON u.id=i.user_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
   const instance=rows[0];if(!instance)throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
   const ledgerRows=await sql.unsafe("SELECT event_type,currency,cash_amount,fee_amount,instrument_id,quantity,occurred_at,created_at FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",[strategyInstanceId]);
   const folded=foldLedger(ledgerRows.map((r)=>({eventType:String(r.event_type),currency:String(r.currency),cashAmount:String(r.cash_amount),feeAmount:String(r.fee_amount),instrumentId:r.instrument_id?String(r.instrument_id):null,quantity:String(r.quantity)})),String(instance.currency));
+  const effectiveCash=folded.cash.plus(new Decimal(scenario?.cashDelta??0));
   const config=(instance.config??{}) as Record<string,unknown>;
   const state={...((instance.state??{}) as Record<string,unknown>)};
   const requiredRelease=await sql.unsafe(
@@ -29,6 +30,7 @@ export async function calculateAction(strategyInstanceId:string){
   let dataMessage=state.resumeNeedsReconciliation?"Quick resume needs an opening holdings snapshot before a high-confidence action can be calculated.":state.unresolvedReconciliation?"An unresolved broker discrepancy must be classified before financial actions resume.":undefined;
   if(foreignCash.length){dataStatus="MISSING";dataMessage="Foreign-currency cash is present. An explicit FX conversion is required before financial actions can resume.";}
   if(requiredRelease[0]){dataStatus="MISSING";dataMessage="Strategy version "+String(requiredRelease[0].version)+" is a required rules update. Update this strategy before new financial actions are calculated.";}
+  if(effectiveCash.lt(0)){dataStatus="MISSING";dataMessage="This scenario needs more cash than is currently available. Reduce the withdrawal or sell investments first.";}
 
   for(const [instrumentId,quantity] of folded.quantities.entries()){
     if(quantity.eq(0))continue;
@@ -67,9 +69,9 @@ export async function calculateAction(strategyInstanceId:string){
   });
   const reviewDue=Boolean(state.forceReview)||new Date()>=dueAt;
   const contributionRows=await sql.unsafe("SELECT COALESCE(sum(cash_amount),0) AS amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' AND occurred_at>$2",[strategyInstanceId,lastReview]);
-  const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0));
+  const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0)).plus(new Decimal(scenario?.contributionDelta??0));
   const engine=getStrategyEngine(String(instance.engine));
-  let proposal=engine.calculate({strategyInstanceId,strategyVersionId:String(instance.strategy_version_id),now:new Date(),baseCurrency:String(instance.currency),cash:folded.cash,exposures:exposurePositions,contributionsSinceReview,state,config,settings:(instance.settings??{}) as Record<string,unknown>,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
+  let proposal=engine.calculate({strategyInstanceId,strategyVersionId:String(instance.strategy_version_id),now:new Date(),baseCurrency:String(instance.currency),cash:effectiveCash,exposures:exposurePositions,contributionsSinceReview,state,config,settings:(instance.settings??{}) as Record<string,unknown>,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
 
   let tradingLineId:string|null=null;
   let executionTicker:string|null=null;
@@ -107,7 +109,7 @@ export async function calculateAction(strategyInstanceId:string){
           side:proposal.actionType as "BUY"|"SELL",
           proposedAmount:proposal.amount,
           price:String(quote.price),
-          availableCash:folded.cash,
+          availableCash:effectiveCash,
           heldQuantity,
           constraints:(instance.execution_constraints??{}) as Record<string,unknown>
         });
@@ -145,11 +147,46 @@ export async function calculateAction(strategyInstanceId:string){
   const material=[
     strategyInstanceId,String(instance.strategy_version_id),lastReview.toISOString(),proposal.actionType,
     proposal.amount?.toString()??"",proposal.currency??"",proposal.economicExposure??"",tradingLineId??"",
-    folded.cash.toString(),contributionsSinceReview.toString(),stablePositions,dataStatus
+    effectiveCash.toString(),contributionsSinceReview.toString(),stablePositions,dataStatus
   ].join("|");
   const fingerprint=crypto.createHash("sha256").update(material).digest("hex");
   const nextState=["BUY","SELL","REBALANCE","HOLD"].includes(proposal.actionType)?{...proposal.nextState,lastReviewAt:new Date().toISOString(),forceReview:false}:proposal.nextState;
-  const totalValue=exposurePositions.reduce((sum,p)=>sum.plus(p.value),folded.cash);
+  const totalValue=exposurePositions.reduce((sum,p)=>sum.plus(p.value),effectiveCash);
+  return {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId};
+}
+
+export async function previewCashScenario(
+  userId:string,
+  strategyInstanceId:string,
+  input:{type:"CONTRIBUTION"|"WITHDRAWAL";amount:Decimal.Value}
+){
+  const owner=await sql.unsafe("SELECT id FROM strategy_instances WHERE id=$1 AND user_id=$2 LIMIT 1",[strategyInstanceId,userId]);
+  if(!owner[0])throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
+  const amount=new Decimal(input.amount);
+  if(!amount.isFinite()||amount.lte(0))throw new Error("INVALID_PREVIEW_AMOUNT");
+  const contribution=input.type==="CONTRIBUTION"?amount:new Decimal(0);
+  const calculation=await buildActionCalculation(strategyInstanceId,{
+    cashDelta:input.type==="CONTRIBUTION"?amount:amount.neg(),
+    contributionDelta:contribution
+  });
+  return {
+    scenario:{type:input.type,amount:amount.toString(),currency:String(calculation.instance.currency)},
+    portfolioValueAfter:calculation.totalValue.toString(),
+    action:{
+      actionType:calculation.proposal.actionType,
+      title:calculation.proposal.title,
+      instruction:calculation.proposal.instruction,
+      amount:calculation.proposal.amount?.toString()??null,
+      currency:calculation.proposal.currency??null,
+      confidence:calculation.proposal.confidence,
+      explanation:calculation.proposal.explanation
+    }
+  };
+}
+
+export async function calculateAction(strategyInstanceId:string){
+  const calculation=await buildActionCalculation(strategyInstanceId);
+  const {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId}=calculation;
   if(dataStatus==="CURRENT")await sql.unsafe("INSERT INTO performance_series (strategy_instance_id,series_type,date,value,metadata) VALUES ($1,'USER_VALUE',current_date,$2,$3::jsonb) ON CONFLICT (strategy_instance_id,series_type,date) DO UPDATE SET value=EXCLUDED.value,metadata=EXCLUDED.metadata",[strategyInstanceId,totalValue.toString(),JSON.stringify({source:"ledger+market"})]);
   const inserted=await sql.unsafe("INSERT INTO actions (strategy_instance_id,strategy_version_id,fingerprint,action_type,status,title,instruction,amount,currency,trading_line_id,explanation,next_state,confidence,due_at) VALUES ($1,$2,$3,$4,'CALCULATED',$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13) ON CONFLICT (strategy_instance_id,fingerprint) DO UPDATE SET updated_at=now() RETURNING id",[strategyInstanceId,instance.strategy_version_id,fingerprint,proposal.actionType,proposal.title,proposal.instruction,proposal.amount?.toString()??null,proposal.currency??null,tradingLineId,JSON.stringify(proposal.explanation),JSON.stringify(nextState),proposal.confidence,proposal.dueAt??null]);
   const actionId=String(inserted[0].id);
