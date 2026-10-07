@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2, Plus, Sparkles } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { listUserStrategies } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
+import { plainEnglishActionReason } from "@/domain/action-copy";
 
 function money(value:number,currency:string){
   return new Intl.NumberFormat("en-GB",{style:"currency",currency,maximumFractionDigits:0}).format(value);
@@ -11,12 +12,13 @@ function money(value:number,currency:string){
 export default async function OverviewPage(){
   const user=await requireUser();
   const strategies=await listUserStrategies(user.id);
-  const actions=await sql.unsafe("SELECT a.id,a.strategy_instance_id,a.title,a.instruction,a.due_at,a.confidence,i.name AS instance_name FROM actions a JOIN strategy_instances i ON i.id=a.strategy_instance_id WHERE i.user_id=$1 AND a.status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') AND a.action_type<>'NO_ACTION' ORDER BY COALESCE(a.due_at,a.created_at),a.created_at LIMIT 12",[user.id]);
+  const actions=await sql.unsafe("SELECT a.id,a.strategy_instance_id,a.action_type,a.title,a.instruction,a.due_at,a.confidence,i.name AS instance_name FROM actions a JOIN strategy_instances i ON i.id=a.strategy_instance_id WHERE i.user_id=$1 AND a.status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') AND a.action_type<>'NO_ACTION' ORDER BY COALESCE(a.due_at,a.created_at),a.created_at LIMIT 12",[user.id]);
   const values=await sql.unsafe("SELECT ps.strategy_instance_id,ps.value FROM performance_series ps JOIN strategy_instances i ON i.id=ps.strategy_instance_id WHERE i.user_id=$1 AND ps.series_type='USER_VALUE' AND ps.date=(SELECT max(p2.date) FROM performance_series p2 WHERE p2.strategy_instance_id=ps.strategy_instance_id AND p2.series_type='USER_VALUE')",[user.id]);
   const contributions=await sql.unsafe("SELECT COALESCE(sum(l.cash_amount),0) AS total FROM ledger_events l JOIN strategy_instances i ON i.id=l.strategy_instance_id WHERE i.user_id=$1 AND l.event_type='CONTRIBUTION'",[user.id]);
   const knownValue=values.length?values.reduce((sum,r)=>sum+Number(r.value),0):null;
   const activeStrategies=strategies.filter((s:any)=>s.status==="ACTIVE");
   const primaryAction:any=actions[0];
+  const primaryReason=primaryAction?plainEnglishActionReason({actionType:primaryAction.action_type,instruction:primaryAction.instruction}):null;
   const plannedContributions=activeStrategies
     .map((s:any)=>({strategy:s,plan:s.contribution_plan as Record<string,unknown>|null}))
     .filter(({plan})=>plan?.enabled===true&&plan.nextDate)
@@ -64,6 +66,7 @@ export default async function OverviewPage(){
           <span className="today-strategy">{primaryAction.instance_name}</span>
           <h2>{primaryAction.title}</h2>
           <p>{primaryAction.instruction}</p>
+          {primaryReason&&<div className="plain-reason"><Sparkles size={14}/><span>{primaryReason}</span></div>}
           <Link className="button primary" href={"/app/strategies/"+primaryAction.strategy_instance_id}>Show me what to do <ArrowRight size={16}/></Link>
         </>:<>
           <h2>Nothing to do.</h2>
