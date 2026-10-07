@@ -69,7 +69,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   }));
   const supportedWrappers=Array.isArray(s.supported_wrappers)?s.supported_wrappers.map(String):[];
 
-  const actionRows=await sql.unsafe("SELECT id,action_type,status,title,instruction,amount,currency,explanation,confidence,due_at,created_at FROM actions WHERE strategy_instance_id=$1 AND status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') ORDER BY created_at DESC LIMIT 1",[id]);
+  const actionRows=await sql.unsafe("SELECT a.id,a.action_type,a.status,a.title,a.instruction,a.amount,a.currency,a.explanation,a.confidence,a.due_at,a.created_at,acc.name AS account_name,acc.wrapper AS account_wrapper FROM actions a LEFT JOIN accounts acc ON acc.id=a.account_id WHERE a.strategy_instance_id=$1 AND a.status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') ORDER BY a.created_at DESC LIMIT 1",[id]);
   const action=actionRows[0];
 
   const performance=await sql.unsafe("SELECT date,series_type,value FROM performance_series WHERE strategy_instance_id=$1 ORDER BY date",[id]);
@@ -222,6 +222,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         </div>
         <h2>{actionReady?action.title:isActive?"Nothing to do right now.":"Strategy "+String(s.status).toLowerCase()}</h2>
         <p>{actionReady?action.instruction:isActive?"We will show your next action here as soon as the strategy needs you.":"Resume this strategy when you want new actions to be calculated."}</p>
+        {actionReady&&accountOptions.length>1&&action.account_name&&<div className="action-account-hint"><WalletCards size={14}/><span>Use <strong>{String(action.account_name)}</strong>{action.account_wrapper?" · "+String(action.account_wrapper):""}</span></div>}
         {actionReady&&plainReason&&<div className="plain-reason"><Sparkles size={14}/><span>{plainReason}</span></div>}
         {action&&isActive&&action.action_type!=="DATA_REQUIRED"&&action.action_type!=="NO_ACTION"&&<div className="focus-action"><ExecuteAction action={{id:String(action.id),actionType:String(action.action_type)}}/></div>}
       </div>
