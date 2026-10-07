@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Plus } from "lucide-react";
 
@@ -101,20 +101,24 @@ export function ContributionForm({ id, accounts=[] }: { id: string; accounts?:Ac
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [busy,setBusy]=useState(false);
+  const requestKey=useRef<string|null>(null);
   return <form className="form-grid" onSubmit={async (e) => {
     e.preventDefault();setBusy(true);setMessage("");
     const form=e.currentTarget;
+    const mutationKey=requestKey.current??crypto.randomUUID();
+    requestKey.current=mutationKey;
     const f = new FormData(form);
     const value = String(f.get("when") || "");
     const occurredAt = value ? new Date(value).toISOString() : undefined;
     const r = await fetch("/api/strategies/" + id + "/contributions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ amount: String(f.get("amount")), occurredAt, accountId:f.get("accountId")||undefined })
+      body: JSON.stringify({ amount: String(f.get("amount")), occurredAt, accountId:f.get("accountId")||undefined, requestKey:mutationKey })
     });
     setBusy(false);
     setMessage(r.ok ? "Contribution recorded as cash." : "Could not record contribution.");
     if (r.ok) {
+      requestKey.current=null;
       form.reset();
       router.refresh();
     }
@@ -129,8 +133,11 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [busy,setBusy]=useState(false);
+  const requestKey=useRef<string|null>(null);
   return <form className="form-grid" onSubmit={async (e) => {
     e.preventDefault();setBusy(true);setMessage("");
+    const mutationKey=requestKey.current??crypto.randomUUID();
+    requestKey.current=mutationKey;
     const f = new FormData(e.currentTarget);
     const r = await fetch("/api/strategies/" + id + "/reconcile", {
       method: "POST",
@@ -140,7 +147,8 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
         brokerValue: String(f.get("broker")),
         reason: f.get("reason") || undefined,
         affectsCash: Boolean(f.get("affectsCash")),
-        accountId: f.get("accountId") || undefined
+        accountId: f.get("accountId") || undefined,
+        requestKey: mutationKey
       })
     });
     const b = await r.json();setBusy(false);
@@ -151,7 +159,7 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
           ? "This account is matched, but another linked account still needs attention."
           : "Reconciliation recorded, but the strategy remains blocked until the discrepancy is resolved.")
       : b.error);
-    if (r.ok) router.refresh();
+    if (r.ok) {requestKey.current=null;router.refresh();}
   }}>
     <AccountSelect accounts={accounts}/><div className="field"><label>Expected value</label><input name="expected" type="number" min="0" step="0.01" defaultValue={expected ?? undefined} required /></div>
     <div className="field"><label>Broker reported value</label><input name="broker" type="number" min="0" step="0.01" required /></div>
@@ -380,13 +388,15 @@ export function StrategyVersionUpgrade({
 
 export function CashEventForm({id,accounts=[]}:{id:string;accounts?:AccountOption[]}){
   const router=useRouter();const[message,setMessage]=useState("");const[busy,setBusy]=useState(false);
+  const requestKey=useRef<string|null>(null);
   return <form className="form-grid" onSubmit={async(e)=>{
     e.preventDefault();setBusy(true);setMessage("");const form=e.currentTarget;const f=new FormData(form);const when=String(f.get("when")||"");
+    const mutationKey=requestKey.current??crypto.randomUUID();requestKey.current=mutationKey;
     const response=await fetch("/api/strategies/"+id+"/ledger-events",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
-      eventType:f.get("eventType"),amount:String(f.get("amount")),occurredAt:when?new Date(when).toISOString():undefined,note:f.get("note")||undefined,accountId:f.get("accountId")||undefined
+      eventType:f.get("eventType"),amount:String(f.get("amount")),occurredAt:when?new Date(when).toISOString():undefined,note:f.get("note")||undefined,accountId:f.get("accountId")||undefined,requestKey:mutationKey
     })});
     const body=await response.json();setBusy(false);setMessage(response.ok?"Cash event recorded.":body.error??"Could not record cash event.");
-    if(response.ok){form.reset();router.refresh();}
+    if(response.ok){requestKey.current=null;form.reset();router.refresh();}
   }}>
     <AccountSelect accounts={accounts}/><div className="field"><label>Event</label><select name="eventType"><option>WITHDRAWAL</option><option>DIVIDEND</option><option>DISTRIBUTION</option><option>INTEREST</option><option>FEE</option><option>TAX</option></select></div>
     <div className="field"><label>Amount</label><input name="amount" type="number" min="0.01" step="0.01" required/></div>
