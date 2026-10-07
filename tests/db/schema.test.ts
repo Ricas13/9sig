@@ -46,6 +46,18 @@ describe.skipIf(!url)("database schema",()=>{
     const rows=await sql!.unsafe("SELECT data_type FROM information_schema.columns WHERE table_name='ledger_events' AND column_name='cash_amount'");
     expect(rows[0]?.data_type).toBe("numeric");
   });
+  it("deduplicates retryable financial mutations",async()=>{
+    const ledgerColumns=await sql!.unsafe("SELECT data_type FROM information_schema.columns WHERE table_name='ledger_events' AND column_name='request_key'");
+    const reconciliationColumns=await sql!.unsafe("SELECT data_type FROM information_schema.columns WHERE table_name='reconciliations' AND column_name='request_key'");
+    expect(ledgerColumns[0]?.data_type).toBe("uuid");
+    expect(reconciliationColumns[0]?.data_type).toBe("uuid");
+
+    const ledgerIndexes=await sql!.unsafe("SELECT indexdef FROM pg_indexes WHERE tablename='ledger_events'");
+    const reconciliationIndexes=await sql!.unsafe("SELECT indexdef FROM pg_indexes WHERE tablename='reconciliations'");
+    expect(ledgerIndexes.some((row)=>String(row.indexdef).includes("request_key")&&String(row.indexdef).includes("UNIQUE"))).toBe(true);
+    expect(reconciliationIndexes.some((row)=>String(row.indexdef).includes("request_key")&&String(row.indexdef).includes("UNIQUE"))).toBe(true);
+  });
+
   it("has a unique notification delivery dedupe key",async()=>{
     const rows=await sql!.unsafe("SELECT indexdef FROM pg_indexes WHERE tablename='notification_deliveries'");
     expect(rows.some((r)=>String(r.indexdef).includes("(dedupe_key)"))).toBe(true);
