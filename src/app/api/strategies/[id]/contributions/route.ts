@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
-import { calculateAction } from "@/lib/action-service";
+import { recalculateAfterMutation } from "@/lib/action-service";
 import { advanceContributionPlan, normalizeContributionPlan } from "@/domain/contribution-plan";
 import { assertSameOrigin } from "@/lib/security";
 
@@ -66,9 +66,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       );
       return {eventId:ledgerEventId,status:String(locked[0].status),duplicate:false};
     });
-    let actionId:string|null=null;
-    if(result.status==="ACTIVE"){try{actionId=(await calculateAction(id)).actionId;}catch{}}
-    return Response.json({ ok: true, id:result.eventId, actionId, duplicate:result.duplicate });
+    const recalc=result.status==="ACTIVE"&&!result.duplicate?await recalculateAfterMutation(id,user.id,"contribution"):{actionId:null,recalculationPending:false,errorCode:null};
+    return Response.json({ ok:true,id:result.eventId,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending,duplicate:result.duplicate });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Enter a valid contribution and timestamp." }, { status: 400 });
