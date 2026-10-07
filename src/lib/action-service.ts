@@ -10,10 +10,25 @@ import { nextReviewDueAt } from "@/domain/schedule";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
 async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashDelta?:Decimal.Value;contributionDelta?:Decimal.Value}){
-  const rows=await sql.unsafe("SELECT i.id,i.user_id,i.strategy_definition_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,v.effective_from AS version_effective_from,v.engine_key AS engine,v.config,i.settings,i.execution_constraints,a.country,a.wrapper,a.currency,a.broker_name,s.state,u.timezone AS user_timezone FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN users u ON u.id=i.user_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
+  const rows=await sql.unsafe("SELECT i.id,i.user_id,i.account_id,i.strategy_definition_id,i.strategy_version_id,i.started_at,i.onboarding_mode,i.last_reconciled_at,v.effective_from AS version_effective_from,v.engine_key AS engine,v.config,i.settings,i.execution_constraints,a.name AS primary_account_name,a.country,a.wrapper,a.currency,a.broker_name,s.state,u.timezone AS user_timezone FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id JOIN accounts a ON a.id=i.account_id JOIN users u ON u.id=i.user_id JOIN strategy_states s ON s.strategy_instance_id=i.id WHERE i.id=$1 AND i.status='ACTIVE' LIMIT 1",[strategyInstanceId]);
   const instance=rows[0];if(!instance)throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
-  const ledgerRows=await sql.unsafe("SELECT event_type,currency,cash_amount,fee_amount,instrument_id,quantity,occurred_at,created_at FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",[strategyInstanceId]);
-  const folded=foldLedger(ledgerRows.map((r)=>({eventType:String(r.event_type),currency:String(r.currency),cashAmount:String(r.cash_amount),feeAmount:String(r.fee_amount),instrumentId:r.instrument_id?String(r.instrument_id):null,quantity:String(r.quantity)})),String(instance.currency));
+  let accounts=await sql.unsafe(
+    "SELECT a.id,a.name,a.country,a.wrapper,a.currency,a.broker_name,sa.role FROM strategy_accounts sa JOIN accounts a ON a.id=sa.account_id WHERE sa.strategy_instance_id=$1 ORDER BY CASE WHEN sa.role='PRIMARY' THEN 0 ELSE 1 END,a.created_at,a.name",
+    [strategyInstanceId]
+  );
+  if(!accounts.length)accounts=[{id:instance.account_id,name:instance.primary_account_name,country:instance.country,wrapper:instance.wrapper,currency:instance.currency,broker_name:instance.broker_name,role:"PRIMARY"}];
+  const baseCurrency=String(instance.currency).toUpperCase();
+  const accountCurrencies=new Set(accounts.map((account)=>String(account.currency).toUpperCase()));
+  const primaryAccountId=String(instance.account_id);
+  const ledgerRows=await sql.unsafe("SELECT account_id,event_type,currency,cash_amount,fee_amount,instrument_id,quantity,occurred_at,created_at FROM ledger_events WHERE strategy_instance_id=$1 ORDER BY occurred_at,created_at",[strategyInstanceId]);
+  const asLedgerEvent=(r:any)=>({eventType:String(r.event_type),currency:String(r.currency),cashAmount:String(r.cash_amount),feeAmount:String(r.fee_amount),instrumentId:r.instrument_id?String(r.instrument_id):null,quantity:String(r.quantity)});
+  const folded=foldLedger(ledgerRows.map(asLedgerEvent),baseCurrency);
+  const accountPositions=new Map<string,ReturnType<typeof foldLedger>>();
+  for(const account of accounts){
+    const accountId=String(account.id);
+    const ownRows=ledgerRows.filter((row)=>row.account_id?String(row.account_id)===accountId:accountId===primaryAccountId);
+    accountPositions.set(accountId,foldLedger(ownRows.map(asLedgerEvent),String(account.currency)));
+  }
   const effectiveCash=folded.cash.plus(new Decimal(scenario?.cashDelta??0));
   const config=(instance.config??{}) as Record<string,unknown>;
   const state={...((instance.state??{}) as Record<string,unknown>)};
