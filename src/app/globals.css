@@ -857,3 +857,9 @@ html[data-theme="light"] .rule-summary-row { background:rgba(255,255,255,.56); }
 .chart-marker-key.contribution { color:#8db3ff; }
 .chart-marker-key.review { color:#d9b667; }
 html[data-theme="light"] .chart-marker-key { background:rgba(255,255,255,.58); }
+
+
+.comparison-warning {
+  color:var(--warning);
+  margin-top:7px;
+}
