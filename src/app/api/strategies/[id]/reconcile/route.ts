@@ -30,7 +30,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const difference = broker.minus(expected);
     const resolved = difference.eq(0) || input.affectsCash;
 
-    await sql.begin(async (tx) => {
+    const reconciliationState=await sql.begin(async (tx) => {
       const locked=await tx.unsafe(
         "SELECT i.id,i.status,a.id AS account_id,a.currency FROM strategy_instances i JOIN strategy_accounts sa ON sa.strategy_instance_id=i.id JOIN accounts a ON a.id=sa.account_id WHERE i.id=$1 AND i.user_id=$2 AND a.id=COALESCE($3::uuid,i.account_id) FOR UPDATE OF i",
         [id,user.id,input.accountId??null]
@@ -53,27 +53,42 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const currentState = (states[0]?.state ?? {}) as Record<string, unknown>;
       const resumeBlocked = Boolean(currentState.resumeNeedsReconciliation);
 
-      if (resolved) {
+      const unresolvedRows=await tx.unsafe(
+        "SELECT account_id,difference,reason FROM ("+
+        " SELECT DISTINCT ON (account_id) account_id,difference,reason,metadata,occurred_at,created_at"+
+        " FROM reconciliations WHERE strategy_instance_id=$1"+
+        " ORDER BY account_id,occurred_at DESC,created_at DESC"+
+        ") latest WHERE COALESCE((metadata->>'resolved')::boolean,false)=false",
+        [id]
+      );
+      const strategyResolved=unresolvedRows.length===0&&!resumeBlocked;
+
+      if(strategyResolved){
         await tx.unsafe(
-          "UPDATE strategy_states SET state=state-'unresolvedReconciliation',confidence=$1,calculated_at=now() WHERE strategy_instance_id=$2",
-          [resumeBlocked ? "LOW" : "HIGH", id]
+          "UPDATE strategy_states SET state=state-'unresolvedReconciliation',confidence='HIGH',calculated_at=now() WHERE strategy_instance_id=$1",
+          [id]
         );
-      } else {
+      }else{
         await tx.unsafe(
           "UPDATE strategy_states SET state=jsonb_set(state,'{unresolvedReconciliation}',$1::jsonb,true),confidence='LOW',calculated_at=now() WHERE strategy_instance_id=$2",
-          [JSON.stringify({ difference: difference.toString(), reason: input.reason ?? "Unknown adjustment" }), id]
+          [JSON.stringify({
+            accounts:unresolvedRows.map((row)=>({accountId:row.account_id?String(row.account_id):null,difference:String(row.difference),reason:row.reason?String(row.reason):"Unknown adjustment"})),
+            resumeNeedsReconciliation:resumeBlocked
+          }),id]
         );
       }
 
       await tx.unsafe(
         "UPDATE strategy_instances SET last_reconciled_at=now(),health_status=$1,updated_at=now() WHERE id=$2",
-        [resolved && !resumeBlocked ? "HEALTHY" : "NEEDS_ATTENTION", id]
+        [strategyResolved?"HEALTHY":"NEEDS_ATTENTION",id]
       );
+
+      return {strategyResolved};
     });
 
     let actionId:string|null=null;
     if(String(strategy.status)==="ACTIVE"){try{actionId=(await calculateAction(id)).actionId;}catch{}}
-    return Response.json({ ok: true, difference: difference.toString(), resolved, actionId });
+    return Response.json({ ok: true, difference: difference.toString(), resolved, strategyResolved:reconciliationState.strategyResolved, actionId });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Enter valid monetary amounts with up to 8 decimal places." }, { status: 400 });
