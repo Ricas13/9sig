@@ -2,9 +2,17 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-type Point={date:string; actual?:number; model?:number; benchmark?:number};
+type Point={
+  date:string;
+  actual?:number;
+  model?:number;
+  benchmark?:number;
+  benchmarkValues?:Record<string,number>;
+};
 type Marker={date:string;type:"CONTRIBUTION"|"REVIEW";label:string};
+type ComparisonSeries={key:string;label:string;defaultVisible?:boolean};
 const frames=["1M","3M","6M","YTD","1Y","3Y","5Y","MAX"];
+const comparisonColors=["#ffd27a","#c58cff","#ff8fab","#56d6e9","#a5d86e","#f0a35e"];
 
 function cutoff(frame:string) {
   const now=new Date();
@@ -18,15 +26,29 @@ function compact(value:number){
   return new Intl.NumberFormat("en-GB",{notation:"compact",maximumFractionDigits:1}).format(value);
 }
 
-export function PerformanceChart({data,markers=[]}:{data:Point[];markers?:Marker[]}) {
+export function PerformanceChart({
+  data,markers=[],comparisons=[]
+}:{
+  data:Point[];
+  markers?:Marker[];
+  comparisons?:ComparisonSeries[];
+}) {
   const gradientId=("actual-"+useId()).replaceAll(":","");
   const hasActual=data.some((point)=>point.actual!=null);
   const hasModel=data.some((point)=>point.model!=null);
-  const hasBenchmark=data.some((point)=>point.benchmark!=null);
+  const hasLegacyBenchmark=data.some((point)=>point.benchmark!=null);
+  const availableComparisons=useMemo(
+    ()=>comparisons.length
+      ?comparisons
+      :hasLegacyBenchmark?[{key:"legacy-benchmark",label:"Benchmark",defaultVisible:!hasActual&&!hasModel}]:[],
+    [comparisons,hasLegacyBenchmark,hasActual,hasModel]
+  );
   const [frame,setFrame]=useState("MAX");
   const [showActual,setShowActual]=useState(hasActual);
   const [showModel,setShowModel]=useState(!hasActual&&hasModel);
-  const [showBenchmark,setShowBenchmark]=useState(!hasActual&&!hasModel&&hasBenchmark);
+  const [visibleComparisons,setVisibleComparisons]=useState<Record<string,boolean>>(
+    ()=>Object.fromEntries(availableComparisons.map((series)=>[series.key,Boolean(series.defaultVisible)]))
+  );
   const [reduceMotion,setReduceMotion]=useState(false);
 
   useEffect(()=>{
@@ -48,11 +70,20 @@ export function PerformanceChart({data,markers=[]}:{data:Point[];markers?:Marker
 
   return <div className="performance-chart">
     <div className="chart-toolbar">
-      <div className="timeframes">{frames.map((f)=><button type="button" key={f} className={"timeframe "+(frame===f?"active":"")} onClick={()=>setFrame(f)}>{f}</button>)}</div>
+      <div className="timeframes">{frames.map((f)=><button type="button" key={f} className={"timeframe "+(frame===f?"active":"")} aria-pressed={frame===f} onClick={()=>setFrame(f)}>{f}</button>)}</div>
       <div className="series-toggles" aria-label="Chart comparisons">
         {hasActual&&<button type="button" className={"series-chip actual "+(showActual?"active":"")} aria-pressed={showActual} onClick={()=>setShowActual(!showActual)}><span/>Your portfolio</button>}
         {hasModel&&<button type="button" className={"series-chip model "+(showModel?"active":"")} aria-pressed={showModel} onClick={()=>setShowModel(!showModel)}><span/>Strategy model</button>}
-        {hasBenchmark&&<button type="button" className={"series-chip benchmark "+(showBenchmark?"active":"")} aria-pressed={showBenchmark} onClick={()=>setShowBenchmark(!showBenchmark)}><span/>Benchmark</button>}
+        {availableComparisons.map((series,index)=>{
+          const active=Boolean(visibleComparisons[series.key]);
+          return <button
+            type="button"
+            key={series.key}
+            className={"series-chip benchmark "+(active?"active":"")}
+            aria-pressed={active}
+            onClick={()=>setVisibleComparisons((current)=>({...current,[series.key]:!current[series.key]}))}
+          ><span style={{background:comparisonColors[index%comparisonColors.length]}}/>{series.label}</button>;
+        })}
       </div>
     </div>
     {filteredMarkers.length>0&&<div className="chart-markers" aria-label="Chart event markers"><span className="chart-marker-key contribution">+ Contributions</span><span className="chart-marker-key review">R Reviews</span></div>}
@@ -73,7 +104,18 @@ export function PerformanceChart({data,markers=[]}:{data:Point[];markers?:Marker
         />
         {showActual&&<Area type="monotone" dataKey="actual" name="Your portfolio" stroke="#78f3c6" fill={"url(#"+gradientId+")"} strokeWidth={3} connectNulls isAnimationActive={!reduceMotion} animationDuration={650}/>}
         {showModel&&<Area type="monotone" dataKey="model" name="Strategy model" stroke="#79a8ff" fillOpacity={0} strokeWidth={2.25} connectNulls isAnimationActive={!reduceMotion} animationDuration={650}/>}
-        {showBenchmark&&<Area type="monotone" dataKey="benchmark" name="Benchmark" stroke="#ffd27a" fillOpacity={0} strokeWidth={2} connectNulls isAnimationActive={!reduceMotion} animationDuration={650}/>}
+        {availableComparisons.map((series,index)=>visibleComparisons[series.key]&&<Area
+          key={series.key}
+          type="monotone"
+          dataKey={(point:Point)=>series.key==="legacy-benchmark"?point.benchmark:point.benchmarkValues?.[series.key]}
+          name={series.label}
+          stroke={comparisonColors[index%comparisonColors.length]}
+          fillOpacity={0}
+          strokeWidth={2}
+          connectNulls
+          isAnimationActive={!reduceMotion}
+          animationDuration={650}
+        />)}
       </AreaChart>
     </ResponsiveContainer></div>
   </div>;
