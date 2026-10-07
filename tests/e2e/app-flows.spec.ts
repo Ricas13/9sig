@@ -60,6 +60,9 @@ test("new user can start a strategy through the three-step simple flow",async({p
 
   await page.waitForURL(/\/app\/strategies\//);
   await expect(page.getByRole("heading",{name:"My 9Sig"})).toBeVisible();
+  await expect(page.getByText("What if?")).not.toBeVisible();
+  await page.locator("summary").filter({hasText:"Strategy settings & rules"}).click();
+  await expect(page.getByText("Switch strategy")).toBeVisible();
 
   await page.goto("/app/strategies/new");
   await expect(page.getByText(/using all 1 of your active strategy/i)).toBeVisible();
