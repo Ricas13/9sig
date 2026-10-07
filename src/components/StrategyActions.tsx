@@ -177,7 +177,7 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
       setBusy(false);
     }
   }}>
-    <AccountSelect accounts={accounts}/><div className="field"><label>Expected value</label><input name="expected" type="number" min="0" step="0.01" defaultValue={expected ?? undefined} required /></div>
+    <AccountSelect accounts={accounts}/><div className="field"><label>Expected value</label><input name="expected" type="number" min="0" step="0.01" defaultValue={expected ?? undefined} required />{accounts.length>1&&<div className="help">Enter the expected value for the selected account only, not the combined strategy value.</div>}</div>
     <div className="field"><label>Broker reported value</label><input name="broker" type="number" min="0" step="0.01" required /></div>
     <div className="field full"><label>Reason</label><select name="reason"><option value="">Unknown adjustment</option><option>Broker fee</option><option>FX cost</option><option>Tax</option><option>Financing cost</option><option>Interest</option><option>Other</option></select></div>
     <div className="field full">
