@@ -808,3 +808,27 @@ html[data-theme="light"] .theme-label-dark { display:inline; }
   font-size:11px;
   opacity:.82;
 }
+
+
+.rule-summary-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  margin:16px 0;
+}
+.rule-summary-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:11px 12px;
+  border:1px solid var(--line);
+  border-radius:13px;
+  background:rgba(255,255,255,.018);
+}
+.rule-summary-row span { color:var(--muted); font-size:11px; font-weight:750; }
+.rule-summary-row strong { text-align:right; font-size:11px; }
+html[data-theme="light"] .rule-summary-row { background:rgba(255,255,255,.56); }
+@media (max-width:680px) {
+  .rule-summary-grid { grid-template-columns:1fr; }
+}
