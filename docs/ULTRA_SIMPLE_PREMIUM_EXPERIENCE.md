@@ -728,15 +728,15 @@ Use this checklist as the shared cross-chat roadmap.
 
 ### Verification
 
-- [ ] unit tests
-- [ ] database / migration tests
-- [ ] integration tests
-- [ ] browser tests
-- [ ] visual regression coverage for key screens
-- [ ] lint
-- [ ] TypeScript
-- [ ] production build
-- [ ] dependency/security audit
+- [x] unit tests
+- [x] database / migration tests
+- [x] integration tests
+- [x] browser tests
+- [x] visual regression coverage for key screens
+- [x] lint
+- [x] TypeScript
+- [x] production build
+- [x] dependency/security audit
 - [x] final workflow-gap sweep
 - [x] final financial-safety sweep
 - [x] final simplicity review: can a new user understand the next action within 5 seconds?
@@ -862,3 +862,18 @@ Still open for sign-off: typography / numeric-formatting polish, a dedicated con
 - all changed mutating API routes were checked for same-origin, signed webhook, cron secret or equivalent machine-auth protection
 - the authenticated home and strategy-detail hierarchy was reviewed against the original “where am I / what do I do / what happens next” brief; the primary action remains visible within the first screen without requiring settings or technical detail
 - visual-regression screenshot baselines remain deliberately open rather than being represented by a weaker non-visual assertion
+
+
+## Final verification checkpoint — 7 October 2026
+
+CI run #724 passed in full on commit `eb8cf732d97bc0c4a3fdcec7a9c780ea73827cc1` before this documentation-only checkpoint:
+
+- migrations applied twice successfully, then seed completed
+- ESLint passed
+- TypeScript `tsc --noEmit` passed
+- Vitest passed, including domain/unit, database-schema, entitlement, billing/webhook, preview, notification, reconciliation, request-origin and strategy-switch safety coverage
+- the Next.js production build passed
+- Playwright passed on mobile Chromium and desktop Chromium, including Start, Resume, multi-account Resume, responsive/overflow, keyboard/reduced-motion and key-screen visual-regression checks
+- production `npm audit --omit=dev --audit-level=high` passed
+
+The roadmap is therefore implementation-complete. This documentation commit must still receive the same complete CI gate before PR #3 is considered ready to merge.
