@@ -237,3 +237,39 @@ export function ReverseLedgerEventButton({strategyId,eventId}:{strategyId:string
     router.refresh();
   }}>Reverse entry{error?" · "+error:""}</button>;
 }
+
+
+export function ExecutionConstraintsForm({id,constraints}:{id:string;constraints?:Record<string,unknown>|null}){
+  const router=useRouter();
+  const [busy,setBusy]=useState(false);
+  const [message,setMessage]=useState("");
+  const value=constraints??{};
+  return <form className="stack execution-preferences" onSubmit={async(e)=>{
+    e.preventDefault();setBusy(true);setMessage("");
+    const f=new FormData(e.currentTarget);
+    const response=await fetch("/api/strategies/"+id+"/execution-constraints",{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({
+        fractionalShares:Boolean(f.get("fractionalShares")),
+        minimumTradeAmount:String(f.get("minimumTradeAmount")||"0"),
+        cashBufferAmount:String(f.get("cashBufferAmount")||"0"),
+        flatFee:String(f.get("flatFee")||"0"),
+        allowSelling:Boolean(f.get("allowSelling"))
+      })
+    });
+    const body=await response.json();setBusy(false);
+    if(!response.ok)return setMessage(body.error??"Could not save trade preferences.");
+    setMessage("Saved. Your next action has been recalculated.");
+    router.refresh();
+  }}>
+    <label className="toggle-row"><input type="checkbox" name="fractionalShares" defaultChecked={value.fractionalShares!==false}/><span><b>Fractional shares</b><small>Turn off if your broker only allows whole shares.</small></span></label>
+    <div className="form-grid">
+      <div className="field"><label>Minimum trade</label><input name="minimumTradeAmount" type="number" min="0" step="0.01" defaultValue={String(value.minimumTradeAmount??"0")}/></div>
+      <div className="field"><label>Keep as cash</label><input name="cashBufferAmount" type="number" min="0" step="0.01" defaultValue={String(value.cashBufferAmount??"0")}/></div>
+      <div className="field full"><label>Estimated fee per trade</label><input name="flatFee" type="number" min="0" step="0.01" defaultValue={String(value.flatFee??"0")}/></div>
+    </div>
+    <label className="toggle-row"><input type="checkbox" name="allowSelling" defaultChecked={value.allowSelling!==false}/><span><b>Allow sell recommendations</b><small>Turn off if you want new contributions to do the work wherever the strategy permits.</small></span></label>
+    <div className="inline"><button className="button" disabled={busy}>{busy?"Saving…":"Save trade preferences"}</button>{message&&<span className={message.startsWith("Saved")?"success":"error"}>{message}</span>}</div>
+  </form>;
+}
