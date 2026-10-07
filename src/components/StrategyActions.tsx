@@ -1,7 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Plus } from "lucide-react";
+
+type AccountOption={id:string;name:string;wrapper:string;currency:string;brokerName?:string|null;role:string};
+
+function AccountSelect({accounts}:{accounts:AccountOption[]}){
+  if(accounts.length<=1)return null;
+  return <div className="field full"><label>Account</label><select name="accountId" defaultValue={accounts.find((account)=>account.role==="PRIMARY")?.id??accounts[0]?.id}>{accounts.map((account)=><option key={account.id} value={account.id}>{account.name} · {account.wrapper}{account.brokerName?" · "+account.brokerName:""}</option>)}</select></div>;
+}
 
 export function RecalculateButton({ id }: { id: string }) {
   const router = useRouter();
@@ -55,7 +62,7 @@ export function ExecuteAction({ action }: { action: { id: string; actionType: st
   </form>;
 }
 
-export function ContributionForm({ id }: { id: string }) {
+export function ContributionForm({ id, accounts=[] }: { id: string; accounts?:AccountOption[] }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   return <form className="form-grid" onSubmit={async (e) => {
@@ -66,7 +73,7 @@ export function ContributionForm({ id }: { id: string }) {
     const r = await fetch("/api/strategies/" + id + "/contributions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ amount: String(f.get("amount")), occurredAt })
+      body: JSON.stringify({ amount: String(f.get("amount")), occurredAt, accountId:f.get("accountId")||undefined })
     });
     setMessage(r.ok ? "Contribution recorded as cash." : "Could not record contribution.");
     if (r.ok) {
@@ -74,13 +81,13 @@ export function ContributionForm({ id }: { id: string }) {
       router.refresh();
     }
   }}>
-    <div className="field"><label>Contribution</label><input name="amount" type="number" min="0.01" step="0.01" required /></div>
+    <AccountSelect accounts={accounts}/><div className="field"><label>Contribution</label><input name="amount" type="number" min="0.01" step="0.01" required /></div>
     <div className="field"><label>Date & time</label><input name="when" type="datetime-local" /></div>
     <div className="field full"><button className="button">Record contribution</button>{message && <div className={message.startsWith("Contribution recorded") ? "success" : "error"}>{message}</div>}</div>
   </form>;
 }
 
-export function ReconcileForm({ id, expected }: { id: string; expected?: number | null }) {
+export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expected?: number | null; accounts?:AccountOption[] }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   return <form className="form-grid" onSubmit={async (e) => {
@@ -93,7 +100,8 @@ export function ReconcileForm({ id, expected }: { id: string; expected?: number 
         expectedValue: String(f.get("expected")),
         brokerValue: String(f.get("broker")),
         reason: f.get("reason") || undefined,
-        affectsCash: Boolean(f.get("affectsCash"))
+        affectsCash: Boolean(f.get("affectsCash")),
+        accountId: f.get("accountId") || undefined
       })
     });
     const b = await r.json();
@@ -102,7 +110,7 @@ export function ReconcileForm({ id, expected }: { id: string; expected?: number 
       : b.error);
     if (r.ok) router.refresh();
   }}>
-    <div className="field"><label>Expected value</label><input name="expected" type="number" min="0" step="0.01" defaultValue={expected ?? undefined} required /></div>
+    <AccountSelect accounts={accounts}/><div className="field"><label>Expected value</label><input name="expected" type="number" min="0" step="0.01" defaultValue={expected ?? undefined} required /></div>
     <div className="field"><label>Broker reported value</label><input name="broker" type="number" min="0" step="0.01" required /></div>
     <div className="field full"><label>Reason</label><select name="reason"><option value="">Unknown adjustment</option><option>Broker fee</option><option>FX cost</option><option>Tax</option><option>Financing cost</option><option>Interest</option><option>Other</option></select></div>
     <div className="field full">
@@ -270,17 +278,17 @@ export function StrategyVersionUpgrade({
   </section>;
 }
 
-export function CashEventForm({id}:{id:string}){
+export function CashEventForm({id,accounts=[]}:{id:string;accounts?:AccountOption[]}){
   const router=useRouter();const[message,setMessage]=useState("");
   return <form className="form-grid" onSubmit={async(e)=>{
     e.preventDefault();const f=new FormData(e.currentTarget);const when=String(f.get("when")||"");
     const response=await fetch("/api/strategies/"+id+"/ledger-events",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
-      eventType:f.get("eventType"),amount:String(f.get("amount")),occurredAt:when?new Date(when).toISOString():undefined,note:f.get("note")||undefined
+      eventType:f.get("eventType"),amount:String(f.get("amount")),occurredAt:when?new Date(when).toISOString():undefined,note:f.get("note")||undefined,accountId:f.get("accountId")||undefined
     })});
     const body=await response.json();setMessage(response.ok?"Cash event recorded.":body.error??"Could not record cash event.");
     if(response.ok){e.currentTarget.reset();router.refresh();}
   }}>
-    <div className="field"><label>Event</label><select name="eventType"><option>WITHDRAWAL</option><option>DIVIDEND</option><option>DISTRIBUTION</option><option>INTEREST</option><option>FEE</option><option>TAX</option></select></div>
+    <AccountSelect accounts={accounts}/><div className="field"><label>Event</label><select name="eventType"><option>WITHDRAWAL</option><option>DIVIDEND</option><option>DISTRIBUTION</option><option>INTEREST</option><option>FEE</option><option>TAX</option></select></div>
     <div className="field"><label>Amount</label><input name="amount" type="number" min="0.01" step="0.01" required/></div>
     <div className="field"><label>Date & time</label><input name="when" type="datetime-local"/></div>
     <div className="field"><label>Note (optional)</label><input name="note" maxLength={240}/></div>
