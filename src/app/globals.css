@@ -397,3 +397,27 @@ th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacin
   .drawer-section { padding:16px; }
   .attention-banner { align-items:flex-start; }
 }
+
+
+/* Quiet portfolio/activity surfaces */
+.portfolio-empty { margin-top:16px; }
+.portfolio-empty p { margin:0 0 14px; }
+.activity-timeline { overflow:hidden; padding:0 22px; }
+.activity-item { position:relative; display:grid; grid-template-columns:34px 1fr auto; gap:14px; align-items:flex-start; padding:20px 0; border-top:1px solid var(--line); }
+.activity-item:first-child { border-top:0; }
+.activity-icon { width:34px; height:34px; display:grid; place-items:center; border:1px solid var(--line); border-radius:12px; color:var(--accent2); background:rgba(121,168,255,.055); }
+.activity-copy { min-width:0; }
+.activity-copy strong { display:block; margin:4px 0 4px; font-size:14px; }
+.activity-copy p { margin:0; color:var(--muted); font-size:13px; line-height:1.55; }
+.activity-date { color:#637b97; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; }
+.activity-unread { width:7px; height:7px; margin-top:12px; border-radius:50%; background:var(--accent); box-shadow:0 0 14px rgba(120,243,198,.4); }
+.activity-empty { margin:22px 0; display:grid; justify-items:center; gap:8px; }
+.activity-empty svg { color:var(--accent); }
+.activity-empty p { margin:0; }
+:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.button:disabled,button:disabled { cursor:not-allowed; opacity:.55; transform:none!important; }
+
+@media (max-width:680px) {
+  .activity-timeline { padding:0 15px; }
+  .activity-item { grid-template-columns:32px 1fr auto; gap:10px; }
+}
