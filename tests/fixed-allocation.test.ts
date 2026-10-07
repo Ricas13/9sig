@@ -26,6 +26,19 @@ describe("fixed allocation engine",()=>{
     expect(result.actionType).toBe("HOLD");
   });
 
+  it("fails closed on holdings outside the configured allocation",()=>{
+    const result=fixedAllocationEngine.calculate({
+      ...context(),
+      exposures:[
+        {economicExposure:"A",value:new Decimal("45")},
+        {economicExposure:"B",value:new Decimal("45")},
+        {economicExposure:"OTHER",value:new Decimal("10")}
+      ]
+    });
+    expect(result.actionType).toBe("DATA_REQUIRED");
+    expect(result.title).toContain("classification");
+  });
+
   it("does not rebalance within threshold",()=>{
     const result=fixedAllocationEngine.calculate(context());
     expect(result.actionType).toBe("HOLD");
