@@ -62,10 +62,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
       for (const holding of holdings) {
         const lines = await tx.unsafe(
-          "SELECT tl.instrument_id,tl.currency,tl.id FROM trading_lines tl WHERE upper(tl.ticker)=upper($1) AND upper(tl.exchange)=upper($2) AND upper(tl.currency)=upper($3) AND tl.effective_from<=current_date AND (tl.effective_to IS NULL OR tl.effective_to>=current_date) LIMIT 1",
+          "SELECT tl.instrument_id,tl.currency,tl.id FROM trading_lines tl WHERE upper(tl.ticker)=upper($1) AND upper(tl.exchange)=upper($2) AND upper(tl.currency)=upper($3) AND tl.effective_from<=current_date AND (tl.effective_to IS NULL OR tl.effective_to>=current_date) ORDER BY tl.effective_from DESC,tl.id LIMIT 2",
           [holding.ticker,holding.exchange,String(locked[0].currency)]
         );
         if (!lines[0]) throw new Error("TRADING_LINE_NOT_FOUND:" + holding.ticker + ":" + holding.exchange);
+        if (lines.length > 1) throw new Error("AMBIGUOUS_TRADING_LINE:" + holding.ticker + ":" + holding.exchange);
         await tx.unsafe(
           "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,provenance,confidence,metadata) VALUES ($1,$2,now(),'OPENING_POSITION',$3,0,$4,$5,'USER_CONFIRMED','VERIFIED',$6::jsonb)",
           [id, locked[0].account_id, lines[0].currency, lines[0].instrument_id, holding.quantityDecimal.toString(), JSON.stringify({ openingSnapshot: true, tradingLineId: String(lines[0].id), ticker: holding.ticker, exchange: holding.exchange, accountName:String(locked[0].account_name) })]
@@ -122,6 +123,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (code.startsWith("TRADING_LINE_NOT_FOUND:")) {
       const [, ticker, exchange] = code.split(":");
       return Response.json({ error: "No active configured trading line in this account’s currency was found for " + ticker + " on " + exchange + "." }, { status: 400 });
+    }
+    if (code.startsWith("AMBIGUOUS_TRADING_LINE:")) {
+      const [, ticker, exchange] = code.split(":");
+      return Response.json({ error: "More than one active configured trading line matches " + ticker + " on " + exchange + ". Ask an administrator to resolve the duplicate mapping before importing this holding." }, { status: 409 });
     }
     return Response.json({ error: "Could not save the opening snapshot." }, { status: 500 });
   }
