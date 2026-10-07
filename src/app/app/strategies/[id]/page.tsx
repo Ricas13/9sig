@@ -69,7 +69,11 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     [s.strategy_version_id]
   );
   const externalFlows=await sql.unsafe(
-    "SELECT occurred_at::date AS date,cash_amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('CONTRIBUTION','WITHDRAWAL') ORDER BY occurred_at,created_at",
+    "SELECT occurred_at::date AS date,event_type,cash_amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('CONTRIBUTION','WITHDRAWAL') ORDER BY occurred_at,created_at",
+    [id]
+  );
+  const reviewEvents=await sql.unsafe(
+    "SELECT executed_at::date AS date,title FROM actions WHERE strategy_instance_id=$1 AND status='EXECUTED' AND action_type IN ('BUY','SELL','REBALANCE','HOLD') AND executed_at IS NOT NULL ORDER BY executed_at",
     [id]
   );
 
@@ -111,6 +115,13 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     }
   }
 
+  const chartMarkers=[
+    ...externalFlows.filter((flow:any)=>String(flow.event_type)==="CONTRIBUTION").map((flow:any)=>({date:String(flow.date).slice(0,10),type:"CONTRIBUTION" as const,label:"Contribution"})),
+    ...reviewEvents.map((event:any)=>({date:String(event.date).slice(0,10),type:"REVIEW" as const,label:String(event.title??"Strategy review")}))
+  ];
+  for(const marker of chartMarkers){
+    if(!byDate.has(marker.date))byDate.set(marker.date,{date:marker.date});
+  }
   const chartData=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
   const contributions=await sql.unsafe("SELECT id,occurred_at,cash_amount,provenance,confidence FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' ORDER BY occurred_at DESC LIMIT 8",[id]);
   const reconciliations=await sql.unsafe("SELECT occurred_at,expected_value,broker_reported_value,difference,reason FROM reconciliations WHERE strategy_instance_id=$1 ORDER BY occurred_at DESC LIMIT 5",[id]);
@@ -208,7 +219,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         <div className="quick-drawer-content">
           <section className="chart-card explore-chart">
             <div className="section-head"><div><h2>Performance</h2><p>Your account versus the same cash flows applied to the strategy model and benchmark.</p></div></div>
-            <PerformanceChart data={chartData}/>
+            <PerformanceChart data={chartData} markers={chartMarkers}/>
             <p className="help">Contributions and withdrawals are applied across comparison series so adding money is not mistaken for investment performance.</p>
             <div className="tracking-boundary"><span>Tracked by StrategyOS since {new Date(s.started_at).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}.</span>{s.onboarding_mode==="RESUME"&&<span>Performance before that date is not reconstructed from incomplete history.</span>}</div>
           </section>
