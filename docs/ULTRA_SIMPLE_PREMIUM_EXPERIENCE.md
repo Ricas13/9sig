@@ -666,7 +666,7 @@ Use this checklist as the shared cross-chat roadmap.
 
 - [x] redesign main dashboard hierarchy
 - [x] premium Today's Action card
-- [ ] concise plain-English explanation layer
+- [x] concise plain-English explanation layer
 - [ ] next-review / contribution / allocation health
 - [ ] partial / actual execution capture
 - [ ] polished success / recalculation flow
