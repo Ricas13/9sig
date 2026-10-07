@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { changeStrategyStatus } from "@/lib/strategy-service";
-import { calculateAction } from "@/lib/action-service";
+import { recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 
 const schema = z.object({ status: z.enum(["ACTIVE", "PAUSED", "CLOSED"]) });
@@ -14,10 +14,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const input = schema.parse(await request.json());
     const result = await changeStrategyStatus(user.id, id, input.status);
 
-    if (result.status === "ACTIVE") {
-      try { await calculateAction(id); } catch { }
-    }
-    return Response.json({ ok: true, status: result.status });
+    const recalc=result.status==="ACTIVE"
+      ?await recalculateAfterMutation(id,user.id,"strategy-resume")
+      :{actionId:null,recalculationPending:false,errorCode:null};
+    return Response.json({ok:true,status:result.status,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending});
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ error: "Invalid strategy status." }, { status: 400 });
     const code = error instanceof Error ? error.message : "FAILED";
