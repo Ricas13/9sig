@@ -136,23 +136,66 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
         tradingLineId=heldExposure.tradingLineId;
         executionAccountId=heldExposure.accountId;
       }
-    }else{
-      const cashCandidates=accounts
-        .map((account)=>({account,position:accountPositions.get(String(account.id))}))
-        .sort((a,b)=>(b.position?.cash??new Decimal(0)).cmp(a.position?.cash??new Decimal(0)));
-      executionAccountId=String((cashCandidates[0]?.account??accounts[0]).id);
     }
 
-    const executionAccount=accounts.find((account)=>String(account.id)===executionAccountId)??accounts[0];
-    if(!executionAccountId)executionAccountId=String(executionAccount.id);
-
     if(!tradingLineId){
-      const mappingRows=await sql.unsafe("SELECT m.id,m.economic_exposure,m.leverage,m.direction,m.country,m.wrapper,m.broker,m.preferred_currency,m.fidelity,m.effective_from,m.effective_to,m.trading_line_id,tl.currency AS trading_line_currency,tl.effective_from AS trading_line_effective_from,tl.effective_to AS trading_line_effective_to FROM regional_instrument_mappings m JOIN trading_lines tl ON tl.id=m.trading_line_id WHERE m.economic_exposure=$1 AND m.country=$2 AND m.wrapper=$3 AND m.enabled=true",[proposal.economicExposure,executionAccount.country,executionAccount.wrapper]);
-      const candidates:MappingCandidate[]=mappingRows.map((r)=>({id:String(r.id),economicExposure:String(r.economic_exposure),leverage:String(r.leverage),direction:String(r.direction),country:String(r.country),wrapper:String(r.wrapper),broker:r.broker?String(r.broker):null,preferredCurrency:r.preferred_currency?String(r.preferred_currency):null,fidelity:String(r.fidelity),effectiveFrom:isoDate(r.effective_from),effectiveTo:r.effective_to?isoDate(r.effective_to):null,tradingLineId:String(r.trading_line_id),tradingLineCurrency:String(r.trading_line_currency),tradingLineEffectiveFrom:isoDate(r.trading_line_effective_from),tradingLineEffectiveTo:r.trading_line_effective_to?isoDate(r.trading_line_effective_to):null}));
       const leverage=exposureLeverage(proposal.economicExposure,proposal.leverage);
-      const mapping=resolveMapping(candidates,{economicExposure:proposal.economicExposure,leverage,direction:"LONG",country:String(executionAccount.country),wrapper:String(executionAccount.wrapper),broker:executionAccount.broker_name?String(executionAccount.broker_name):null,preferredCurrency:String(executionAccount.currency),asOf:new Date().toISOString().slice(0,10)});
-      if(!mapping) proposal={actionType:"DATA_REQUIRED",title:"This implementation is not supported yet",instruction:"No sufficiently faithful regional instrument mapping is configured for the linked account selected for this trade.",explanation:[...proposal.explanation,{label:"Required exposure",value:proposal.economicExposure},{label:"Account",value:String(executionAccount.name)}],nextState:state,confidence:"LOW",dueAt:proposal.dueAt};
-      else tradingLineId=mapping.tradingLineId;
+      const rankedAccounts=accounts
+        .map((account)=>{
+          const accountId=String(account.id);
+          const position=accountPositions.get(accountId);
+          const scenarioDelta=scenario?.cashDelta&&accountId===primaryAccountId?new Decimal(scenario.cashDelta):new Decimal(0);
+          return {account,cash:(position?.cash??new Decimal(0)).plus(scenarioDelta)};
+        })
+        .sort((a,b)=>b.cash.cmp(a.cash));
+
+      let mappedAccount:typeof accounts[number]|null=null;
+      for(const candidateAccount of rankedAccounts){
+        const account=candidateAccount.account;
+        const mappingRows=await sql.unsafe(
+          "SELECT m.id,m.economic_exposure,m.leverage,m.direction,m.country,m.wrapper,m.broker,m.preferred_currency,m.fidelity,m.effective_from,m.effective_to,m.trading_line_id,tl.currency AS trading_line_currency,tl.effective_from AS trading_line_effective_from,tl.effective_to AS trading_line_effective_to FROM regional_instrument_mappings m JOIN trading_lines tl ON tl.id=m.trading_line_id WHERE m.economic_exposure=$1 AND m.country=$2 AND m.wrapper=$3 AND m.enabled=true",
+          [proposal.economicExposure,account.country,account.wrapper]
+        );
+        const candidates:MappingCandidate[]=mappingRows.map((r)=>({
+          id:String(r.id),economicExposure:String(r.economic_exposure),leverage:String(r.leverage),direction:String(r.direction),
+          country:String(r.country),wrapper:String(r.wrapper),broker:r.broker?String(r.broker):null,
+          preferredCurrency:r.preferred_currency?String(r.preferred_currency):null,fidelity:String(r.fidelity),
+          effectiveFrom:isoDate(r.effective_from),effectiveTo:r.effective_to?isoDate(r.effective_to):null,
+          tradingLineId:String(r.trading_line_id),tradingLineCurrency:String(r.trading_line_currency),
+          tradingLineEffectiveFrom:isoDate(r.trading_line_effective_from),
+          tradingLineEffectiveTo:r.trading_line_effective_to?isoDate(r.trading_line_effective_to):null
+        }));
+        const mapping=resolveMapping(candidates,{
+          economicExposure:proposal.economicExposure,leverage,direction:"LONG",
+          country:String(account.country),wrapper:String(account.wrapper),
+          broker:account.broker_name?String(account.broker_name):null,
+          preferredCurrency:String(account.currency),asOf:new Date().toISOString().slice(0,10)
+        });
+        if(mapping){
+          mappedAccount=account;
+          executionAccountId=String(account.id);
+          tradingLineId=mapping.tradingLineId;
+          break;
+        }
+      }
+
+      if(!tradingLineId){
+        proposal={
+          actionType:"DATA_REQUIRED",
+          title:"This implementation is not supported yet",
+          instruction:"None of the linked accounts has an approved instrument mapping for the exposure this strategy needs.",
+          explanation:[...proposal.explanation,{label:"Required exposure",value:proposal.economicExposure}],
+          nextState:state,confidence:"LOW",dueAt:proposal.dueAt
+        };
+      }else if(mappedAccount){
+        proposal={
+          ...proposal,
+          explanation:[
+            ...proposal.explanation,
+            {label:"Execution account",value:String(mappedAccount.name),kind:"text"}
+          ]
+        };
+      }
     }
 
     if(tradingLineId&&["BUY","SELL"].includes(proposal.actionType)&&proposal.amount){
