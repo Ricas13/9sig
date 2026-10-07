@@ -382,50 +382,91 @@ export function ContributionPlanForm({id,plan}:{id:string;plan?:Record<string,un
 }
 
 
-type CashPreviewResult={
-  scenario:{type:"CONTRIBUTION"|"WITHDRAWAL";amount:string;currency:string};
+type WhatIfResult={
+  scenario:{
+    type:"CONTRIBUTION"|"WITHDRAWAL"|"EXECUTION_CONSTRAINTS";
+    amount?:string;
+    currency:string;
+    constraints?:{
+      fractionalShares:boolean;
+      minimumTradeAmount:string;
+      cashBufferAmount:string;
+      flatFee:string;
+      allowSelling:boolean;
+    };
+  };
   portfolioValueAfter:string;
   action:{actionType:string;title:string;instruction:string;amount:string|null;currency:string|null;confidence:string;explanation:Array<{label:string;value:string;kind?:string}>};
 };
 
 export function WhatIfPreview({id,currency}:{id:string;currency:string}){
-  const [type,setType]=useState<"CONTRIBUTION"|"WITHDRAWAL">("CONTRIBUTION");
-  const [result,setResult]=useState<CashPreviewResult|null>(null);
+  const [type,setType]=useState<"CONTRIBUTION"|"WITHDRAWAL"|"EXECUTION_CONSTRAINTS">("CONTRIBUTION");
+  const [result,setResult]=useState<WhatIfResult|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+
   return <div className="what-if">
     <form className="what-if-form" onSubmit={async(e)=>{
       e.preventDefault();setBusy(true);setError("");setResult(null);
       const f=new FormData(e.currentTarget);
+      const payload=type==="EXECUTION_CONSTRAINTS"
+        ?{
+          type,
+          constraints:{
+            fractionalShares:Boolean(f.get("fractionalShares")),
+            minimumTradeAmount:String(f.get("minimumTradeAmount")||"0"),
+            cashBufferAmount:String(f.get("cashBufferAmount")||"0"),
+            flatFee:String(f.get("flatFee")||"0"),
+            allowSelling:Boolean(f.get("allowSelling"))
+          }
+        }
+        :{type,amount:String(f.get("amount")||"")};
       const response=await fetch("/api/strategies/"+id+"/preview",{
-        method:"POST",headers:{"content-type":"application/json"},
-        body:JSON.stringify({type,amount:String(f.get("amount")||"")})
+        method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)
       });
       const body=await response.json();setBusy(false);
       if(!response.ok)return setError(body.error??"Could not preview that scenario.");
       setResult(body.result);
     }}>
-      <div className="scenario-switch" role="group" aria-label="Scenario type">
+      <div className="scenario-switch three" role="group" aria-label="Scenario type">
         <button type="button" className={type==="CONTRIBUTION"?"active":""} onClick={()=>{setType("CONTRIBUTION");setResult(null)}}>Add money</button>
         <button type="button" className={type==="WITHDRAWAL"?"active":""} onClick={()=>{setType("WITHDRAWAL");setResult(null)}}>Withdraw</button>
+        <button type="button" className={type==="EXECUTION_CONSTRAINTS"?"active":""} onClick={()=>{setType("EXECUTION_CONSTRAINTS");setResult(null)}}>Trade settings</button>
       </div>
-      <div className="what-if-input">
+
+      {type==="EXECUTION_CONSTRAINTS"?<div className="preview-settings">
+        <label className="toggle-row"><input type="checkbox" name="fractionalShares" defaultChecked/><span><b>Fractional shares</b><small>Turn off to preview whole-share-only execution.</small></span></label>
+        <div className="form-grid">
+          <div className="field"><label>Minimum trade</label><input name="minimumTradeAmount" type="number" min="0" step="0.01" defaultValue="0"/></div>
+          <div className="field"><label>Keep as cash</label><input name="cashBufferAmount" type="number" min="0" step="0.01" defaultValue="0"/></div>
+          <div className="field full"><label>Estimated fee</label><input name="flatFee" type="number" min="0" step="0.01" defaultValue="0"/></div>
+        </div>
+        <label className="toggle-row"><input type="checkbox" name="allowSelling" defaultChecked/><span><b>Allow sell recommendations</b><small>Preview how the next action changes if sells are unavailable.</small></span></label>
+        <button className="button primary" disabled={busy}>{busy?"Previewing…":"Preview trade settings"}</button>
+      </div>:<div className="what-if-input">
         <span>{currency}</span>
         <input name="amount" type="number" min="0.01" step="0.01" placeholder={type==="CONTRIBUTION"?"1000":"5000"} required/>
         <button className="button primary" disabled={busy}>{busy?"Previewing…":"Preview"}</button>
-      </div>
-      <p className="help">Preview only. This does not change holdings, cash, history, actions or notifications.</p>
+      </div>}
+
+      <p className="help">Preview only. This does not change holdings, cash, settings, history, actions or notifications.</p>
       {error&&<div className="error">{error}</div>}
     </form>
 
     {result&&<div className="what-if-result">
       <div className="preview-badge">PREVIEW · NOT APPLIED</div>
-      <div className="what-if-value"><span>Portfolio after scenario</span><strong>{new Intl.NumberFormat("en-GB",{style:"currency",currency:result.scenario.currency,maximumFractionDigits:0}).format(Number(result.portfolioValueAfter))}</strong></div>
+      <div className="what-if-value"><span>{result.scenario.type==="EXECUTION_CONSTRAINTS"?"Portfolio value stays":"Portfolio after scenario"}</span><strong>{new Intl.NumberFormat("en-GB",{style:"currency",currency:result.scenario.currency,maximumFractionDigits:0}).format(Number(result.portfolioValueAfter))}</strong></div>
       <div className="what-if-action">
         <span>What the strategy would say</span>
         <h3>{result.action.title}</h3>
         <p>{result.action.instruction}</p>
       </div>
+      {result.scenario.type==="EXECUTION_CONSTRAINTS"&&result.scenario.constraints&&<div className="preview-constraint-summary">
+        <span>{result.scenario.constraints.fractionalShares?"Fractions allowed":"Whole shares only"}</span>
+        <span>Min {currency} {result.scenario.constraints.minimumTradeAmount}</span>
+        <span>Cash buffer {currency} {result.scenario.constraints.cashBufferAmount}</span>
+        <span>{result.scenario.constraints.allowSelling?"Sells allowed":"No sells"}</span>
+      </div>}
       {result.action.explanation.length>0&&<details><summary>Why?</summary><div>{result.action.explanation.slice(0,6).map((row,index)=><div className="why-row" key={index}><span>{row.label}</span><b>{row.value}</b></div>)}</div></details>}
     </div>}
   </div>;
