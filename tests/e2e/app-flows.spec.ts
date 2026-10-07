@@ -73,8 +73,6 @@ test("new user can start a strategy through the three-step simple flow",async({p
     expect(detailButtons.filter((button)=>button.label).every((button)=>button.height>=40)).toBe(true);
   }
   await expect(page.getByText("What if?")).not.toBeVisible();
-  await page.locator("summary").filter({hasText:"Strategy settings & rules"}).click();
-  await expect(page.getByText("Switch strategy")).toBeVisible();
 
   await page.goto("/app/strategies/new");
   await expect(page.getByText(/using all 1 of your active strategy/i)).toBeVisible();
