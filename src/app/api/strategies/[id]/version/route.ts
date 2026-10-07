@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { migrateStrategyVersion } from "@/lib/strategy-service";
-import { calculateAction, previewStrategyVersionScenario } from "@/lib/action-service";
+import { previewStrategyVersionScenario, recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 
 const schema=z.object({targetVersionId:z.string().uuid(),settings:z.record(z.string(),z.unknown()).optional()});
@@ -34,9 +34,8 @@ export async function PATCH(request:Request,context:{params:Promise<{id:string}>
     const {id}=await context.params;
     const input=schema.parse(await request.json());
     const result=await migrateStrategyVersion(user.id,id,input.targetVersionId,input.settings);
-    let actionId:string|null=null;
-    if(result.changed){try{actionId=(await calculateAction(id)).actionId;}catch{}}
-    return Response.json({ok:true,changed:result.changed,actionId});
+    const recalc=result.changed?await recalculateAfterMutation(id,user.id,"strategy-version-update"):{actionId:null,recalculationPending:false,errorCode:null};
+    return Response.json({ok:true,changed:result.changed,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending});
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Invalid version update."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
