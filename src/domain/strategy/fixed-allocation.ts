@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import type { EngineContext, ProposedAction, StrategyEngine } from "./types";
 
-type Allocation = { exposure: string; weight: string | number };
+type Allocation = { exposure: string; weight: string | number; leverage?: string | number };
 
 function money(v: Decimal) {
   return v.toDecimalPlaces(2, Decimal.ROUND_HALF_EVEN).toFixed(2);
@@ -83,7 +83,7 @@ export const fixedAllocationEngine: StrategyEngine = {
     const rows = allocations.map((a) => {
       const current = ctx.exposures.filter((p) => p.economicExposure === a.exposure).reduce((sum,p)=>sum.plus(p.value),new Decimal(0));
       const target = total.mul(new Decimal(String(a.weight)));
-      return { exposure: a.exposure, current, target, delta: target.minus(current) };
+      return { exposure: a.exposure, leverage:a.leverage, current, target, delta: target.minus(current) };
     });
     const worst = [...rows].sort((a,b) => b.delta.abs().cmp(a.delta.abs()))[0];
     const drift = worst.delta.abs().div(total);
@@ -118,6 +118,7 @@ export const fixedAllocationEngine: StrategyEngine = {
         amount,
         currency:ctx.baseCurrency,
         economicExposure:underweight.exposure,
+        leverage:underweight.leverage==null?undefined:String(underweight.leverage),
         explanation,
         nextState:{...ctx.state,lastCalculatedAt:ctx.now.toISOString()},
         confidence:"HIGH",
@@ -136,6 +137,7 @@ export const fixedAllocationEngine: StrategyEngine = {
         amount,
         currency:ctx.baseCurrency,
         economicExposure:overweight.exposure,
+        leverage:overweight.leverage==null?undefined:String(overweight.leverage),
         explanation,
         nextState:{...ctx.state,lastCalculatedAt:ctx.now.toISOString()},
         confidence:"HIGH",
