@@ -801,3 +801,10 @@ html[data-theme="light"] .theme-icon-light,
 html[data-theme="light"] .theme-label-light { display:none; }
 html[data-theme="light"] .theme-icon-dark { display:grid; }
 html[data-theme="light"] .theme-label-dark { display:inline; }
+
+
+.portfolio-context.secondary-context {
+  margin-top:8px;
+  font-size:11px;
+  opacity:.82;
+}
