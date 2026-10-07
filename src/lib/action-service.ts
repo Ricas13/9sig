@@ -554,7 +554,7 @@ export async function calculateAction(strategyInstanceId:string){
     const healthy=dataStatus==="CURRENT"&&proposal.actionType!=="DATA_REQUIRED";
     await tx.unsafe("UPDATE strategy_instances SET health_status=$1,updated_at=now() WHERE id=$2",[healthy?"HEALTHY":"NEEDS_ATTENTION",strategyInstanceId]);
     if(shouldNotify&&proposal.actionType!=="NO_ACTION"){
-      await tx.unsafe("INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION',$3,$4)",[instance.user_id,actionId,proposal.title,proposal.instruction]);
+      await tx.unsafe("INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION',$3,$4) ON CONFLICT (action_id) WHERE action_id IS NOT NULL DO NOTHING",[instance.user_id,actionId,proposal.title,proposal.instruction]);
     }
     return {actionId,proposal,totalValue:totalValue.toString()};
   });
