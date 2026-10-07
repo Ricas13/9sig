@@ -1147,3 +1147,32 @@ html[data-theme="light"] .switch-preview-target { background:rgba(31,57,87,.025)
 @media (max-width:480px) {
   .scenario-switch.four { grid-template-columns:1fr; }
 }
+
+
+/* Premium chart tokens */
+:root {
+  --chart-axis:#7f95ae;
+  --chart-grid:rgba(158,184,214,.085);
+  --chart-tooltip-bg:#0b192a;
+  --chart-actual:#78f3c6;
+  --chart-model:#79a8ff;
+  --chart-comparison-1:#ffd27a;
+  --chart-comparison-2:#c58cff;
+  --chart-comparison-3:#ff8fab;
+  --chart-comparison-4:#56d6e9;
+  --chart-comparison-5:#a5d86e;
+  --chart-comparison-6:#f0a35e;
+}
+html[data-theme="light"] {
+  --chart-axis:#687b92;
+  --chart-grid:rgba(31,57,87,.09);
+  --chart-tooltip-bg:#ffffff;
+  --chart-actual:#0c9f76;
+  --chart-model:#477ff0;
+  --chart-comparison-1:#a96f00;
+  --chart-comparison-2:#7b55c8;
+  --chart-comparison-3:#c24f70;
+  --chart-comparison-4:#168aa0;
+  --chart-comparison-5:#668f25;
+  --chart-comparison-6:#b46925;
+}
