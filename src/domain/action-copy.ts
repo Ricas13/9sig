@@ -25,3 +25,33 @@ export function plainEnglishActionReason(action: ActionCopyInput): string {
         : "We’ll show a clear reason whenever an action is required.";
   }
 }
+
+
+export type RecoveryGuidance = {
+  label: string;
+  href: string;
+};
+
+export function actionRecoveryGuidance(action: ActionCopyInput): RecoveryGuidance | null {
+  const type=String(action.actionType??"").toUpperCase();
+  if(type!=="DATA_REQUIRED") return null;
+
+  const text=String(action.instruction??"").toLowerCase();
+
+  if(text.includes("version")||text.includes("rules update")){
+    return {label:"Review strategy update",href:"#strategy-update"};
+  }
+  if(text.includes("preference")||text.includes("minimum trade")||text.includes("whole share")||text.includes("selling is disabled")||text.includes("cash buffer")){
+    return {label:"Review trade preferences",href:"#trade-preferences"};
+  }
+  if(text.includes("reconcil")||text.includes("holding")||text.includes("snapshot")||text.includes("broker discrepancy")){
+    return {label:"Update portfolio details",href:"#portfolio-update"};
+  }
+  if(text.includes("cash")||text.includes("contribution")||text.includes("withdrawal")){
+    return {label:"Update cash or contribution",href:"#portfolio-update"};
+  }
+  if(text.includes("fx")||text.includes("market data")||text.includes("price")){
+    return {label:"See why this is paused",href:"#strategy-health"};
+  }
+  return {label:"Review strategy health",href:"#strategy-health"};
+}
