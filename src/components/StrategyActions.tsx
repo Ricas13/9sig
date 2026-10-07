@@ -1,9 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Plus } from "lucide-react";
 
-type AccountOption={id:string;name:string;wrapper:string;currency:string;brokerName?:string|null;role:string};
+type AccountOption={id:string;name:string;wrapper:string;currency:string;brokerName?:string|null;role:string;ledgerEventCount?:number;openingSnapshotComplete?:boolean};
 
 function AccountSelect({accounts}:{accounts:AccountOption[]}){
   if(accounts.length<=1)return null;
@@ -160,29 +160,56 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
 }
 
 
-export function OpeningSnapshotForm({ id }: { id: string }) {
+export function OpeningSnapshotForm({ id, accounts=[] }: { id: string; accounts?:AccountOption[] }) {
   const router = useRouter();
+  const pendingAccounts=accounts.filter((account)=>(account.ledgerEventCount??0)===0);
+  const [accountId,setAccountId]=useState(pendingAccounts[0]?.id??accounts[0]?.id??"");
   const [cash, setCash] = useState("0");
   const [holdings, setHoldings] = useState([{ ticker: "", exchange: "LSE", quantity: "" }]);
   const [message, setMessage] = useState("");
+
+  useEffect(()=>{
+    const available=accounts.filter((account)=>(account.ledgerEventCount??0)===0);
+    if(available.length&&!available.some((account)=>account.id===accountId))setAccountId(available[0].id);
+  },[accounts,accountId]);
 
   function update(index: number, field: "ticker" | "exchange" | "quantity", value: string) {
     setHoldings((rows) => rows.map((row, i) => i === index ? { ...row, [field]: value } : row));
   }
 
-  return <form className="stack" onSubmit={async (e) => {
+  const accountChoices=pendingAccounts.length?pendingAccounts:accounts;
+  const selected=accountChoices.find((account)=>account.id===accountId)??accountChoices[0];
+
+  return <form className="stack opening-snapshot-form" onSubmit={async (e) => {
     e.preventDefault();
     setMessage("");
     const cleanHoldings = holdings.filter((h) => h.ticker.trim() && h.exchange.trim() && h.quantity.trim());
     const response = await fetch("/api/strategies/" + id + "/opening-snapshot", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ cash, holdings: cleanHoldings })
+      body: JSON.stringify({ accountId:accountId||undefined, cash, holdings: cleanHoldings })
     });
     const body = await response.json();
-    setMessage(response.ok ? "Opening snapshot saved." : body.error ?? "Could not save snapshot.");
-    if (response.ok) router.refresh();
+    if(!response.ok){
+      setMessage(body.error ?? "Could not save snapshot.");
+      return;
+    }
+    setCash("0");
+    setHoldings([{ticker:"",exchange:"LSE",quantity:""}]);
+    setMessage(body.complete
+      ? "Opening snapshot complete. Your strategy can now calculate from today."
+      : "Saved for "+(selected?.name??"this account")+". Next: "+(body.pendingAccountNames?.[0]??"the remaining account")+".");
+    router.refresh();
   }}>
+    {accountChoices.length>1&&<div className="field">
+      <label>Account to capture</label>
+      <select value={accountId} onChange={(event)=>{setAccountId(event.target.value);setMessage("")}}>
+        {accountChoices.map((account)=><option key={account.id} value={account.id}>{account.name} · {account.wrapper}</option>)}
+      </select>
+    </div>}
+    {selected&&accounts.length>1&&<div className="snapshot-account-progress">
+      <span>Starting position for</span><strong>{selected.name}</strong><small>{selected.wrapper} · {selected.currency}</small>
+    </div>}
     <div className="field"><label>Current cash balance</label><input value={cash} onChange={(e) => setCash(e.target.value)} type="number" min="0" step="0.01" /></div>
     {holdings.map((holding, index) => <div className="form-grid" key={index}>
       <div className="field"><label>Ticker</label><input value={holding.ticker} onChange={(e) => update(index, "ticker", e.target.value)} placeholder="3QQQ" /></div>
@@ -192,13 +219,13 @@ export function OpeningSnapshotForm({ id }: { id: string }) {
     <div className="inline">
       <button type="button" className="button" onClick={() => setHoldings((rows) => [...rows, { ticker: "", exchange: "LSE", quantity: "" }])}>Add holding</button>
       {holdings.length > 1 && <button type="button" className="button" onClick={() => setHoldings((rows) => rows.slice(0, -1))}>Remove last</button>}
-      <button className="button primary">Save opening snapshot</button>
+      <button className="button primary">Save {accounts.length>1?"this account":"opening snapshot"}</button>
     </div>
     <div className="help">This records what you hold now. It does not invent historical trades, cost basis or contributions.</div>
-    {message && <div className={message.startsWith("Opening snapshot saved") ? "success" : "error"}>{message}</div>}
+    {accounts.length>1&&pendingAccounts.length>1&&<div className="help">{pendingAccounts.length} linked accounts still need a starting position.</div>}
+    {message && <div className={message.startsWith("Opening snapshot complete")||message.startsWith("Saved for") ? "success" : "error"}>{message}</div>}
   </form>;
 }
-
 
 export function StrategyLifecycleControls({ id, status }: { id: string; status: string }) {
   const router = useRouter();
