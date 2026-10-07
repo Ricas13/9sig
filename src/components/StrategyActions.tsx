@@ -145,9 +145,9 @@ export function StrategyLifecycleControls({ id, status }: { id: string; status: 
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmClose,setConfirmClose]=useState(false);
 
   async function change(next: "ACTIVE" | "PAUSED" | "CLOSED") {
-    if (next === "CLOSED" && !confirm("Close this strategy? Its history will remain, but it cannot be reopened.")) return;
     setBusy(true);
     setMessage("");
     const response = await fetch("/api/strategies/" + id + "/status", {
@@ -158,13 +158,25 @@ export function StrategyLifecycleControls({ id, status }: { id: string; status: 
     const body = await response.json();
     setBusy(false);
     setMessage(response.ok ? "Strategy status updated." : body.error ?? "Could not update status.");
-    if (response.ok) router.refresh();
+    if (response.ok) {
+      setConfirmClose(false);
+      router.refresh();
+    }
   }
 
-  return <div className="inline">
-    {status === "ACTIVE" && <button className="button" disabled={busy} onClick={() => change("PAUSED")}>Pause strategy</button>}
-    {status === "PAUSED" && <button className="button primary" disabled={busy} onClick={() => change("ACTIVE")}>Resume strategy</button>}
-    {status !== "CLOSED" && <button className="button danger" disabled={busy} onClick={() => change("CLOSED")}>Close strategy</button>}
+  return <div className="strategy-lifecycle">
+    <div className="inline">
+      {status === "ACTIVE" && <button className="button" disabled={busy} onClick={() => change("PAUSED")}>Pause strategy</button>}
+      {status === "PAUSED" && <button className="button primary" disabled={busy} onClick={() => change("ACTIVE")}>Resume strategy</button>}
+      {status !== "CLOSED" && !confirmClose && <button className="button danger quiet-danger" disabled={busy} onClick={() => setConfirmClose(true)}>Close permanently</button>}
+    </div>
+    {confirmClose&&<div className="close-confirmation">
+      <div><strong>Close this strategy permanently?</strong><span>Your history stays visible, but a closed strategy cannot be reopened.</span></div>
+      <div className="inline">
+        <button className="button danger" disabled={busy} onClick={()=>change("CLOSED")}>{busy?"Closing…":"Yes, close it"}</button>
+        <button className="button quiet" disabled={busy} onClick={()=>setConfirmClose(false)}>Keep strategy</button>
+      </div>
+    </div>}
     {message && <span className={message.startsWith("Strategy status updated") ? "success" : "error"}>{message}</span>}
   </div>;
 }
