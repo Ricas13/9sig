@@ -5,6 +5,7 @@ import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/security";
 import { calculateAction } from "@/lib/action-service";
+import { summarizeReconciliationState } from "@/domain/reconciliation";
 
 const money = z.string().regex(/^\d+(?:\.\d{1,8})?$/);
 const schema = z.object({
@@ -53,17 +54,25 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const currentState = (states[0]?.state ?? {}) as Record<string, unknown>;
       const resumeBlocked = Boolean(currentState.resumeNeedsReconciliation);
 
-      const unresolvedRows=await tx.unsafe(
-        "SELECT account_id,difference,reason FROM ("+
+      const latestRows=await tx.unsafe(
+        "SELECT account_id,difference,reason,COALESCE((metadata->>'resolved')::boolean,false) AS resolved FROM ("+
         " SELECT DISTINCT ON (account_id) account_id,difference,reason,metadata,occurred_at,created_at"+
         " FROM reconciliations WHERE strategy_instance_id=$1"+
         " ORDER BY account_id,occurred_at DESC,created_at DESC"+
-        ") latest WHERE COALESCE((metadata->>'resolved')::boolean,false)=false",
+        ") latest",
         [id]
       );
-      const strategyResolved=unresolvedRows.length===0&&!resumeBlocked;
+      const summary=summarizeReconciliationState(
+        latestRows.map((row)=>({
+          accountId:row.account_id?String(row.account_id):null,
+          difference:String(row.difference),
+          reason:row.reason?String(row.reason):null,
+          resolved:Boolean(row.resolved)
+        })),
+        resumeBlocked
+      );
 
-      if(strategyResolved){
+      if(summary.strategyResolved){
         await tx.unsafe(
           "UPDATE strategy_states SET state=state-'unresolvedReconciliation',confidence='HIGH',calculated_at=now() WHERE strategy_instance_id=$1",
           [id]
@@ -71,19 +80,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }else{
         await tx.unsafe(
           "UPDATE strategy_states SET state=jsonb_set(state,'{unresolvedReconciliation}',$1::jsonb,true),confidence='LOW',calculated_at=now() WHERE strategy_instance_id=$2",
-          [JSON.stringify({
-            accounts:unresolvedRows.map((row)=>({accountId:row.account_id?String(row.account_id):null,difference:String(row.difference),reason:row.reason?String(row.reason):"Unknown adjustment"})),
-            resumeNeedsReconciliation:resumeBlocked
-          }),id]
+          [JSON.stringify(summary.state),id]
         );
       }
 
       await tx.unsafe(
         "UPDATE strategy_instances SET last_reconciled_at=now(),health_status=$1,updated_at=now() WHERE id=$2",
-        [strategyResolved?"HEALTHY":"NEEDS_ATTENTION",id]
+        [summary.strategyResolved?"HEALTHY":"NEEDS_ATTENTION",id]
       );
 
-      return {strategyResolved};
+      return {strategyResolved:summary.strategyResolved};
     });
 
     let actionId:string|null=null;
