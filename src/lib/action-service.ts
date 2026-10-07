@@ -5,7 +5,7 @@ import { sql } from "@/lib/db";
 import { foldLedger } from "@/domain/ledger";
 import { getStrategyEngine } from "@/domain/strategy/registry";
 import { resolveMapping, type MappingCandidate } from "@/domain/instruments";
-import { planPracticalTrade, validateExecution } from "@/domain/execution";
+import { normalizeExecutionConstraints, planPracticalTrade, validateExecution } from "@/domain/execution";
 import { nextReviewDueAt } from "@/domain/schedule";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
@@ -167,7 +167,7 @@ export async function executeAction(
 ){
   return sql.begin(async(tx)=>{
     const rows=await tx.unsafe(
-      "SELECT a.*,i.user_id,acc.currency,tl.instrument_id FROM actions a JOIN strategy_instances i ON i.id=a.strategy_instance_id JOIN accounts acc ON acc.id=i.account_id LEFT JOIN trading_lines tl ON tl.id=a.trading_line_id WHERE a.id=$1 AND i.user_id=$2 FOR UPDATE OF a",
+      "SELECT a.*,i.user_id,i.execution_constraints,acc.currency,tl.instrument_id FROM actions a JOIN strategy_instances i ON i.id=a.strategy_instance_id JOIN accounts acc ON acc.id=i.account_id LEFT JOIN trading_lines tl ON tl.id=a.trading_line_id WHERE a.id=$1 AND i.user_id=$2 FOR UPDATE OF a",
       [actionId,userId]
     );
     const action=rows[0];
@@ -199,15 +199,21 @@ export async function executeAction(
         quantity:String(r.quantity)
       })),String(rows[0].currency));
       const held=position.quantities.get(String(action.instrument_id))??new Decimal(0);
+      const constraints=normalizeExecutionConstraints(action.execution_constraints);
+      if(actionType==="SELL"&&!constraints.allowSelling)throw new Error("SELLING_DISABLED");
+      if(execution.quantity&&!constraints.fractionalShares&&!new Decimal(execution.quantity).isInteger())throw new Error("FRACTIONAL_SHARES_DISABLED");
+      const spendableCash=Decimal.max(position.cash.minus(constraints.cashBufferAmount),0);
       const validated=validateExecution({
         side:actionType as "BUY"|"SELL",
         proposedAmount:String(action.amount),
         price:execution.price,
         quantity:execution.quantity??null,
         fee:execution.fee??"0",
-        availableCash:position.cash,
+        availableCash:spendableCash,
         heldQuantity:held
       });
+      if(!constraints.fractionalShares&&!validated.quantity.isInteger())throw new Error("FRACTIONAL_SHARES_DISABLED");
+      if(validated.grossNotional.lt(constraints.minimumTradeAmount))throw new Error("BELOW_MINIMUM_TRADE");
 
       await tx.unsafe(
         "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,now(),$2,$3,$4,$5,$6,$7,$8,'USER_ENTERED','VERIFIED',$9::jsonb)",
