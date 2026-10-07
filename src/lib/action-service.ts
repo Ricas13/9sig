@@ -5,7 +5,7 @@ import { sql } from "@/lib/db";
 import { foldLedger } from "@/domain/ledger";
 import { getStrategyEngine } from "@/domain/strategy/registry";
 import { exposureLeverage, resolveMapping, type MappingCandidate } from "@/domain/instruments";
-import { normalizeExecutionConstraints, planPracticalTrade, validateExecution } from "@/domain/execution";
+import { assertExecutionCurrencyMatch, normalizeExecutionConstraints, planPracticalTrade, validateExecution } from "@/domain/execution";
 import { nextReviewDueAt } from "@/domain/schedule";
 import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/config";
 import { actionRecalculationDisposition, type ActionStatus } from "@/domain/actions";
@@ -627,9 +627,8 @@ export async function executeAction(
 
     if(["BUY","SELL"].includes(actionType)){
       if(!execution?.price||!execution?.quantity||!action.instrument_id||!action.amount)throw new Error("EXECUTION_DETAILS_REQUIRED");
-      if(!action.account_id||!action.account_currency||!action.currency||String(action.currency)!==String(action.account_currency)){
-        throw new Error("EXECUTION_CURRENCY_MISMATCH");
-      }
+      if(!action.account_id)throw new Error("EXECUTION_CURRENCY_MISMATCH");
+      const executionCurrency=assertExecutionCurrencyMatch(action.currency,action.account_currency);
 
       const ledgerRows=await tx.unsafe(
         "SELECT event_type,currency,cash_amount,fee_amount,instrument_id,quantity FROM ledger_events WHERE strategy_instance_id=$1 AND account_id=$2 ORDER BY occurred_at,created_at",
@@ -667,7 +666,7 @@ export async function executeAction(
           action.strategy_instance_id,
           action.account_id,
           actionType,
-          action.currency,
+          executionCurrency,
           validated.cashAmount.toString(),
           action.instrument_id,
           validated.ledgerQuantity.toString(),
