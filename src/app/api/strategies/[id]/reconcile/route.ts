@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/session";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/security";
+import { calculateAction } from "@/lib/action-service";
 
 const money = z.string().regex(/^\d+(?:\.\d{1,8})?$/);
 const schema = z.object({
@@ -62,7 +63,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       );
     });
 
-    return Response.json({ ok: true, difference: difference.toString(), resolved });
+    let actionId:string|null=null;
+    if(String(strategy.status)==="ACTIVE"){try{actionId=(await calculateAction(id)).actionId;}catch{}}
+    return Response.json({ ok: true, difference: difference.toString(), resolved, actionId });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Enter valid monetary amounts with up to 8 decimal places." }, { status: 400 });
