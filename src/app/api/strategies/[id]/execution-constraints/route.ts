@@ -22,11 +22,13 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     const {id}=await context.params;
     const strategy=await getStrategyForUser(user.id,id);
     if(!strategy)return Response.json({error:"Not found."},{status:404});
+    if(String(strategy.status)==="CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
     const input=schema.parse(await request.json());
     const constraints=serializeExecutionConstraints(input);
     await sql.begin(async(tx)=>{
-      const locked=await tx.unsafe("SELECT id FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE",[id,user.id]);
+      const locked=await tx.unsafe("SELECT id,status FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE",[id,user.id]);
       if(!locked[0])throw new Error("STRATEGY_NOT_FOUND");
+      if(String(locked[0].status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
       await tx.unsafe("UPDATE strategy_instances SET execution_constraints=$1::jsonb,updated_at=now() WHERE id=$2",[JSON.stringify(constraints),id]);
       await tx.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy.execution-constraints.updated','strategy_instance',$2,$3::jsonb)",[user.id,id,JSON.stringify(constraints)]);
     });
@@ -35,6 +37,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Check your trade preferences."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
+    if(code==="STRATEGY_CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
     if(code.startsWith("INVALID_"))return Response.json({error:"Trade preferences must use valid non-negative amounts."},{status:400});
     return Response.json({error:"Could not update trade preferences."},{status:500});
   }
