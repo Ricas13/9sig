@@ -10,7 +10,8 @@ import { assertSameOrigin } from "@/lib/security";
 const schema = z.object({
   amount: z.string().regex(/^\d+(?:\.\d{1,8})?$/),
   occurredAt: z.string().datetime({ offset: true }).optional(),
-  accountId: z.string().uuid().optional()
+  accountId: z.string().uuid().optional(),
+  requestKey: z.string().uuid().optional()
 });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -38,9 +39,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       if(!locked[0])throw new Error("STRATEGY_NOT_FOUND");
       if(String(locked[0].status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
 
+      if(input.requestKey){
+        const existing=await tx.unsafe(
+          "SELECT id FROM ledger_events WHERE strategy_instance_id=$1 AND request_key=$2 LIMIT 1",
+          [id,input.requestKey]
+        );
+        if(existing[0])return {eventId:String(existing[0].id),status:String(locked[0].status),duplicate:true};
+      }
+
       const rows=await tx.unsafe(
-        "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,provenance,confidence) VALUES ($1,$2,$3,'CONTRIBUTION',$4,$5,'USER_ENTERED','VERIFIED') RETURNING id",
-        [id, locked[0].account_id, occurredAt, String(locked[0].currency), amount.toString()]
+        "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,provenance,confidence,request_key) VALUES ($1,$2,$3,'CONTRIBUTION',$4,$5,'USER_ENTERED','VERIFIED',$6) RETURNING id",
+        [id, locked[0].account_id, occurredAt, String(locked[0].currency), amount.toString(),input.requestKey??null]
       );
       const ledgerEventId=String(rows[0].id);
       const currentPlan=normalizeContributionPlan(locked[0].contribution_plan);
@@ -55,11 +64,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'ledger.contribution-created','ledger_event',$2,$3::jsonb)",
         [user.id,ledgerEventId,JSON.stringify({strategyInstanceId:id,amount:amount.toString(),nextContributionDate:nextPlan.nextDate})]
       );
-      return {eventId:ledgerEventId,status:String(locked[0].status)};
+      return {eventId:ledgerEventId,status:String(locked[0].status),duplicate:false};
     });
     let actionId:string|null=null;
     if(result.status==="ACTIVE"){try{actionId=(await calculateAction(id)).actionId;}catch{}}
-    return Response.json({ ok: true, id:result.eventId, actionId });
+    return Response.json({ ok: true, id:result.eventId, actionId, duplicate:result.duplicate });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Enter a valid contribution and timestamp." }, { status: 400 });
