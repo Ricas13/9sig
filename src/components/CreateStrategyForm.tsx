@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, Play, RotateCcw, Sparkles } from "lucide-react";
 
 type InputField={key:string;label:string;type:"text"|"number"|"date"|"select"|"boolean";required?:boolean;help?:string;default?:string|number|boolean;options?:Array<{label:string;value:string}>;min?:string|number;max?:string|number};
@@ -28,6 +29,7 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
   const [mode,setMode]=useState<"START_NEW"|"RESUME">("START_NEW");
   const [selectedKey,setSelectedKey]=useState(strategies[0]?.key??"");
   const [error,setError]=useState("");
+  const [upgradeRequired,setUpgradeRequired]=useState(false);
   const [busy,setBusy]=useState(false);
   const [regularContribution,setRegularContribution]=useState(false);
   const selected=useMemo(()=>strategies.find((s)=>s.key===selectedKey)??strategies[0],[strategies,selectedKey]);
@@ -37,7 +39,7 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
 
   return <form className="onboarding-shell" onSubmit={async(e)=>{
     e.preventDefault();
-    setBusy(true);setError("");
+    setBusy(true);setError("");setUpgradeRequired(false);
     const f=new FormData(e.currentTarget);
     const settings:Record<string,unknown>={};
     for(const field of selected?.inputSchema??[]){
@@ -62,7 +64,7 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
       }
     })});
     const body=await response.json();setBusy(false);
-    if(!response.ok)return setError(body.error??"Could not add strategy.");
+    if(!response.ok){setUpgradeRequired(Boolean(body.upgrade));return setError(body.error??"Could not add strategy.");}
     router.push("/app/strategies/"+body.id);
   }}>
     <div className="stepper" aria-label="Setup progress">
@@ -154,7 +156,10 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
         </details>
       </>}
 
-      {error&&<div className="error onboarding-error">{error}</div>}
+      {error&&<div className={"onboarding-error "+(upgradeRequired?"plan-inline-error":"error")}>
+        <span>{error}</span>
+        {upgradeRequired&&<Link className="button compact primary" href="/app/settings#plan">See plan options <ArrowRight size={14}/></Link>}
+      </div>}
 
       <div className="onboarding-footer">
         {step>0?<button type="button" className="button quiet" onClick={()=>{setError("");setStep(step-1)}}><ArrowLeft size={16}/>Back</button>:<span/>}
