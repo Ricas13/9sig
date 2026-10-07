@@ -34,7 +34,7 @@ export async function listAvailableStrategies() {
 
 export async function listUserStrategies(userId: string) {
   return sql.unsafe(
-    "SELECT i.id,i.name,i.status,i.health_status,i.started_at,i.last_reconciled_at,d.key AS strategy_key,d.name AS strategy_name,d.family,a.wrapper,a.currency,a.broker_name,v.version "+
+    "SELECT i.id,i.name,i.status,i.health_status,i.started_at,i.last_reconciled_at,i.contribution_plan,d.key AS strategy_key,d.name AS strategy_name,d.family,a.wrapper,a.currency,a.broker_name,v.version "+
     "FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN strategy_versions v ON v.id=i.strategy_version_id "+
     "LEFT JOIN accounts a ON a.id=i.account_id WHERE i.user_id=$1 ORDER BY i.created_at DESC",
     [userId]
