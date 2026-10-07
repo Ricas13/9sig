@@ -41,6 +41,7 @@ export type ProposedAction = {
   amount?: Decimal;
   currency?: string;
   economicExposure?: string;
+  leverage?: string;
   explanation: ExplanationRow[];
   nextState: Record<string, unknown>;
   confidence: "HIGH" | "MEDIUM" | "LOW";
