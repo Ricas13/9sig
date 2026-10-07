@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { listAvailableStrategies } from "@/lib/strategy-service";
 import { CreateStrategyForm } from "@/components/CreateStrategyForm";
@@ -10,5 +12,8 @@ export default async function NewStrategyPage(){
     version:String(r.version),inputSchema:Array.isArray(r.input_schema)?r.input_schema:[],
     supportedWrappers:Array.isArray(r.supported_wrappers)?r.supported_wrappers.map(String):[]
   }));
-  return <><div className="page-title"><div><div className="eyebrow">Add Strategy</div><h1>Start or resume.</h1><p>Choose a strategy yourself; the software manages the implementation from there.</p></div></div><CreateStrategyForm strategies={strategies} baseCurrency={user.baseCurrency}/></>;
+  return <>
+    <Link href="/app/strategies" className="back-link"><ArrowLeft size={14}/>Portfolio</Link>
+    <CreateStrategyForm strategies={strategies} baseCurrency={user.baseCurrency}/>
+  </>;
 }
