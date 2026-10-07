@@ -6,8 +6,9 @@ import { CheckCircle2, Plus } from "lucide-react";
 type AccountOption={id:string;name:string;wrapper:string;currency:string;brokerName?:string|null;role:string;ledgerEventCount?:number;openingSnapshotComplete?:boolean};
 
 function AccountSelect({accounts}:{accounts:AccountOption[]}){
+  const selectId=useId();
   if(accounts.length<=1)return null;
-  return <div className="field full"><label htmlFor="linked-account-select">Account</label><select id="linked-account-select" name="accountId" defaultValue={accounts.find((account)=>account.role==="PRIMARY")?.id??accounts[0]?.id}>{accounts.map((account)=><option key={account.id} value={account.id}>{account.name} · {account.wrapper}{account.brokerName?" · "+account.brokerName:""}</option>)}</select></div>;
+  return <div className="field full"><label htmlFor={selectId}>Account</label><select id={selectId} name="accountId" defaultValue={accounts.find((account)=>account.role==="PRIMARY")?.id??accounts[0]?.id}>{accounts.map((account)=><option key={account.id} value={account.id}>{account.name} · {account.wrapper}{account.brokerName?" · "+account.brokerName:""}</option>)}</select></div>;
 }
 
 
@@ -192,6 +193,8 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
 export function OpeningSnapshotForm({ id, accounts=[] }: { id: string; accounts?:AccountOption[] }) {
   const router = useRouter();
   const pendingAccounts=accounts.filter((account)=>(account.ledgerEventCount??0)===0);
+  const accountSelectId=useId();
+  const cashId=useId();
   const [accountId,setAccountId]=useState(pendingAccounts[0]?.id??accounts[0]?.id??"");
   const [cash, setCash] = useState("0");
   const [holdings, setHoldings] = useState([{ ticker: "", exchange: "LSE", quantity: "" }]);
@@ -238,12 +241,17 @@ export function OpeningSnapshotForm({ id, accounts=[] }: { id: string; accounts?
     {selected&&accounts.length>1&&<div className="snapshot-account-progress">
       <span>Starting position for</span><strong>{selected.name}</strong><small>{selected.wrapper} · {selected.currency}</small>
     </div>}
-    <div className="field"><label>Current cash balance</label><input value={cash} onChange={(e) => setCash(e.target.value)} type="number" min="0" step="0.01" /></div>
-    {holdings.map((holding, index) => <div className="form-grid" key={index}>
-      <div className="field"><label>Ticker</label><input value={holding.ticker} onChange={(e) => update(index, "ticker", e.target.value)} placeholder="3QQQ" /></div>
-      <div className="field"><label>Exchange</label><input value={holding.exchange} onChange={(e) => update(index, "exchange", e.target.value)} placeholder="LSE" /></div>
-      <div className="field full"><label>Quantity</label><input value={holding.quantity} onChange={(e) => update(index, "quantity", e.target.value)} type="number" min="0" step="0.00000001" /></div>
-    </div>)}
+    <div className="field"><label htmlFor={cashId}>Current cash balance</label><input id={cashId} value={cash} onChange={(e) => setCash(e.target.value)} type="number" min="0" step="0.01" /></div>
+    {holdings.map((holding, index) => {
+      const tickerId="opening-ticker-"+index;
+      const exchangeId="opening-exchange-"+index;
+      const quantityId="opening-quantity-"+index;
+      return <div className="form-grid" key={index}>
+        <div className="field"><label htmlFor={tickerId}>Ticker</label><input id={tickerId} value={holding.ticker} onChange={(e) => update(index, "ticker", e.target.value)} placeholder="3QQQ" /></div>
+        <div className="field"><label htmlFor={exchangeId}>Exchange</label><input id={exchangeId} value={holding.exchange} onChange={(e) => update(index, "exchange", e.target.value)} placeholder="LSE" /></div>
+        <div className="field full"><label htmlFor={quantityId}>Quantity</label><input id={quantityId} value={holding.quantity} onChange={(e) => update(index, "quantity", e.target.value)} type="number" min="0" step="0.00000001" /></div>
+      </div>;
+    })}
     <div className="inline">
       <button type="button" className="button" onClick={() => setHoldings((rows) => [...rows, { ticker: "", exchange: "LSE", quantity: "" }])}>Add holding</button>
       {holdings.length > 1 && <button type="button" className="button" onClick={() => setHoldings((rows) => rows.slice(0, -1))}>Remove last</button>}
