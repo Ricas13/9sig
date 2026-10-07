@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/session";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/security";
-import { calculateAction } from "@/lib/action-service";
+import { recalculateAfterMutation } from "@/lib/action-service";
 import { summarizeReconciliationState } from "@/domain/reconciliation";
 
 const money = z.string().regex(/^\d+(?:\.\d{1,8})?$/);
@@ -111,15 +111,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return {strategyResolved:summary.strategyResolved,difference:difference.toString(),resolved,duplicate:false};
     });
 
-    let actionId:string|null=null;
-    if(String(strategy.status)==="ACTIVE"){try{actionId=(await calculateAction(id)).actionId;}catch{}}
+    const recalc=String(strategy.status)==="ACTIVE"&&!reconciliationState.duplicate?await recalculateAfterMutation(id,user.id,"reconciliation"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({
       ok:true,
       difference:reconciliationState.difference,
       resolved:reconciliationState.resolved,
       strategyResolved:reconciliationState.strategyResolved,
       duplicate:reconciliationState.duplicate,
-      actionId
+      actionId:recalc.actionId,
+      recalculationPending:recalc.recalculationPending
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
