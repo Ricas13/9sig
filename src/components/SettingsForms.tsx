@@ -50,7 +50,7 @@ export function BillingButtons({
     <p>You’re on <strong>{currentPlanSlug}</strong>. Change plan, billing cycle or payment details in one place.</p>
     <div className="billing-impact-note">
       <strong>Changing to a smaller plan is safe.</strong>
-      <span>If the new plan allows fewer active strategies, the excess strategies are paused automatically. Their history is preserved and can be resumed later when your plan allows it.</span>
+      <span>If the new plan allows fewer active strategies — or removes a feature an active strategy depends on, such as multiple linked accounts — affected strategies are paused automatically. Their history is preserved and can be resumed later when your plan allows it.</span>
     </div>
     <button className="button primary" disabled={Boolean(busy)} onClick={portal}>{busy==="portal"?"Opening…":"Manage billing"}</button>
     {error&&<div className="error" role="alert">{error}</div>}
