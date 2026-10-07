@@ -10,3 +10,9 @@ const allowed:Record<ActionStatus,ActionStatus[]>={
 };
 export function canTransitionAction(from:ActionStatus,to:ActionStatus){return allowed[from].includes(to);}
 export function assertActionTransition(from:ActionStatus,to:ActionStatus){if(!canTransitionAction(from,to))throw new Error("INVALID_ACTION_TRANSITION");}
+
+export function actionRecalculationDisposition(previous:ActionStatus|null){
+  if(previous==null)return {status:"CALCULATED" as const,shouldNotify:true};
+  if(previous==="CANCELLED"||previous==="SUPERSEDED")return {status:"CALCULATED" as const,shouldNotify:true};
+  return {status:previous,shouldNotify:false};
+}
