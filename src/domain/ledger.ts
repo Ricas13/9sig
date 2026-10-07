@@ -51,7 +51,23 @@ export function monetary(value: Decimal.Value, dp = 2) {
 export function assertLedgerEvent(event: LedgerEvent) {
   const cash = new Decimal(event.cashAmount ?? 0);
   const qty = new Decimal(event.quantity ?? 0);
-  if (!cash.isFinite() || !qty.isFinite()) throw new Error("Ledger event contains a non-finite number");
+  const fee = new Decimal(event.feeAmount ?? 0);
+  if (!cash.isFinite() || !qty.isFinite() || !fee.isFinite()) {
+    throw new Error("Ledger event contains a non-finite number");
+  }
+
+  // CORRECTION rows deliberately negate the original fee as part of the
+  // append-only reversal, so they are the only rows allowed a negative fee.
+  if (event.eventType !== "CORRECTION" && fee.lt(0)) {
+    throw new Error("Ledger fees cannot be negative");
+  }
+  if (!["BUY","SELL","FEE","CORRECTION"].includes(event.eventType) && !fee.eq(0)) {
+    throw new Error("Only trade, fee, or correction events may carry a fee amount");
+  }
+  if (event.eventType === "FEE" && (fee.lte(0) || !cash.eq(0) || event.instrumentId)) {
+    throw new Error("FEE must reduce cash through a positive fee amount only");
+  }
+
   if (event.eventType === "BUY" && (!event.instrumentId || qty.lte(0) || cash.gte(0))) {
     throw new Error("BUY must add units and reduce cash");
   }
