@@ -505,12 +505,38 @@ export async function calculateAction(strategyInstanceId:string){
     const calculation=await buildActionCalculation(strategyInstanceId);
     const {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId,executionAccountId}=calculation;
     if(dataStatus==="CURRENT")await tx.unsafe("INSERT INTO performance_series (strategy_instance_id,series_type,date,value,metadata) VALUES ($1,'USER_VALUE',current_date,$2,$3::jsonb) ON CONFLICT (strategy_instance_id,series_type,date) DO UPDATE SET value=EXCLUDED.value,metadata=EXCLUDED.metadata",[strategyInstanceId,totalValue.toString(),JSON.stringify({source:"ledger+market"})]);
-    const inserted=await tx.unsafe("INSERT INTO actions (strategy_instance_id,account_id,strategy_version_id,fingerprint,action_type,status,title,instruction,amount,currency,trading_line_id,explanation,next_state,confidence,due_at) VALUES ($1,$2,$3,$4,$5,'CALCULATED',$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14) ON CONFLICT (strategy_instance_id,fingerprint) DO UPDATE SET account_id=EXCLUDED.account_id,updated_at=now() RETURNING id",[strategyInstanceId,executionAccountId,instance.strategy_version_id,fingerprint,proposal.actionType,proposal.title,proposal.instruction,proposal.amount?.toString()??null,proposal.currency??null,tradingLineId,JSON.stringify(proposal.explanation),JSON.stringify(nextState),proposal.confidence,proposal.dueAt??null]);
-    const actionId=String(inserted[0].id);
+    const existing=await tx.unsafe(
+      "SELECT id,status FROM actions WHERE strategy_instance_id=$1 AND fingerprint=$2 FOR UPDATE",
+      [strategyInstanceId,fingerprint]
+    );
+    let actionId:string;
+    let shouldNotify=false;
+    if(existing[0]){
+      actionId=String(existing[0].id);
+      const previousStatus=String(existing[0].status);
+      const reactivated=["CANCELLED","SUPERSEDED"].includes(previousStatus);
+      await tx.unsafe(
+        "UPDATE actions SET account_id=$1,strategy_version_id=$2,action_type=$3,status=$4,title=$5,instruction=$6,amount=$7,currency=$8,trading_line_id=$9,explanation=$10::jsonb,next_state=$11::jsonb,confidence=$12,due_at=$13,"+
+        "acknowledged_at=CASE WHEN $4='CALCULATED' THEN NULL ELSE acknowledged_at END,"+
+        "cancelled_at=CASE WHEN $4='CALCULATED' THEN NULL ELSE cancelled_at END,"+
+        "superseded_by_action_id=CASE WHEN $4='CALCULATED' THEN NULL ELSE superseded_by_action_id END,updated_at=now() WHERE id=$14",
+        [executionAccountId,instance.strategy_version_id,proposal.actionType,reactivated?"CALCULATED":previousStatus,proposal.title,proposal.instruction,proposal.amount?.toString()??null,proposal.currency??null,tradingLineId,JSON.stringify(proposal.explanation),JSON.stringify(nextState),proposal.confidence,proposal.dueAt??null,actionId]
+      );
+      shouldNotify=reactivated;
+    }else{
+      const inserted=await tx.unsafe(
+        "INSERT INTO actions (strategy_instance_id,account_id,strategy_version_id,fingerprint,action_type,status,title,instruction,amount,currency,trading_line_id,explanation,next_state,confidence,due_at) VALUES ($1,$2,$3,$4,$5,'CALCULATED',$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14) RETURNING id",
+        [strategyInstanceId,executionAccountId,instance.strategy_version_id,fingerprint,proposal.actionType,proposal.title,proposal.instruction,proposal.amount?.toString()??null,proposal.currency??null,tradingLineId,JSON.stringify(proposal.explanation),JSON.stringify(nextState),proposal.confidence,proposal.dueAt??null]
+      );
+      actionId=String(inserted[0].id);
+      shouldNotify=true;
+    }
     await tx.unsafe("UPDATE actions SET status='SUPERSEDED',superseded_by_action_id=$1,updated_at=now() WHERE strategy_instance_id=$2 AND id<>$1 AND status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') AND action_type<>'NO_ACTION'",[actionId,strategyInstanceId]);
     const healthy=dataStatus==="CURRENT"&&proposal.actionType!=="DATA_REQUIRED";
     await tx.unsafe("UPDATE strategy_instances SET health_status=$1,updated_at=now() WHERE id=$2",[healthy?"HEALTHY":"NEEDS_ATTENTION",strategyInstanceId]);
-    if(proposal.actionType!=="NO_ACTION")await tx.unsafe("INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION',$3,$4) ON CONFLICT DO NOTHING",[instance.user_id,actionId,proposal.title,proposal.instruction]);
+    if(shouldNotify&&proposal.actionType!=="NO_ACTION"){
+      await tx.unsafe("INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION',$3,$4)",[instance.user_id,actionId,proposal.title,proposal.instruction]);
+    }
     return {actionId,proposal,totalValue:totalValue.toString()};
   });
 }
