@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BarChart3, CalendarClock, CheckCircle2, ChevronRight, WalletCards } from "lucide-react";
+import { ArrowLeft, BarChart3, CalendarClock, CheckCircle2, ChevronRight, Sparkles, WalletCards } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
-import { CashEventForm, ContributionForm, ContributionPlanForm, ExecuteAction, ExecutionConstraintsForm, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategyVersionUpgrade } from "@/components/StrategyActions";
+import { CashEventForm, ContributionForm, ContributionPlanForm, ExecuteAction, ExecutionConstraintsForm, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategyVersionUpgrade, WhatIfPreview } from "@/components/StrategyActions";
 
 function money(value:number,currency:string){
   return new Intl.NumberFormat("en-GB",{style:"currency",currency,maximumFractionDigits:0}).format(value);
@@ -175,6 +175,14 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
             <section className="drawer-section"><h3>Other cash events</h3>{cashEvents.length?cashEvents.map((event:any)=><div className="why-row" key={String(event.id)}><span>{new Date(event.occurred_at).toLocaleDateString("en-GB")} · {String(event.event_type).replaceAll("_"," ")}</span><span className="inline"><b>{new Intl.NumberFormat("en-GB",{style:"currency",currency:s.currency}).format(Math.abs(Number(event.cash_amount||event.fee_amount||0)))}</b><ReverseLedgerEventButton strategyId={id} eventId={String(event.id)}/></span></div>):<p className="help">No other cash events yet.</p>}</section>
           </div>
           <section className="drawer-section"><h3>Reconciliation history</h3>{reconciliations.length?reconciliations.map((r:any,i:number)=><div className="why-row" key={i}><span>{new Date(r.occurred_at).toLocaleDateString("en-GB")} · {r.reason??"Adjustment"}</span><b>{Number(r.difference).toFixed(2)}</b></div>):<p className="help">No reconciliations yet.</p>}</section>
+        </div>
+      </details>
+
+      <details className="glass quick-drawer">
+        <summary><span><Sparkles size={18}/>What if?</span><ChevronRight size={16}/></summary>
+        <div className="quick-drawer-content">
+          <div className="section-head"><div><h2>Preview a change.</h2><p>See what the strategy would say without touching your real portfolio.</p></div></div>
+          <WhatIfPreview id={id} currency={String(s.currency)}/>
         </div>
       </details>
 
