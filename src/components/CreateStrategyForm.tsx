@@ -116,7 +116,7 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
           <p className="help">Defaults are usually enough. Change these only if they apply to you.</p>
           <div className="form-grid">
             <div className="field"><label>Account type</label><select name="wrapper" key={selectedKey} defaultValue={wrappers[0]}>{wrappers.map((wrapper)=><option key={wrapper}>{wrapper}</option>)}</select></div>
-            <div className="field"><label>Currency</label><select name="currency" defaultValue={baseCurrency}><option>GBP</option><option>USD</option><option>EUR</option></select></div>
+            <div className="field"><label>Currency</label><select name="currency" defaultValue={baseCurrency}>{!["GBP","USD","EUR"].includes(baseCurrency)&&<option>{baseCurrency}</option>}<option>GBP</option><option>USD</option><option>EUR</option></select></div>
             <div className="field full"><label>Broker <span className="optional">optional</span></label><input name="broker" placeholder="e.g. Trading 212"/></div>
           </div>
         </details>
