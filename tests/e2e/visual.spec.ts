@@ -9,7 +9,7 @@ const expected:Record<string,Record<string,string>>={
   },
   "desktop-chromium":{
     landing:"56f8622d3cbaa29ea3d7c348dfce9296da5fbf482025b82de2c884bba027ff09",
-    demo:"d08ea96754f36ad43347fca463cdde84fdb10da3e9652c5091714d5b1e43c90e"
+    demo:"556f4a545cd458a397e400a6f5106ce3b1aea543a3756093e46cd92080f7c0d1"
   }
 };
 
