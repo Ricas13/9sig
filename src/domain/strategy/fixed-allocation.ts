@@ -68,7 +68,7 @@ export const fixedAllocationEngine: StrategyEngine = {
     }
 
     const rows = allocations.map((a) => {
-      const current = ctx.exposures.find((p) => p.economicExposure === a.exposure)?.value ?? new Decimal(0);
+      const current = ctx.exposures.filter((p) => p.economicExposure === a.exposure).reduce((sum,p)=>sum.plus(p.value),new Decimal(0));
       const target = total.mul(new Decimal(String(a.weight)));
       return { exposure: a.exposure, current, target, delta: target.minus(current) };
     });
