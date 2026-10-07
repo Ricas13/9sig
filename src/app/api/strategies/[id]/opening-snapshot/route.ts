@@ -117,7 +117,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (error instanceof z.ZodError) return Response.json({ error: "Check the opening cash and holding quantities." }, { status: 400 });
     const code = error instanceof Error ? error.message : "FAILED";
     if (code === "STRATEGY_CLOSED") return Response.json({ error: "Closed strategies are read-only." }, { status: 409 });
-    if (code === "OPENING_SNAPSHOT_EXISTS") return Response.json({ error: "An opening snapshot already exists for this strategy." }, { status: 409 });
+    if (code === "STRATEGY_NOT_FOUND") return Response.json({ error: "That account is not linked to this strategy." }, { status: 404 });
+    if (code === "OPENING_SNAPSHOT_EXISTS") return Response.json({ error: "This account already has activity, so its opening position cannot be replaced." }, { status: 409 });
     if (code.startsWith("TRADING_LINE_NOT_FOUND:")) {
       const [, ticker, exchange] = code.split(":");
       return Response.json({ error: "No active configured trading line in this account’s currency was found for " + ticker + " on " + exchange + "." }, { status: 400 });
