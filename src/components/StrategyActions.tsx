@@ -522,10 +522,28 @@ export function WhatIfPreview({
 }){
   const [type,setType]=useState<"CONTRIBUTION"|"WITHDRAWAL"|"EXECUTION_CONSTRAINTS"|"STRATEGY_SWITCH">("CONTRIBUTION");
   const [switchKey,setSwitchKey]=useState(switchOptions[0]?.key??"");
+  const router=useRouter();
   const [result,setResult]=useState<WhatIfResult|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  const [switchConfirm,setSwitchConfirm]=useState(false);
+  const [switchBusy,setSwitchBusy]=useState(false);
+  const [switchError,setSwitchError]=useState("");
+  const [switchSettings,setSwitchSettings]=useState<Record<string,unknown>>({});
   const selectedSwitch=switchOptions.find((option)=>option.key===switchKey)??switchOptions[0];
+
+  async function applyStrategySwitch(){
+    if(result?.scenario.type!=="STRATEGY_SWITCH"||!result.scenario.targetStrategy)return;
+    setSwitchBusy(true);setSwitchError("");
+    const response=await fetch("/api/strategies/"+id+"/switch",{
+      method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({targetStrategyKey:result.scenario.targetStrategy.key,settings:switchSettings})
+    });
+    const body=await response.json();setSwitchBusy(false);
+    if(!response.ok)return setSwitchError(body.error??"Could not switch strategies.");
+    router.push("/app/strategies/"+body.newStrategyInstanceId);
+    router.refresh();
+  }
 
   return <div className="what-if">
     <form className="what-if-form" onSubmit={async(e)=>{
@@ -553,6 +571,9 @@ export function WhatIfPreview({
           }
         }
         payload={type,targetStrategyKey:switchKey,settings};
+        setSwitchSettings(settings);
+        setSwitchConfirm(false);
+        setSwitchError("");
       }else{
         payload={type,amount:String(f.get("amount")||"")};
       }
@@ -613,7 +634,17 @@ export function WhatIfPreview({
         <span>{["EXECUTION_CONSTRAINTS","STRATEGY_SWITCH"].includes(result.scenario.type)?"Portfolio value stays":"Portfolio after scenario"}</span>
         <strong>{new Intl.NumberFormat("en-GB",{style:"currency",currency:result.scenario.currency,maximumFractionDigits:0}).format(Number(result.portfolioValueAfter))}</strong>
       </div>
-      {result.scenario.type==="STRATEGY_SWITCH"&&result.scenario.targetStrategy&&<div className="switch-preview-target"><span>Previewing</span><strong>{result.scenario.targetStrategy.name} · v{result.scenario.targetStrategy.version}</strong></div>}
+      {result.scenario.type==="STRATEGY_SWITCH"&&result.scenario.targetStrategy&&<>
+        <div className="switch-preview-target"><span>Previewing</span><strong>{result.scenario.targetStrategy.name} · v{result.scenario.targetStrategy.version}</strong></div>
+        {!switchConfirm?<button type="button" className="button switch-apply-button" onClick={()=>setSwitchConfirm(true)}>Switch to {result.scenario.targetStrategy.name}</button>:<div className="switch-confirmation">
+          <div><strong>Start the new strategy from your portfolio as it is today?</strong><span>Your current strategy journey will close, but its complete history stays available. No old trades will be rewritten.</span></div>
+          <div className="inline">
+            <button type="button" className="button primary" disabled={switchBusy} onClick={applyStrategySwitch}>{switchBusy?"Switching…":"Yes, switch strategy"}</button>
+            <button type="button" className="button quiet" disabled={switchBusy} onClick={()=>{setSwitchConfirm(false);setSwitchError("")}}>Cancel</button>
+          </div>
+          {switchError&&<div className="error" role="alert">{switchError}</div>}
+        </div>}
+      </>}
       <div className="what-if-action">
         <span>What the strategy would say</span>
         <h3>{result.action.title}</h3>
