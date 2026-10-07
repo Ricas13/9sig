@@ -45,7 +45,14 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
     }
     const response=await fetch("/api/strategies",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
       strategyKey:selectedKey,name:f.get("name"),wrapper:f.get("wrapper"),broker:f.get("broker")||null,currency:f.get("currency"),onboardingMode:mode,
-      startingCash:f.get("startingCash")||undefined,approximateValue:f.get("approximateValue")||undefined,settings
+      startingCash:f.get("startingCash")||undefined,approximateValue:f.get("approximateValue")||undefined,settings,
+      executionConstraints:{
+        fractionalShares:Boolean(f.get("fractionalShares")),
+        minimumTradeAmount:String(f.get("minimumTradeAmount")||"0"),
+        cashBufferAmount:String(f.get("cashBufferAmount")||"0"),
+        flatFee:String(f.get("flatFee")||"0"),
+        allowSelling:Boolean(f.get("allowSelling"))
+      }
     })});
     const body=await response.json();setBusy(false);
     if(!response.ok)return setError(body.error??"Could not add strategy.");
@@ -118,6 +125,17 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
             <div className="field"><label>Account type</label><select name="wrapper" key={selectedKey} defaultValue={wrappers[0]}>{wrappers.map((wrapper)=><option key={wrapper}>{wrapper}</option>)}</select></div>
             <div className="field"><label>Currency</label><select name="currency" defaultValue={baseCurrency}>{!["GBP","USD","EUR"].includes(baseCurrency)&&<option>{baseCurrency}</option>}<option>GBP</option><option>USD</option><option>EUR</option></select></div>
             <div className="field full"><label>Broker <span className="optional">optional</span></label><input name="broker" placeholder="e.g. Trading 212"/></div>
+          </div>
+          <div className="preference-divider"/>
+          <div className="setup-section-title"><span>Trade preferences</span><small>Optional — sensible defaults are already selected</small></div>
+          <div className="stack">
+            <label className="toggle-row"><input type="checkbox" name="fractionalShares" defaultChecked/><span><b>My broker supports fractional shares</b><small>Turn this off if orders must use whole shares.</small></span></label>
+            <div className="form-grid">
+              <div className="field"><label>Minimum trade</label><input name="minimumTradeAmount" type="number" min="0" step="0.01" defaultValue="0"/></div>
+              <div className="field"><label>Cash buffer</label><input name="cashBufferAmount" type="number" min="0" step="0.01" defaultValue="0"/></div>
+              <div className="field full"><label>Estimated fee per trade</label><input name="flatFee" type="number" min="0" step="0.01" defaultValue="0"/></div>
+            </div>
+            <label className="toggle-row"><input type="checkbox" name="allowSelling" defaultChecked/><span><b>Allow sell recommendations</b><small>Turn this off if you prefer to correct allocations with new money when the strategy permits.</small></span></label>
           </div>
         </details>
       </>}
