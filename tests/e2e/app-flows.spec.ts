@@ -35,7 +35,9 @@ async function createVerifiedUser(testInfo:{project:{name:string};workerIndex:nu
         "SELECT p.slug,p.entitlements FROM subscriptions s JOIN plans p ON p.id=s.plan_id JOIN users u ON u.id=s.user_id WHERE u.email=$1 LIMIT 1",
         [email]
       );
-      const features=Array.isArray(rows[0]?.entitlements?.features)?rows[0].entitlements.features.map(String):[];
+      const raw=rows[0]?.entitlements;
+      const parsed=typeof raw==="string"?JSON.parse(raw):raw;
+      const features=Array.isArray(parsed?.features)?parsed.features.map(String):[];
       if(String(rows[0]?.slug)!=="pro"||!features.includes("multi_account"))throw new Error("PRO_TEST_ENTITLEMENT_MISSING");
     }finally{
       await sql.end();
