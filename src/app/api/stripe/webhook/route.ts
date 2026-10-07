@@ -99,6 +99,9 @@ export async function POST(request:Request){
     return Response.json({received:true});
   }catch(error){
     const code=error instanceof Error?error.message:"WEBHOOK_FAILED";
+    if(code==="WEBHOOK_ALREADY_PROCESSING"){
+      return new Response("Webhook is already being processed",{status:503});
+    }
     await markWebhookEvent(event.id,"FAILED",code).catch(()=>{});
     return new Response("Webhook processing failed",{status:500});
   }
