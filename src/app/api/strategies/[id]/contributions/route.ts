@@ -26,14 +26,23 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return Response.json({ error: "Enter a positive contribution." }, { status: 400 });
     }
 
+    if(String(strategy.status)==="CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
+
     const occurredAt=input.occurredAt ? new Date(input.occurredAt) : new Date();
-    const eventId=await sql.begin(async(tx)=>{
+    const result=await sql.begin(async(tx)=>{
+      const locked=await tx.unsafe(
+        "SELECT i.status,i.contribution_plan,a.currency FROM strategy_instances i JOIN accounts a ON a.id=i.account_id WHERE i.id=$1 AND i.user_id=$2 FOR UPDATE OF i",
+        [id,user.id]
+      );
+      if(!locked[0])throw new Error("STRATEGY_NOT_FOUND");
+      if(String(locked[0].status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
+
       const rows=await tx.unsafe(
         "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,provenance,confidence) VALUES ($1,$2,'CONTRIBUTION',$3,$4,'USER_ENTERED','VERIFIED') RETURNING id",
-        [id, occurredAt, strategy.currency, amount.toString()]
+        [id, occurredAt, String(locked[0].currency), amount.toString()]
       );
       const ledgerEventId=String(rows[0].id);
-      const currentPlan=normalizeContributionPlan(strategy.contribution_plan);
+      const currentPlan=normalizeContributionPlan(locked[0].contribution_plan);
       let nextPlan=currentPlan;
       if(currentPlan.enabled){
         nextPlan=advanceContributionPlan(currentPlan,occurredAt.toISOString().slice(0,10));
@@ -45,15 +54,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'ledger.contribution-created','ledger_event',$2,$3::jsonb)",
         [user.id,ledgerEventId,JSON.stringify({strategyInstanceId:id,amount:amount.toString(),nextContributionDate:nextPlan.nextDate})]
       );
-      return ledgerEventId;
+      return {eventId:ledgerEventId,status:String(locked[0].status)};
     });
     let actionId:string|null=null;
-    if(String(strategy.status)==="ACTIVE"){try{actionId=(await calculateAction(id)).actionId;}catch{}}
-    return Response.json({ ok: true, id:eventId, actionId });
+    if(result.status==="ACTIVE"){try{actionId=(await calculateAction(id)).actionId;}catch{}}
+    return Response.json({ ok: true, id:result.eventId, actionId });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Enter a valid contribution and timestamp." }, { status: 400 });
     }
+    const code=error instanceof Error?error.message:"FAILED";
+    if(code==="STRATEGY_CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
     return Response.json({ error: "Could not record contribution." }, { status: 500 });
   }
 }
