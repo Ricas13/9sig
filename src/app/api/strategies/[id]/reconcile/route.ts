@@ -64,8 +64,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
       if (!difference.eq(0) && input.affectsCash) {
         await tx.unsafe(
-          "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,provenance,confidence,metadata) VALUES ($1,$2,now(),'BROKER_ADJUSTMENT',$3,$4,'USER_CONFIRMED','VERIFIED',$5::jsonb)",
-          [id, locked[0].account_id, String(locked[0].currency), difference.toString(), JSON.stringify({ reason: input.reason ?? "Cash adjustment", reconciliation: true })]
+          "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,provenance,confidence,metadata,request_key) VALUES ($1,$2,now(),'BROKER_ADJUSTMENT',$3,$4,'USER_CONFIRMED','VERIFIED',$5::jsonb,$6)",
+          [id,locked[0].account_id,String(locked[0].currency),difference.toString(),JSON.stringify({reason:input.reason??"Cash adjustment",reconciliation:true}),input.requestKey??null]
         );
       }
 
@@ -108,12 +108,19 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         [summary.strategyResolved?"HEALTHY":"NEEDS_ATTENTION",id]
       );
 
-      return {strategyResolved:summary.strategyResolved};
+      return {strategyResolved:summary.strategyResolved,difference:difference.toString(),resolved,duplicate:false};
     });
 
     let actionId:string|null=null;
     if(String(strategy.status)==="ACTIVE"){try{actionId=(await calculateAction(id)).actionId;}catch{}}
-    return Response.json({ ok: true, difference: difference.toString(), resolved, strategyResolved:reconciliationState.strategyResolved, actionId });
+    return Response.json({
+      ok:true,
+      difference:reconciliationState.difference,
+      resolved:reconciliationState.resolved,
+      strategyResolved:reconciliationState.strategyResolved,
+      duplicate:reconciliationState.duplicate,
+      actionId
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Enter valid monetary amounts with up to 8 decimal places." }, { status: 400 });
