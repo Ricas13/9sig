@@ -404,11 +404,18 @@ export function CashEventForm({id,accounts=[]}:{id:string;accounts?:AccountOptio
   return <form className="form-grid" onSubmit={async(e)=>{
     e.preventDefault();setBusy(true);setMessage("");const form=e.currentTarget;const f=new FormData(form);const when=String(f.get("when")||"");
     const mutationKey=requestKey.current??crypto.randomUUID();requestKey.current=mutationKey;
-    const response=await fetch("/api/strategies/"+id+"/ledger-events",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
-      eventType:f.get("eventType"),amount:String(f.get("amount")),occurredAt:when?new Date(when).toISOString():undefined,note:f.get("note")||undefined,accountId:f.get("accountId")||undefined,requestKey:mutationKey
-    })});
-    const body=await response.json();setBusy(false);setMessage(response.ok?"Cash event recorded.":body.error??"Could not record cash event.");
-    if(response.ok){requestKey.current=null;form.reset();router.refresh();}
+    try{
+      const response=await fetch("/api/strategies/"+id+"/ledger-events",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
+        eventType:f.get("eventType"),amount:String(f.get("amount")),occurredAt:when?new Date(when).toISOString():undefined,note:f.get("note")||undefined,accountId:f.get("accountId")||undefined,requestKey:mutationKey
+      })});
+      const body=await response.json().catch(()=>({}));
+      setMessage(response.ok?"Cash event recorded.":body.error??"Could not record cash event.");
+      if(response.ok){requestKey.current=null;form.reset();router.refresh();}
+    }catch{
+      setMessage("Connection interrupted. Try again — the same cash event will be reused safely.");
+    }finally{
+      setBusy(false);
+    }
   }}>
     <AccountSelect accounts={accounts}/><div className="field"><label>Event</label><select name="eventType"><option>WITHDRAWAL</option><option>DIVIDEND</option><option>DISTRIBUTION</option><option>INTEREST</option><option>FEE</option><option>TAX</option></select></div>
     <div className="field"><label>Amount</label><input name="amount" type="number" min="0.01" step="0.01" required/></div>
