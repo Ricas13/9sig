@@ -1,10 +1,31 @@
 import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { migrateStrategyVersion } from "@/lib/strategy-service";
-import { calculateAction } from "@/lib/action-service";
+import { calculateAction, previewStrategyVersionScenario } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 
 const schema=z.object({targetVersionId:z.string().uuid(),settings:z.record(z.string(),z.unknown()).optional()});
+
+export async function POST(request:Request,context:{params:Promise<{id:string}>}){
+  try{
+    assertSameOrigin(request);
+    const user=await requireUser();
+    const {id}=await context.params;
+    const input=schema.parse(await request.json());
+    const result=await previewStrategyVersionScenario(user.id,id,input.targetVersionId,input.settings);
+    return Response.json({ok:true,preview:true,result});
+  }catch(error){
+    if(error instanceof z.ZodError)return Response.json({error:"Invalid version preview."},{status:400});
+    const code=error instanceof Error?error.message:"FAILED";
+    const messages:Record<string,string>={
+      INVALID_TARGET_VERSION:"That strategy version is not available.",
+      ENGINE_MIGRATION_NOT_SUPPORTED:"This release changes engine families and cannot be previewed with the current migration path.",
+      STRATEGY_INSTANCE_NOT_FOUND:"Strategy not found."
+    };
+    if(code.startsWith("MISSING_STRATEGY_INPUT:"))return Response.json({error:"This strategy release requires additional setup information before it can be previewed."},{status:409});
+    return Response.json({error:messages[code]??"Could not preview this strategy version."},{status:400});
+  }
+}
 
 export async function PATCH(request:Request,context:{params:Promise<{id:string}>}){
   try{
