@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { requireUser } from "@/lib/session";
-import { loadEntitlements } from "@/lib/entitlement-service";
 import { listStrategyAccounts } from "@/lib/strategy-service";
 import { recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
+import { buildEntitlementSnapshot } from "@/domain/entitlements";
 
 const schema=z.object({
   name:z.string().min(1).max(80),
@@ -23,8 +23,6 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
   try{
     assertSameOrigin(request);
     const user=await requireUser();
-    const entitlements=await loadEntitlements(user.id);
-    if(!entitlements.features.has("multi_account"))return Response.json({error:"Multiple accounts are not included in your current plan.",upgrade:true},{status:403});
     const {id}=await context.params;
     const input=schema.parse(await request.json());
 
@@ -38,6 +36,29 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       const strategy=rows[0];
       if(!strategy)throw new Error("STRATEGY_NOT_FOUND");
       if(String(strategy.status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
+
+      // Entitlement is checked under the subscription row lock so a concurrent
+      // downgrade cannot race a second-account insert.
+      let planRows=await tx.unsafe(
+        "SELECT p.slug,p.max_active_strategies,p.entitlements,p.available_strategy_keys "+
+        "FROM subscriptions s JOIN plans p ON p.id=s.plan_id "+
+        "WHERE s.user_id=$1 AND s.status IN ('FREE','ACTIVE','TRIALING','PAST_DUE') "+
+        "ORDER BY CASE s.status WHEN 'ACTIVE' THEN 0 WHEN 'TRIALING' THEN 1 WHEN 'PAST_DUE' THEN 2 ELSE 3 END "+
+        "LIMIT 1 FOR UPDATE OF s",
+        [user.id]
+      );
+      if(!planRows[0])planRows=await tx.unsafe(
+        "SELECT slug,max_active_strategies,entitlements,available_strategy_keys FROM plans WHERE slug='free' LIMIT 1"
+      );
+      if(!planRows[0])throw new Error("FREE_PLAN_MISSING");
+      const entitlements=buildEntitlementSnapshot({
+        slug:String(planRows[0].slug),
+        maxActiveStrategies:planRows[0].max_active_strategies==null?null:Number(planRows[0].max_active_strategies),
+        entitlements:planRows[0].entitlements,
+        availableStrategyKeys:planRows[0].available_strategy_keys
+      });
+      if(!entitlements.features.has("multi_account"))throw new Error("MULTI_ACCOUNT_NOT_IN_PLAN");
+
       const currency=input.currency.toUpperCase();
       if(currency!==String(strategy.currency).toUpperCase())throw new Error("MULTI_ACCOUNT_FX_NOT_SUPPORTED");
       const regions=Array.isArray(strategy.supported_regions)?strategy.supported_regions.map(String):[];
@@ -69,9 +90,10 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       MULTI_ACCOUNT_FX_NOT_SUPPORTED:"For now, accounts inside one strategy must use the same currency. Mixed-currency strategies stay blocked until explicit FX support is configured.",
       STRATEGY_NOT_SUPPORTED_IN_REGION:"This strategy is not supported in that region.",
       STRATEGY_NOT_SUPPORTED_FOR_WRAPPER:"This strategy is not supported for that account type.",
-      ACCOUNT_LIMIT:"This strategy already has the maximum number of linked accounts."
+      ACCOUNT_LIMIT:"This strategy already has the maximum number of linked accounts.",
+      MULTI_ACCOUNT_NOT_IN_PLAN:"Multiple accounts are not included in your current plan."
     };
-    const status=code==="STRATEGY_NOT_FOUND"?404:code==="STRATEGY_CLOSED"?409:400;
+    const status=code==="STRATEGY_NOT_FOUND"?404:code==="MULTI_ACCOUNT_NOT_IN_PLAN"?403:code==="STRATEGY_CLOSED"?409:400;
     return Response.json({error:messages[code]??"Could not add the account."},{status});
   }
 }
