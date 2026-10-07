@@ -11,6 +11,7 @@ export type ExecutionInput = {
   availableCash: Decimal.Value;
   heldQuantity: Decimal.Value;
   maxNotionalDeviation?: Decimal.Value;
+  allowPartial?: boolean;
 };
 
 export type ValidatedExecution = {
@@ -158,7 +159,11 @@ export function validateExecution(input: ExecutionInput): ValidatedExecution {
 
   const grossNotional = quantity.mul(price);
   const deviation = grossNotional.minus(proposed).abs().div(proposed);
-  if (deviation.gt(maxDeviation)) throw new Error("EXECUTION_NOTIONAL_MISMATCH");
+  if (input.allowPartial) {
+    if (grossNotional.gt(proposed.mul(new Decimal(1).plus(maxDeviation)))) throw new Error("EXECUTION_NOTIONAL_MISMATCH");
+  } else if (deviation.gt(maxDeviation)) {
+    throw new Error("EXECUTION_NOTIONAL_MISMATCH");
+  }
 
   if (input.side === "BUY") {
     const requiredCash = grossNotional.plus(fee);
