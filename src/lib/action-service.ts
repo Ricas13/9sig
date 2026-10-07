@@ -517,8 +517,11 @@ export async function previewExecutionConstraintsScenario(
 
 export async function calculateAction(strategyInstanceId:string){
   return sql.begin(async(tx)=>{
-    // Serialise calculations per strategy. Fingerprints dedupe identical results,
-    // while this mutex prevents an older calculation from finishing after a newer one.
+    // Match the lock order used by financial mutations: strategy row first, then
+    // the calculation mutex. This prevents ledger/reconciliation changes from
+    // committing while a calculation is reading and persisting its action.
+    const locked=await tx.unsafe("SELECT id FROM strategy_instances WHERE id=$1 FOR UPDATE",[strategyInstanceId]);
+    if(!locked[0])throw new Error("STRATEGY_INSTANCE_NOT_FOUND");
     await tx.unsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[strategyInstanceId]);
 
     const calculation=await buildActionCalculation(strategyInstanceId);
