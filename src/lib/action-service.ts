@@ -560,6 +560,35 @@ export async function calculateAction(strategyInstanceId:string){
   });
 }
 
+export async function recalculateAfterMutation(
+  strategyInstanceId:string,
+  actorUserId?:string|null,
+  source="financial-mutation"
+){
+  try{
+    const calculated=await calculateAction(strategyInstanceId);
+    return {actionId:calculated.actionId,recalculationPending:false,errorCode:null as string|null};
+  }catch(error){
+    const errorCode=error instanceof Error?error.message:"ACTION_RECALCULATION_FAILED";
+    try{
+      await sql.begin(async(tx)=>{
+        await tx.unsafe(
+          "UPDATE strategy_instances SET health_status='NEEDS_ATTENTION',updated_at=now() WHERE id=$1",
+          [strategyInstanceId]
+        );
+        await tx.unsafe(
+          "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy.recalculation-failed','strategy_instance',$2,$3::jsonb)",
+          [actorUserId??null,strategyInstanceId,JSON.stringify({source,errorCode})]
+        );
+      });
+    }catch{
+      // The original financial mutation has already succeeded. Do not mask that success
+      // if only the secondary health/audit write also fails.
+    }
+    return {actionId:null,recalculationPending:true,errorCode};
+  }
+}
+
 export async function executeAction(
   userId:string,
   actionId:string,
