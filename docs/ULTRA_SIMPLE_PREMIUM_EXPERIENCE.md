@@ -702,7 +702,7 @@ Use this checklist as the shared cross-chat roadmap.
 - [x] define premium design tokens
 - [x] dark mode
 - [x] light mode
-- [ ] typography and number formatting
+- [x] typography and number formatting
 - [x] cards / surfaces / gradients / depth
 - [x] icon system
 - [x] animation / motion primitives
@@ -715,7 +715,7 @@ Use this checklist as the shared cross-chat roadmap.
 - [x] responsive charts
 - [x] compact navigation
 - [x] keyboard audit
-- [ ] contrast audit
+- [x] contrast audit
 - [x] screen-reader labels
 - [x] mobile touch-target audit
 
@@ -846,3 +846,10 @@ Still intentionally open: multi-account strategy ownership/execution, strategy-s
 - reduced-motion CSS and chart animation behavior are explicitly supported
 
 Still open for sign-off: typography / numeric-formatting polish, a dedicated contrast audit, visual-regression screenshots, and the final full release gate.
+
+
+## Design-system verification checkpoint — 7 October 2026
+
+- financial headline values use tabular lining figures for stable, readable number changes
+- the core dark/light semantic palette is now regression-tested at WCAG AA 4.5:1 or better against the base background for text, muted text, accents, warnings and danger states
+- contrast coverage is intentionally a core-token guardrail; component-level semantic/accessibility browser coverage remains part of the final release sweep
