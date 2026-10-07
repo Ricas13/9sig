@@ -1354,3 +1354,24 @@ html[data-theme="light"] .switch-confirmation {
 .lifecycle-switch-preview p { margin:0; color:var(--muted); font-size:11px; line-height:1.5; }
 
 .attention-message { color:var(--warning); font-size:13px; }
+
+
+.resume-progress {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 14px;
+  border:1px solid rgba(120,243,198,.16);
+  border-radius:14px;
+  background:rgba(120,243,198,.055);
+}
+.resume-progress strong { font-size:13px; letter-spacing:-.01em; }
+.resume-progress small { color:var(--muted); font-size:11px; }
+@media (max-width:680px) {
+  .resume-progress { align-items:flex-start; flex-direction:column; gap:3px; }
+}
+html[data-theme="light"] .resume-progress {
+  border-color:rgba(8,121,93,.15);
+  background:rgba(8,121,93,.045);
+}
