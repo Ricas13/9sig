@@ -8,7 +8,7 @@ import { loadEntitlements } from "@/lib/entitlement-service";
 import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { actionRecoveryGuidance, plainEnglishActionReason } from "@/domain/action-copy";
-import { AddLinkedAccountForm, CashEventForm, ContributionForm, ContributionPlanForm, ExecuteAction, ExecutionConstraintsForm, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategyVersionUpgrade, WhatIfPreview } from "@/components/StrategyActions";
+import { AddLinkedAccountForm, CashEventForm, ContributionForm, ContributionPlanForm, ExecuteAction, ExecutionConstraintsForm, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategySwitchControl, StrategyVersionUpgrade, WhatIfPreview } from "@/components/StrategyActions";
 
 function money(value:number,currency:string){
   return new Intl.NumberFormat("en-GB",{style:"currency",currency,maximumFractionDigits:0}).format(value);
@@ -329,7 +329,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         <div className="quick-drawer-content">
           <div className="detail-grid">
             <section className="drawer-section" id="strategy-health"><div className="eyebrow">Strategy health</div><h3>{isHealthy?"Everything looks good":"Needs attention"}</h3><p className="help">High-confidence actions are suppressed whenever critical holdings, FX, market data or reconciliation state is stale, missing or unresolved.</p><div className="strategy-meta"><span className="pill">Version {s.version}</span><span className="pill">{s.currency}</span><span className="pill">{s.onboarding_mode.replaceAll("_"," ")}</span><span className="pill">{s.status}</span></div></section>
-            <section className="drawer-section"><div className="eyebrow">Lifecycle</div><h3>Pause, resume or stop</h3><p className="help">These controls preserve your history. They never erase the journey you have already recorded.</p><StrategyLifecycleControls id={id} status={s.status}/></section>
+            <section className="drawer-section"><div className="eyebrow">Lifecycle</div><h3>Pause, resume, switch or stop</h3><p className="help">These controls preserve your history. They never erase the journey you have already recorded.</p><StrategyLifecycleControls id={id} status={s.status}/>{s.status!=="CLOSED"&&switchOptions.length>0&&<details className="lifecycle-switch-details"><summary>Switch strategy</summary><p className="help">Preview the new strategy first. Switching closes this journey and starts the new one from your portfolio as it is today.</p><StrategySwitchControl id={id} options={switchOptions}/></details>}</section>
           </div>
           <section className="drawer-section linked-accounts-section">
             <div className="eyebrow">Linked accounts</div>
