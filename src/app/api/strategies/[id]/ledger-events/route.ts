@@ -2,7 +2,7 @@ import Decimal from "decimal.js";
 import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { getStrategyForUser } from "@/lib/strategy-service";
-import { calculateAction } from "@/lib/action-service";
+import { recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
 
@@ -61,9 +61,8 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       );
       return {eventId:ledgerEventId,duplicate:false};
     });
-    let actionId:string|null=null;
-    if(String(strategy.status)==="ACTIVE"){try{actionId=(await calculateAction(id)).actionId;}catch{}}
-    return Response.json({ok:true,id:eventResult.eventId,actionId,duplicate:eventResult.duplicate});
+    const recalc=String(strategy.status)==="ACTIVE"&&!eventResult.duplicate?await recalculateAfterMutation(id,user.id,"cash-event"):{actionId:null,recalculationPending:false,errorCode:null};
+    return Response.json({ok:true,id:eventResult.eventId,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending,duplicate:eventResult.duplicate});
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Check the cash event details."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
