@@ -133,7 +133,7 @@ export function ContributionForm({ id, accounts=[] }: { id: string; accounts?:Ac
   }}>
     <AccountSelect accounts={accounts}/><div className="field"><label>Contribution</label><input name="amount" type="number" min="0.01" step="0.01" required /></div>
     <div className="field"><label>Date & time</label><input name="when" type="datetime-local" /></div>
-    <div className="field full"><button className="button" disabled={busy}>{busy?"Recording…":"Record contribution"}</button>{message && <div className={message.startsWith("Contribution recorded") ? "success" : "error"}>{message}</div>}</div>
+    <div className="field full"><button className="button" disabled={busy}>{busy?"Recording…":"Record contribution"}</button>{message && <div className={message.includes("Recalculation needs attention")?"attention-message":message.startsWith("Contribution recorded") ? "success" : "error"}>{message}</div>}</div>
   </form>;
 }
 
@@ -184,7 +184,7 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
       <label><input name="affectsCash" type="checkbox" /> This difference definitely changes available cash</label>
       <div className="help">Use this for a fee, tax, financing or FX cash charge. Leave it off for an unexplained valuation difference; actions stay blocked instead of treating unknown drift as spendable cash.</div>
     </div>
-    <div className="field full"><button className="button" disabled={busy}>{busy?"Reconciling…":"Reconcile"}</button>{message && <div className={message.includes("resolved") ? "success" : "error"}>{message}</div>}</div>
+    <div className="field full"><button className="button" disabled={busy}>{busy?"Reconciling…":"Reconcile"}</button>{message && <div className={message.includes("Recalculation needs attention")?"attention-message":message.includes("resolved") ? "success" : "error"}>{message}</div>}</div>
   </form>;
 }
 
@@ -251,7 +251,7 @@ export function OpeningSnapshotForm({ id, accounts=[] }: { id: string; accounts?
     </div>
     <div className="help">This records what you hold now. It does not invent historical trades, cost basis or contributions.</div>
     {accounts.length>1&&pendingAccounts.length>1&&<div className="help">{pendingAccounts.length} linked accounts still need a starting position.</div>}
-    {message && <div className={message.startsWith("Opening snapshot complete")||message.startsWith("Saved for") ? "success" : "error"}>{message}</div>}
+    {message && <div className={message.includes("Recalculation needs attention")?"attention-message":message.startsWith("Opening snapshot complete")||message.startsWith("Saved for") ? "success" : "error"}>{message}</div>}
   </form>;
 }
 
@@ -291,7 +291,7 @@ export function StrategyLifecycleControls({ id, status }: { id: string; status: 
         <button className="button quiet" disabled={busy} onClick={()=>setConfirmClose(false)}>Keep strategy</button>
       </div>
     </div>}
-    {message && <span className={message.startsWith("Strategy status updated") ? "success" : "error"}>{message}</span>}
+    {message && <span className={message.includes("Recalculation needs attention")?"attention-message":message.startsWith("Strategy status updated") ? "success" : "error"}>{message}</span>}
   </div>;
 }
 
@@ -398,7 +398,7 @@ export function StrategyVersionUpgrade({
       <div className="version-upgrade-actions">
         <button type="button" className="button" disabled={busy||previewBusy} onClick={(event)=>event.currentTarget.form&&previewVersion(event.currentTarget.form)}>{previewBusy?"Previewing…":"Preview today’s action"}</button>
         <button className="button primary" disabled={busy||previewBusy}>{busy?"Updating…":"Update to v"+targetVersion}</button>
-        {message&&<div className={message.startsWith("Strategy updated")?"success":"error"}>{message}</div>}
+        {message&&<div className={message.includes("Recalculation needs attention")?"attention-message":message.startsWith("Strategy updated")?"success":"error"}>{message}</div>}
       </div>
     </form>
   </section>;
@@ -427,7 +427,7 @@ export function CashEventForm({id,accounts=[]}:{id:string;accounts?:AccountOptio
     <div className="field"><label>Amount</label><input name="amount" type="number" min="0.01" step="0.01" required/></div>
     <div className="field"><label>Date & time</label><input name="when" type="datetime-local"/></div>
     <div className="field"><label>Note (optional)</label><input name="note" maxLength={240}/></div>
-    <div className="field full"><button className="button" disabled={busy}>{busy?"Recording…":"Record cash event"}</button><div className="help">Withdrawals, fees and tax reduce cash; dividends, distributions and interest increase cash. The original ledger history remains append-only.</div>{message&&<div className={message.startsWith("Cash event recorded")?"success":"error"}>{message}</div>}</div>
+    <div className="field full"><button className="button" disabled={busy}>{busy?"Recording…":"Record cash event"}</button><div className="help">Withdrawals, fees and tax reduce cash; dividends, distributions and interest increase cash. The original ledger history remains append-only.</div>{message&&<div className={message.includes("Recalculation needs attention")?"attention-message":message.startsWith("Cash event recorded")?"success":"error"}>{message}</div>}</div>
   </form>;
 }
 
