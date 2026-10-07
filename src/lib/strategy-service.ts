@@ -47,12 +47,12 @@ export async function getStrategyForUser(userId: string, instanceId: string) {
     "v.version,v.engine_key AS engine,v.config,v.disclosure,v.release_notes,v.input_schema,v.upgrade_policy,"+
     "a.wrapper,a.currency,a.country,a.broker_name,s.state,s.confidence AS state_confidence,"+
     "latest.id AS latest_version_id,latest.version AS latest_version,latest.release_notes AS latest_release_notes,"+
-    "latest.upgrade_policy AS latest_upgrade_policy,latest.input_schema AS latest_input_schema "+
+    "latest.upgrade_policy AS latest_upgrade_policy,latest.input_schema AS latest_input_schema,latest.config AS latest_config "+
     "FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id "+
     "JOIN strategy_versions v ON v.id=i.strategy_version_id LEFT JOIN accounts a ON a.id=i.account_id "+
     "JOIN strategy_states s ON s.strategy_instance_id=i.id "+
     "LEFT JOIN LATERAL ("+
-    " SELECT nv.id,nv.version,nv.release_notes,nv.upgrade_policy,nv.input_schema FROM strategy_versions nv"+
+    " SELECT nv.id,nv.version,nv.release_notes,nv.upgrade_policy,nv.input_schema,nv.config FROM strategy_versions nv"+
     " WHERE nv.strategy_definition_id=i.strategy_definition_id AND nv.lifecycle_status='PUBLISHED'"+
     " AND nv.effective_from<=current_date AND (nv.effective_to IS NULL OR nv.effective_to>=current_date)"+
     " ORDER BY nv.effective_from DESC,nv.published_at DESC NULLS LAST LIMIT 1"+
