@@ -4,7 +4,7 @@ import postgres from "postgres";
 
 const PASSWORD="e2e-password-1234";
 
-async function createVerifiedUser(testInfo:{project:{name:string};workerIndex:number},suffix:string){
+async function createVerifiedUser(testInfo:{project:{name:string};workerIndex:number},suffix:string,planSlug="free"){
   const url=process.env.DATABASE_URL;
   if(!url)throw new Error("DATABASE_URL is required for authenticated e2e tests");
   const safeProject=testInfo.project.name.replace(/[^a-z0-9]+/gi,"-").toLowerCase();
@@ -14,13 +14,16 @@ async function createVerifiedUser(testInfo:{project:{name:string};workerIndex:nu
     const hash=await bcrypt.hash(PASSWORD,4);
     await sql.begin(async(tx)=>{
       await tx.unsafe("DELETE FROM users WHERE email=$1",[email]);
-      const plans=await tx.unsafe("SELECT id FROM plans WHERE slug='free' LIMIT 1");
-      if(!plans[0])throw new Error("FREE_PLAN_MISSING");
+      const plans=await tx.unsafe("SELECT id FROM plans WHERE slug=$1 LIMIT 1",[planSlug]);
+      if(!plans[0])throw new Error("PLAN_MISSING");
       const users=await tx.unsafe(
         "INSERT INTO users (email,password_hash,email_verified_at,country,base_currency,timezone) VALUES ($1,$2,now(),'GB','GBP','Europe/London') RETURNING id",
         [email,hash]
       );
-      await tx.unsafe("INSERT INTO subscriptions (user_id,plan_id,status,cadence) VALUES ($1,$2,'FREE','FREE')",[users[0].id,plans[0].id]);
+      await tx.unsafe(
+        "INSERT INTO subscriptions (user_id,plan_id,status,cadence) VALUES ($1,$2,$3,$4)",
+        [users[0].id,plans[0].id,planSlug==="free"?"FREE":"ACTIVE",planSlug==="free"?"FREE":"MONTHLY"]
+      );
     });
   }finally{
     await sql.end();
@@ -94,3 +97,30 @@ test("existing investor can resume without rebuilding transaction history",async
   await expect(page.getByRole("heading",{name:"Tell us what you own today."})).toBeVisible();
   await expect(page.getByText(/do not need to rebuild your old transaction history/i)).toBeVisible();
 });
+
+test("Pro user can link another account without complicating the main flow",async({page},testInfo)=>{
+  const user=await createVerifiedUser(testInfo,"multi-account","pro");
+  await login(page,user);
+
+  await page.getByRole("link",{name:"Start my first strategy"}).click();
+  await page.getByRole("button",{name:/Continue/}).click();
+  await page.getByRole("button",{name:/Continue/}).click();
+  await page.getByLabel("What should we call it?").fill("Multi account 9Sig");
+  await page.getByLabel("How much are you starting with?").fill("10000");
+  await page.getByRole("button",{name:/Start my strategy/}).click();
+  await page.waitForURL(/\/app\/strategies\//);
+
+  await page.locator("summary").filter({hasText:"Strategy settings & rules"}).click();
+  await expect(page.getByText("Your strategy account")).toBeVisible();
+  await page.getByText("Add another account").click();
+  await page.getByLabel("Account name").fill("Pension account");
+  await page.getByLabel("Account type").selectOption("SIPP");
+  await page.getByLabel("Broker (optional)").fill("Example Broker");
+  await page.getByRole("button",{name:"Add linked account"}).click();
+
+  await expect(page.getByText("Pension account")).toBeVisible();
+
+  await page.locator("summary").filter({hasText:"Update portfolio"}).click();
+  await expect(page.getByLabel("Account").first()).toBeVisible();
+});
+
