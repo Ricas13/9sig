@@ -794,3 +794,10 @@ html[data-theme="light"] .action-complete {
 @media (prefers-reduced-motion:reduce) {
   .action-complete { animation:none; }
 }
+
+
+.theme-icon-dark,.theme-label-dark { display:none; }
+html[data-theme="light"] .theme-icon-light,
+html[data-theme="light"] .theme-label-light { display:none; }
+html[data-theme="light"] .theme-icon-dark { display:grid; }
+html[data-theme="light"] .theme-label-dark { display:inline; }
