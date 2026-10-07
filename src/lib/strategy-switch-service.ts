@@ -126,7 +126,7 @@ export async function switchStrategy(
       "VALUES ($1,$2,$3,$4,$5,'ACTIVE','RESUME',now(),'NEEDS_ATTENTION',$6::jsonb,$7::jsonb,$8::jsonb) RETURNING id",
       [
         userId,primary.id,target.definition_id,target.version_id,
-        input.name?.trim()||String(target.name),
+        input.name?.trim()||String(current.name),
         JSON.stringify(settings),
         JSON.stringify(current.execution_constraints??{}),
         JSON.stringify(current.contribution_plan??{})
