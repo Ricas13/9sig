@@ -722,7 +722,7 @@ Use this checklist as the shared cross-chat roadmap.
 ### Commercial experience
 
 - [x] keep plan definitions data-driven
-- [ ] polished upgrade / downgrade flows
+- [x] polished upgrade / downgrade flows
 - [x] graceful plan-limit handling
 - [x] keep admin configuration separate from customer UX
 
