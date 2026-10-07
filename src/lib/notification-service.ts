@@ -29,7 +29,22 @@ export async function processPendingDeliveries(limit=50){
     [limit]
   );
   let sent=0;
+  const entitlementCache=new Map<string,Set<string>>();
   for(const d of deliveries){
+    const userId=String(d.user_id);
+    let channels=entitlementCache.get(userId);
+    if(!channels){
+      channels=(await loadEntitlements(userId)).notificationChannels;
+      entitlementCache.set(userId,channels);
+    }
+    if(!channels.has(String(d.channel))){
+      await sql.unsafe(
+        "UPDATE notification_deliveries SET status='CANCELLED',last_error_code='CHANNEL_NOT_IN_PLAN',updated_at=now() WHERE id=$1 AND status='SENDING'",
+        [d.id]
+      );
+      continue;
+    }
+
     let ok=false;
     try{
       if(d.channel==="EMAIL"){
