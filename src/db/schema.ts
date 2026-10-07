@@ -159,6 +159,7 @@ export const strategyInstances = pgTable("strategy_instances", {
   healthStatus: text("health_status").notNull().default("NEEDS_ATTENTION"),
   lastReconciledAt: timestamp("last_reconciled_at", { withTimezone: true }),
   settings: jsonb("settings").notNull().default({}),
+  executionConstraints: jsonb("execution_constraints").notNull().default({fractionalShares:true,minimumTradeAmount:"0",cashBufferAmount:"0",flatFee:"0",allowSelling:true}),
   ...timestamps
 }, (t) => [
   index("strategy_instances_user_idx").on(t.userId, t.status),
