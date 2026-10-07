@@ -29,6 +29,7 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
   const [selectedKey,setSelectedKey]=useState(strategies[0]?.key??"");
   const [error,setError]=useState("");
   const [busy,setBusy]=useState(false);
+  const [regularContribution,setRegularContribution]=useState(false);
   const selected=useMemo(()=>strategies.find((s)=>s.key===selectedKey)??strategies[0],[strategies,selectedKey]);
   const wrappers=selected?.supportedWrappers.length?selected.supportedWrappers:["ISA","SIPP","TAXABLE"];
 
@@ -52,6 +53,12 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
         cashBufferAmount:String(f.get("cashBufferAmount")||"0"),
         flatFee:String(f.get("flatFee")||"0"),
         allowSelling:Boolean(f.get("allowSelling"))
+      },
+      contributionPlan:{
+        enabled:regularContribution,
+        amount:regularContribution?String(f.get("regularContributionAmount")||"0"):"0",
+        frequency:String(f.get("contributionFrequency")||"MONTHLY"),
+        nextDate:regularContribution&&f.get("nextContributionDate")?String(f.get("nextContributionDate")):null
       }
     })});
     const body=await response.json();setBusy(false);
@@ -114,6 +121,13 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
             {mode==="START_NEW"?<div className="field full"><label>How much are you starting with?</label><div className="money-input"><span>{baseCurrency}</span><input name="startingCash" type="number" min="0" step="0.01" placeholder="5000"/></div><div className="help">We record this as cash first. You confirm any purchase separately.</div></div>:
             <div className="field full"><label>Rough account value <span className="optional">optional</span></label><div className="money-input"><span>{baseCurrency}</span><input name="approximateValue" type="number" min="0" step="0.01" placeholder="31816"/></div><div className="help">This is only an orientation value. Your current holdings snapshot becomes the real starting record.</div></div>}
           </div>
+          <div className="preference-divider"/>
+          <label className="toggle-row contribution-toggle"><input type="checkbox" checked={regularContribution} onChange={(e)=>setRegularContribution(e.target.checked)}/><span><b>I plan to add money regularly</b><small>Optional. This creates a reminder only — money is counted only after you record the real deposit.</small></span></label>
+          {regularContribution&&<div className="form-grid contribution-plan-fields">
+            <div className="field"><label>Usual amount</label><div className="money-input"><span>{baseCurrency}</span><input name="regularContributionAmount" type="number" min="0.01" step="0.01" placeholder="500" required/></div></div>
+            <div className="field"><label>How often?</label><select name="contributionFrequency" defaultValue="MONTHLY"><option value="WEEKLY">Weekly</option><option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option></select></div>
+            <div className="field full"><label>Next contribution date <span className="optional">optional</span></label><input name="nextContributionDate" type="date"/><div className="help">Leave blank and we will schedule the first reminder one period from today.</div></div>
+          </div>}
         </div>
 
         <StrategyFields fields={selected?.inputSchema??[]}/>
