@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planPracticalTrade, validateExecution } from "../src/domain/execution";
+import { assertExecutionCurrencyMatch, planPracticalTrade, validateExecution } from "../src/domain/execution";
 
 describe("trade execution validation", () => {
   it("records actual buy notional and fee", () => {
@@ -144,4 +144,20 @@ describe("trade execution validation", () => {
     })).toThrow("EXECUTION_NOTIONAL_MISMATCH");
   });
 
+});
+
+
+describe("execution currency invariant", () => {
+  it("accepts the same currency and returns a canonical code", () => {
+    expect(assertExecutionCurrencyMatch("gbp", "GBP")).toBe("GBP");
+  });
+
+  it("rejects a currency mismatch", () => {
+    expect(() => assertExecutionCurrencyMatch("USD", "GBP")).toThrow("EXECUTION_CURRENCY_MISMATCH");
+  });
+
+  it("fails closed when either currency is missing", () => {
+    expect(() => assertExecutionCurrencyMatch(null, "GBP")).toThrow("EXECUTION_CURRENCY_MISMATCH");
+    expect(() => assertExecutionCurrencyMatch("GBP", undefined)).toThrow("EXECUTION_CURRENCY_MISMATCH");
+  });
 });
