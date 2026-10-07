@@ -119,16 +119,16 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
         <div className="setup-section">
           <div className="setup-section-title"><span>{selected?.name}</span><small>{mode==="START_NEW"?"New strategy":"Resume existing strategy"}</small></div>
           <div className="form-grid">
-            <div className="field full"><label>What should we call it?</label><input name="name" placeholder={selected?.name+" · My account"} required autoFocus/></div>
-            {mode==="START_NEW"?<div className="field full"><label>How much are you starting with?</label><div className="money-input"><span>{baseCurrency}</span><input name="startingCash" type="number" min="0" step="0.01" placeholder="5000"/></div><div className="help">We record this as cash first. You confirm any purchase separately.</div></div>:
-            <div className="field full"><label>Rough account value <span className="optional">optional</span></label><div className="money-input"><span>{baseCurrency}</span><input name="approximateValue" type="number" min="0" step="0.01" placeholder="31816"/></div><div className="help">This is only an orientation value. Your current holdings snapshot becomes the real starting record.</div></div>}
+            <div className="field full"><label htmlFor="strategy-name">What should we call it?</label><input id="strategy-name" name="name" placeholder={selected?.name+" · My account"} required autoFocus/></div>
+            {mode==="START_NEW"?<div className="field full"><label htmlFor="starting-cash">How much are you starting with?</label><div className="money-input"><span>{baseCurrency}</span><input id="starting-cash" name="startingCash" type="number" min="0" step="0.01" placeholder="5000"/></div><div className="help">We record this as cash first. You confirm any purchase separately.</div></div>:
+            <div className="field full"><label htmlFor="approximate-value">Rough account value <span className="optional">optional</span></label><div className="money-input"><span>{baseCurrency}</span><input id="approximate-value" name="approximateValue" type="number" min="0" step="0.01" placeholder="31816"/></div><div className="help">This is only an orientation value. Your current holdings snapshot becomes the real starting record.</div></div>}
           </div>
           <div className="preference-divider"/>
           <label className="toggle-row contribution-toggle"><input type="checkbox" checked={regularContribution} onChange={(e)=>setRegularContribution(e.target.checked)}/><span><b>I plan to add money regularly</b><small>Optional. This creates a reminder only — money is counted only after you record the real deposit.</small></span></label>
           {regularContribution&&<div className="form-grid contribution-plan-fields">
-            <div className="field"><label>Usual amount</label><div className="money-input"><span>{baseCurrency}</span><input name="regularContributionAmount" type="number" min="0.01" step="0.01" placeholder="500" required/></div></div>
-            <div className="field"><label>How often?</label><select name="contributionFrequency" defaultValue="MONTHLY"><option value="WEEKLY">Weekly</option><option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option></select></div>
-            <div className="field full"><label>Next contribution date <span className="optional">optional</span></label><input name="nextContributionDate" type="date"/><div className="help">Leave blank and we will schedule the first reminder one period from today.</div></div>
+            <div className="field"><label htmlFor="regular-contribution-amount">Usual amount</label><div className="money-input"><span>{baseCurrency}</span><input id="regular-contribution-amount" name="regularContributionAmount" type="number" min="0.01" step="0.01" placeholder="500" required/></div></div>
+            <div className="field"><label htmlFor="contribution-frequency">How often?</label><select id="contribution-frequency" name="contributionFrequency" defaultValue="MONTHLY"><option value="WEEKLY">Weekly</option><option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option></select></div>
+            <div className="field full"><label htmlFor="next-contribution-date">Next contribution date <span className="optional">optional</span></label><input id="next-contribution-date" name="nextContributionDate" type="date"/><div className="help">Leave blank and we will schedule the first reminder one period from today.</div></div>
           </div>}
         </div>
 
@@ -138,9 +138,9 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
           <summary>Account details</summary>
           <p className="help">Defaults are usually enough. Change these only if they apply to you.</p>
           <div className="form-grid">
-            <div className="field"><label>Account type</label><select name="wrapper" key={selectedKey} defaultValue={wrappers[0]}>{wrappers.map((wrapper)=><option key={wrapper}>{wrapper}</option>)}</select></div>
-            <div className="field"><label>Currency</label><select name="currency" defaultValue={baseCurrency}>{!["GBP","USD","EUR"].includes(baseCurrency)&&<option>{baseCurrency}</option>}<option>GBP</option><option>USD</option><option>EUR</option></select></div>
-            <div className="field full"><label>Broker <span className="optional">optional</span></label><input name="broker" placeholder="e.g. Trading 212"/></div>
+            <div className="field"><label htmlFor="account-wrapper">Account type</label><select id="account-wrapper" name="wrapper" key={selectedKey} defaultValue={wrappers[0]}>{wrappers.map((wrapper)=><option key={wrapper}>{wrapper}</option>)}</select></div>
+            <div className="field"><label htmlFor="account-currency">Currency</label><select id="account-currency" name="currency" defaultValue={baseCurrency}>{!["GBP","USD","EUR"].includes(baseCurrency)&&<option>{baseCurrency}</option>}<option>GBP</option><option>USD</option><option>EUR</option></select></div>
+            <div className="field full"><label htmlFor="account-broker">Broker <span className="optional">optional</span></label><input id="account-broker" name="broker" placeholder="e.g. Trading 212"/></div>
           </div>
           <div className="preference-divider"/>
           <div className="setup-section-title"><span>Trade preferences</span><small>Optional — sensible defaults are already selected</small></div>
