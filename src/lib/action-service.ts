@@ -163,9 +163,9 @@ export async function calculateAction(strategyInstanceId:string){
 export async function executeAction(
   userId:string,
   actionId:string,
-  execution?:{price?:string;quantity?:string;fee?:string}
+  execution?:{price?:string;quantity?:string;fee?:string;partial?:boolean}
 ){
-  const strategyInstanceId=await sql.begin(async(tx)=>{
+  const result=await sql.begin(async(tx)=>{
     const rows=await tx.unsafe(
       "SELECT a.*,i.user_id,i.execution_constraints,acc.currency,tl.instrument_id FROM actions a JOIN strategy_instances i ON i.id=a.strategy_instance_id JOIN accounts acc ON acc.id=i.account_id LEFT JOIN trading_lines tl ON tl.id=a.trading_line_id WHERE a.id=$1 AND i.user_id=$2 FOR UPDATE OF a",
       [actionId,userId]
@@ -180,8 +180,11 @@ export async function executeAction(
 
     await tx.unsafe("SELECT id FROM strategy_instances WHERE id=$1 FOR UPDATE",[action.strategy_instance_id]);
 
+    let partial=false;
+    let actualNotional:string|null=null;
+
     if(["BUY","SELL"].includes(actionType)){
-      if(!execution?.price||!action.instrument_id||!action.amount)throw new Error("EXECUTION_DETAILS_REQUIRED");
+      if(!execution?.price||!execution?.quantity||!action.instrument_id||!action.amount)throw new Error("EXECUTION_DETAILS_REQUIRED");
       if(String(action.currency)!==String(action.currency??rows[0].currency)||String(action.currency)!==String(rows[0].currency)){
         throw new Error("EXECUTION_CURRENCY_MISMATCH");
       }
@@ -201,22 +204,23 @@ export async function executeAction(
       const held=position.quantities.get(String(action.instrument_id))??new Decimal(0);
       const constraints=normalizeExecutionConstraints(action.execution_constraints);
       if(actionType==="SELL"&&!constraints.allowSelling)throw new Error("SELLING_DISABLED");
-      if(execution.quantity&&!constraints.fractionalShares&&!new Decimal(execution.quantity).isInteger())throw new Error("FRACTIONAL_SHARES_DISABLED");
+      if(!constraints.fractionalShares&&!new Decimal(execution.quantity).isInteger())throw new Error("FRACTIONAL_SHARES_DISABLED");
       const spendableCash=Decimal.max(position.cash.minus(constraints.cashBufferAmount),0);
       const validated=validateExecution({
         side:actionType as "BUY"|"SELL",
         proposedAmount:String(action.amount),
         price:execution.price,
-        quantity:execution.quantity??null,
+        quantity:execution.quantity,
         fee:execution.fee??"0",
         availableCash:spendableCash,
-        heldQuantity:held
+        heldQuantity:held,
+        allowPartial:Boolean(execution.partial)
       });
       if(!constraints.fractionalShares&&!validated.quantity.isInteger())throw new Error("FRACTIONAL_SHARES_DISABLED");
       if(validated.grossNotional.lt(constraints.minimumTradeAmount))throw new Error("BELOW_MINIMUM_TRADE");
 
-      await tx.unsafe(
-        "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,now(),$2,$3,$4,$5,$6,$7,$8,'USER_ENTERED','VERIFIED',$9::jsonb)",
+      const inserted=await tx.unsafe(
+        "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,now(),$2,$3,$4,$5,$6,$7,$8,'USER_ENTERED','VERIFIED',$9::jsonb) RETURNING id",
         [
           action.strategy_instance_id,
           actionType,
@@ -229,22 +233,51 @@ export async function executeAction(
           JSON.stringify({
             actionId,
             proposedAmount:String(action.amount),
-            actualNotional:validated.grossNotional.toString()
+            actualNotional:validated.grossNotional.toString(),
+            partial:Boolean(execution.partial)
           })
+        ]
+      );
+      actualNotional=validated.grossNotional.toString();
+      const remainder=new Decimal(String(action.amount)).minus(validated.grossNotional);
+      partial=Boolean(execution.partial)&&remainder.gt(new Decimal(String(action.amount)).mul("0.000001"));
+
+      await tx.unsafe(
+        "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,$2,'action',$3,$4::jsonb)",
+        [
+          userId,
+          partial?"action.partially-executed":"action.executed",
+          actionId,
+          JSON.stringify({ledgerEventId:String(inserted[0].id),actualNotional,quantity:validated.quantity.toString(),fee:validated.fee.toString()})
         ]
       );
     }
 
-    await tx.unsafe(
-      "UPDATE strategy_states SET state=$1::jsonb,calculated_at=now(),confidence=$2 WHERE strategy_instance_id=$3",
-      [JSON.stringify(action.next_state??{}),action.confidence,action.strategy_instance_id]
-    );
-    await tx.unsafe(
-      "UPDATE actions SET status='EXECUTED',executed_at=now(),updated_at=now() WHERE id=$1",
-      [actionId]
-    );
-    return String(action.strategy_instance_id);
+    if(partial){
+      await tx.unsafe(
+        "UPDATE actions SET status='PARTIALLY_EXECUTED',executed_at=now(),updated_at=now() WHERE id=$1",
+        [actionId]
+      );
+    }else{
+      await tx.unsafe(
+        "UPDATE strategy_states SET state=$1::jsonb,calculated_at=now(),confidence=$2 WHERE strategy_instance_id=$3",
+        [JSON.stringify(action.next_state??{}),action.confidence,action.strategy_instance_id]
+      );
+      await tx.unsafe(
+        "UPDATE actions SET status='EXECUTED',executed_at=now(),updated_at=now() WHERE id=$1",
+        [actionId]
+      );
+      if(!["BUY","SELL"].includes(actionType)){
+        await tx.unsafe(
+          "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'action.executed','action',$2,$3::jsonb)",
+          [userId,actionId,JSON.stringify({actionType})]
+        );
+      }
+    }
+
+    return {strategyInstanceId:String(action.strategy_instance_id),partial,actualNotional};
   });
-  try{await calculateAction(strategyInstanceId);}catch{}
-  return true;
+  try{await calculateAction(result.strategyInstanceId);}catch{}
+  return result;
 }
+
