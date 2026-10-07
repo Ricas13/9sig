@@ -35,7 +35,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return Response.json({ error: "Enter cash, at least one holding, or both." }, { status: 400 });
     }
 
-    await sql.begin(async (tx) => {
+    const snapshotState=await sql.begin(async (tx) => {
       const locked = await tx.unsafe(
         "SELECT i.id,i.status,i.onboarding_mode,i.account_id AS primary_account_id,a.id AS account_id,a.currency,a.name AS account_name "+
         "FROM strategy_instances i JOIN strategy_accounts sa ON sa.strategy_instance_id=i.id JOIN accounts a ON a.id=sa.account_id "+
@@ -95,8 +95,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       await tx.unsafe("UPDATE strategy_instances SET health_status='NEEDS_ATTENTION',updated_at=now() WHERE id=$1", [id]);
       await tx.unsafe(
         "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy.opening-snapshot','strategy_instance',$2,$3::jsonb)",
-        [user.id, id, JSON.stringify({ holdings: holdings.length, cashEntered: cash.gt(0) })]
+        [user.id, id, JSON.stringify({ accountId:String(locked[0].account_id), holdings: holdings.length, cashEntered: cash.gt(0), pendingAccounts:pending.map((row)=>String(row.id)) })]
       );
+      return {pendingAccountIds:pending.map((row)=>String(row.id)),pendingAccountNames:pending.map((row)=>String(row.name))};
     });
 
     let actionId: string | null = null;
@@ -105,7 +106,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     } catch {
       // The snapshot is still valid even if market data is not ready; the dashboard remains NEEDS_ATTENTION.
     }
-    return Response.json({ ok: true, actionId });
+    return Response.json({
+      ok:true,
+      actionId,
+      complete:snapshotState.pendingAccountIds.length===0,
+      pendingAccountIds:snapshotState.pendingAccountIds,
+      pendingAccountNames:snapshotState.pendingAccountNames
+    });
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ error: "Check the opening cash and holding quantities." }, { status: 400 });
     const code = error instanceof Error ? error.message : "FAILED";
