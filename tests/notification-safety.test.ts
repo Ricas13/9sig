@@ -27,4 +27,13 @@ describe("notification delivery entitlement safety",()=>{
     expect(actionCheck).toBeGreaterThanOrEqual(0);
     expect(emailSend).toBeGreaterThan(actionCheck);
   });
+
+  it("suppresses older queued notifications when the same action is reactivated",()=>{
+    expect(source).toContain("SUPERSEDED_ACTION_NOTIFICATION");
+    expect(source).toContain("latest_action_notification");
+    const latestCheck=source.indexOf("latest_action_notification");
+    const emailSend=source.indexOf('if(d.channel==="EMAIL")');
+    expect(latestCheck).toBeGreaterThanOrEqual(0);
+    expect(emailSend).toBeGreaterThan(latestCheck);
+  });
 });
