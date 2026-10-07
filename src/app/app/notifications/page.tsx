@@ -4,7 +4,14 @@ import { sql } from "@/lib/db";
 
 export default async function NotificationsPage(){
   const user=await requireUser();
-  const rows=await sql.unsafe("SELECT id,type,title,body,read_at,created_at FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100",[user.id]);
+  const rows=await sql.unsafe(
+    "SELECT id,type,title,body,read_at,created_at FROM ("+
+    " SELECT DISTINCT ON (COALESCE(action_id,id)) id,action_id,type,title,body,read_at,created_at"+
+    " FROM notifications WHERE user_id=$1"+
+    " ORDER BY COALESCE(action_id,id),created_at DESC"+
+    ") latest ORDER BY created_at DESC LIMIT 100",
+    [user.id]
+  );
   return <>
     <div className="page-title"><div><div className="eyebrow">Activity</div><h1>What changed.</h1><p>Important updates from your strategies, in one quiet timeline.</p></div></div>
     <section className="glass activity-timeline">
