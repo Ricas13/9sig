@@ -34,7 +34,7 @@ export async function PATCH(request:Request,context:{params:Promise<{id:string}>
     const {id}=await context.params;
     const input=schema.parse(await request.json());
     const result=await migrateStrategyVersion(user.id,id,input.targetVersionId,input.settings);
-    const recalc=result.changed?await recalculateAfterMutation(id,user.id,"strategy-version-update"):{actionId:null,recalculationPending:false,errorCode:null};
+    const recalc=result.changed&&result.status==="ACTIVE"?await recalculateAfterMutation(id,user.id,"strategy-version-update"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({ok:true,changed:result.changed,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending});
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Invalid version update."},{status:400});
