@@ -117,18 +117,32 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
 
   let tradingLineId:string|null=null;
   let executionTicker:string|null=null;
+  let executionAccountId:string|null=null;
   if(proposal.economicExposure&&["BUY","SELL","REBALANCE"].includes(proposal.actionType)){
     if(proposal.actionType==="SELL"){
-      const heldExposure=exposurePositions.find((p)=>p.economicExposure===proposal.economicExposure&&p.tradingLineId);
-      if(heldExposure?.tradingLineId) tradingLineId=heldExposure.tradingLineId;
+      const heldExposure=[...exposurePositions]
+        .filter((p)=>p.economicExposure===proposal.economicExposure&&p.tradingLineId)
+        .sort((a,b)=>b.value.cmp(a.value))[0];
+      if(heldExposure?.tradingLineId){
+        tradingLineId=heldExposure.tradingLineId;
+        executionAccountId=heldExposure.accountId;
+      }
+    }else{
+      const cashCandidates=accounts
+        .map((account)=>({account,position:accountPositions.get(String(account.id))}))
+        .sort((a,b)=>(b.position?.cash??new Decimal(0)).cmp(a.position?.cash??new Decimal(0)));
+      executionAccountId=String((cashCandidates[0]?.account??accounts[0]).id);
     }
 
+    const executionAccount=accounts.find((account)=>String(account.id)===executionAccountId)??accounts[0];
+    if(!executionAccountId)executionAccountId=String(executionAccount.id);
+
     if(!tradingLineId){
-      const mappingRows=await sql.unsafe("SELECT m.id,m.economic_exposure,m.leverage,m.direction,m.country,m.wrapper,m.broker,m.preferred_currency,m.fidelity,m.effective_from,m.effective_to,m.trading_line_id,tl.currency AS trading_line_currency,tl.effective_from AS trading_line_effective_from,tl.effective_to AS trading_line_effective_to FROM regional_instrument_mappings m JOIN trading_lines tl ON tl.id=m.trading_line_id WHERE m.economic_exposure=$1 AND m.country=$2 AND m.wrapper=$3 AND m.enabled=true",[proposal.economicExposure,instance.country,instance.wrapper]);
+      const mappingRows=await sql.unsafe("SELECT m.id,m.economic_exposure,m.leverage,m.direction,m.country,m.wrapper,m.broker,m.preferred_currency,m.fidelity,m.effective_from,m.effective_to,m.trading_line_id,tl.currency AS trading_line_currency,tl.effective_from AS trading_line_effective_from,tl.effective_to AS trading_line_effective_to FROM regional_instrument_mappings m JOIN trading_lines tl ON tl.id=m.trading_line_id WHERE m.economic_exposure=$1 AND m.country=$2 AND m.wrapper=$3 AND m.enabled=true",[proposal.economicExposure,executionAccount.country,executionAccount.wrapper]);
       const candidates:MappingCandidate[]=mappingRows.map((r)=>({id:String(r.id),economicExposure:String(r.economic_exposure),leverage:String(r.leverage),direction:String(r.direction),country:String(r.country),wrapper:String(r.wrapper),broker:r.broker?String(r.broker):null,preferredCurrency:r.preferred_currency?String(r.preferred_currency):null,fidelity:String(r.fidelity),effectiveFrom:isoDate(r.effective_from),effectiveTo:r.effective_to?isoDate(r.effective_to):null,tradingLineId:String(r.trading_line_id),tradingLineCurrency:String(r.trading_line_currency),tradingLineEffectiveFrom:isoDate(r.trading_line_effective_from),tradingLineEffectiveTo:r.trading_line_effective_to?isoDate(r.trading_line_effective_to):null}));
       const leverage=exposureLeverage(proposal.economicExposure,proposal.leverage);
-      const mapping=resolveMapping(candidates,{economicExposure:proposal.economicExposure,leverage,direction:"LONG",country:String(instance.country),wrapper:String(instance.wrapper),broker:instance.broker_name?String(instance.broker_name):null,preferredCurrency:String(instance.currency),asOf:new Date().toISOString().slice(0,10)});
-      if(!mapping) proposal={actionType:"DATA_REQUIRED",title:"This implementation is not supported yet",instruction:"No sufficiently faithful regional instrument mapping is configured for this account type.",explanation:[...proposal.explanation,{label:"Required exposure",value:proposal.economicExposure}],nextState:state,confidence:"LOW",dueAt:proposal.dueAt};
+      const mapping=resolveMapping(candidates,{economicExposure:proposal.economicExposure,leverage,direction:"LONG",country:String(executionAccount.country),wrapper:String(executionAccount.wrapper),broker:executionAccount.broker_name?String(executionAccount.broker_name):null,preferredCurrency:String(executionAccount.currency),asOf:new Date().toISOString().slice(0,10)});
+      if(!mapping) proposal={actionType:"DATA_REQUIRED",title:"This implementation is not supported yet",instruction:"No sufficiently faithful regional instrument mapping is configured for the linked account selected for this trade.",explanation:[...proposal.explanation,{label:"Required exposure",value:proposal.economicExposure},{label:"Account",value:String(executionAccount.name)}],nextState:state,confidence:"LOW",dueAt:proposal.dueAt};
       else tradingLineId=mapping.tradingLineId;
     }
 
@@ -146,12 +160,16 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
       }else if(!quote.observed_at||(Date.now()-new Date(quote.observed_at).getTime())/3600000>36){
         proposal={actionType:"DATA_REQUIRED",title:"Price is out of date",instruction:"Refresh market data before using this trade instruction.",explanation:proposal.explanation,nextState:state,confidence:"LOW",dueAt:proposal.dueAt};
       }else{
-        const heldQuantity=quote.instrument_id?(folded.quantities.get(String(quote.instrument_id))??new Decimal(0)):new Decimal(0);
+        const selectedPosition=accountPositions.get(String(executionAccountId));
+        const selectedCash=(selectedPosition?.cash??new Decimal(0)).plus(
+          scenario?.cashDelta&&String(executionAccountId)===primaryAccountId?new Decimal(scenario.cashDelta):0
+        );
+        const heldQuantity=quote.instrument_id?(selectedPosition?.quantities.get(String(quote.instrument_id))??new Decimal(0)):new Decimal(0);
         const practical=planPracticalTrade({
           side:proposal.actionType as "BUY"|"SELL",
           proposedAmount:proposal.amount,
           price:String(quote.price),
-          availableCash:effectiveCash,
+          availableCash:selectedCash,
           heldQuantity,
           constraints:scenario?.executionConstraints??((instance.execution_constraints??{}) as Record<string,unknown>)
         });
@@ -186,10 +204,10 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
     }
   }
 
-  const stablePositions=exposurePositions.map((p)=>p.economicExposure+":"+p.value.toString()+":"+(p.tradingLineId??"")).sort().join(",");
+  const stablePositions=exposurePositions.map((p)=>p.accountId+":"+p.economicExposure+":"+p.value.toString()+":"+(p.tradingLineId??"")).sort().join(",");
   const material=[
     strategyInstanceId,String(instance.strategy_version_id),lastReview.toISOString(),proposal.actionType,
-    proposal.amount?.toString()??"",proposal.currency??"",proposal.economicExposure??"",proposal.leverage??"",tradingLineId??"",
+    proposal.amount?.toString()??"",proposal.currency??"",proposal.economicExposure??"",proposal.leverage??"",tradingLineId??"",executionAccountId??"",
     effectiveCash.toString(),contributionsSinceReview.toString(),stablePositions,dataStatus
   ].join("|");
   const fingerprint=crypto.createHash("sha256").update(material).digest("hex");
@@ -200,7 +218,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
       : {...proposal.nextState,lastReviewAt:new Date().toISOString(),forceReview:false}
     : proposal.nextState;
   const totalValue=exposurePositions.reduce((sum,p)=>sum.plus(p.value),effectiveCash);
-  return {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId};
+  return {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId,executionAccountId};
 }
 
 export async function previewCashScenario(
