@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { plainEnglishActionReason } from "../src/domain/action-copy";
+import { actionRecoveryGuidance, plainEnglishActionReason } from "../src/domain/action-copy";
 
 describe("plain-English action copy", () => {
   it("explains buys without exposing calculation jargon", () => {
@@ -18,5 +18,19 @@ describe("plain-English action copy", () => {
 
   it("has a safe fallback for future action types", () => {
     expect(plainEnglishActionReason({actionType:"FUTURE_ACTION",instruction:"Do something."})).toContain("next step");
+  });
+
+  it("routes reconciliation blocks to portfolio recovery", () => {
+    expect(actionRecoveryGuidance({
+      actionType:"DATA_REQUIRED",
+      instruction:"An unresolved broker discrepancy must be classified."
+    })).toEqual({label:"Update portfolio details",href:"#portfolio-update"});
+  });
+
+  it("routes trade preference blocks to preferences", () => {
+    expect(actionRecoveryGuidance({
+      actionType:"DATA_REQUIRED",
+      instruction:"Selling is disabled in your trade preferences."
+    })).toEqual({label:"Review trade preferences",href:"#trade-preferences"});
   });
 });
