@@ -129,6 +129,10 @@ test("authenticated shell remains keyboard and reduced-motion friendly",async({p
   await page.emulateMedia({reducedMotion:"reduce"});
   await login(page,user);
 
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link",{name:"Skip to main content"})).toBeFocused();
+  await expect(page.getByRole("navigation",{name:"Primary"})).toBeVisible();
+
   const themeButton=page.getByRole("button",{name:"Toggle light or dark theme"});
   await themeButton.focus();
   await expect(themeButton).toBeFocused();
