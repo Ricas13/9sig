@@ -33,7 +33,7 @@ export function AddLinkedAccountForm({id,currency,wrappers}:{id:string;currency:
     });
     const body=await response.json();setBusy(false);
     if(!response.ok)return setMessage(body.error??"Could not add this account.");
-    setMessage("Account linked.");
+    setMessage(body.recalculationPending?"Account linked. Recalculation needs attention.":"Account linked.");
     form.reset();
     router.refresh();
   }}>
@@ -41,7 +41,7 @@ export function AddLinkedAccountForm({id,currency,wrappers}:{id:string;currency:
     <div className="field"><label>Account type</label><select name="wrapper" required>{options.map((wrapper)=><option key={wrapper} value={wrapper}>{wrapper}</option>)}</select></div>
     <div className="field full"><label>Broker (optional)</label><input name="broker" maxLength={80} placeholder="Broker name"/></div>
     <div className="field full linked-account-currency"><span>Uses strategy currency</span><strong>{currency}</strong></div>
-    <div className="field full"><button className="button" disabled={busy}><Plus size={15}/>{busy?"Adding…":"Add linked account"}</button>{message&&<span className={message==="Account linked."?"success":"error"}>{message}</span>}</div>
+    <div className="field full"><button className="button" disabled={busy}><Plus size={15}/>{busy?"Adding…":"Add linked account"}</button>{message&&<span className={message.includes("Recalculation needs attention")?"attention-message":message.startsWith("Account linked")?"success":"error"}>{message}</span>}</div>
   </form>;
 }
 
@@ -475,7 +475,7 @@ export function ExecutionConstraintsForm({id,constraints}:{id:string;constraints
     });
     const body=await response.json();setBusy(false);
     if(!response.ok)return setMessage(body.error??"Could not save trade preferences.");
-    setMessage("Saved. Your next action has been recalculated.");
+    setMessage(body.recalculationPending?"Saved. Recalculation needs attention.":"Saved. Your next action has been recalculated.");
     router.refresh();
   }}>
     <label className="toggle-row"><input type="checkbox" name="fractionalShares" defaultChecked={value.fractionalShares!==false}/><span><b>Fractional shares</b><small>Turn off if your broker only allows whole shares.</small></span></label>
@@ -485,7 +485,7 @@ export function ExecutionConstraintsForm({id,constraints}:{id:string;constraints
       <div className="field full"><label>Estimated fee per trade</label><input name="flatFee" type="number" min="0" step="0.01" defaultValue={String(value.flatFee??"0")}/></div>
     </div>
     <label className="toggle-row"><input type="checkbox" name="allowSelling" defaultChecked={value.allowSelling!==false}/><span><b>Allow sell recommendations</b><small>Turn off if you want new contributions to do the work wherever the strategy permits.</small></span></label>
-    <div className="inline"><button className="button" disabled={busy}>{busy?"Saving…":"Save trade preferences"}</button>{message&&<span className={message.startsWith("Saved")?"success":"error"}>{message}</span>}</div>
+    <div className="inline"><button className="button" disabled={busy}>{busy?"Saving…":"Save trade preferences"}</button>{message&&<span className={message.includes("Recalculation needs attention")?"attention-message":message.startsWith("Saved")?"success":"error"}>{message}</span>}</div>
   </form>;
 }
 
