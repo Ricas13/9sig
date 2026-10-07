@@ -39,9 +39,27 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       );
       if(!locked[0])throw new Error("STRATEGY_NOT_FOUND");
       if(String(locked[0].status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
+
+      if(input.requestKey){
+        const existing=await tx.unsafe(
+          "SELECT difference,metadata FROM reconciliations WHERE strategy_instance_id=$1 AND request_key=$2 LIMIT 1",
+          [id,input.requestKey]
+        );
+        if(existing[0]){
+          const states=await tx.unsafe("SELECT state FROM strategy_states WHERE strategy_instance_id=$1",[id]);
+          const state=(states[0]?.state??{}) as Record<string,unknown>;
+          return {
+            strategyResolved:!Boolean(state.resumeNeedsReconciliation)&&!Boolean(state.unresolvedReconciliation),
+            difference:String(existing[0].difference),
+            resolved:Boolean(existing[0].metadata?.resolved),
+            duplicate:true
+          };
+        }
+      }
+
       await tx.unsafe(
-        "INSERT INTO reconciliations (strategy_instance_id,account_id,occurred_at,expected_value,broker_reported_value,difference,reason,provenance,metadata) VALUES ($1,$2,now(),$3,$4,$5,$6,'USER_CONFIRMED',$7::jsonb)",
-        [id, locked[0].account_id, expected.toString(), broker.toString(), difference.toString(), input.reason ?? null, JSON.stringify({ affectsCash: input.affectsCash, resolved })]
+        "INSERT INTO reconciliations (strategy_instance_id,account_id,occurred_at,expected_value,broker_reported_value,difference,reason,provenance,metadata,request_key) VALUES ($1,$2,now(),$3,$4,$5,$6,'USER_CONFIRMED',$7::jsonb,$8)",
+        [id,locked[0].account_id,expected.toString(),broker.toString(),difference.toString(),input.reason??null,JSON.stringify({affectsCash:input.affectsCash,resolved}),input.requestKey??null]
       );
 
       if (!difference.eq(0) && input.affectsCash) {
