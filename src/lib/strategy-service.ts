@@ -1,7 +1,7 @@
 import "server-only";
 import Decimal from "decimal.js";
 import { sql } from "@/lib/db";
-import { assertCanCreateStrategy, buildEntitlementSnapshot } from "@/domain/entitlements";
+import { assertCanCreateStrategy, assertStrategyFeatureAccess, buildEntitlementSnapshot } from "@/domain/entitlements";
 import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/config";
 import { serializeExecutionConstraints } from "@/domain/execution";
 import { normalizeContributionPlan } from "@/domain/contribution-plan";
@@ -226,8 +226,12 @@ export async function changeStrategyStatus(
         entitlements:planRows[0].entitlements,
         availableStrategyKeys:planRows[0].available_strategy_keys
       });
-      const countRows=await tx.unsafe("SELECT count(*)::int AS count FROM strategy_instances WHERE user_id=$1 AND status='ACTIVE' AND id<>$2",[userId,instanceId]);
+      const [countRows,accountRows]=await Promise.all([
+        tx.unsafe("SELECT count(*)::int AS count FROM strategy_instances WHERE user_id=$1 AND status='ACTIVE' AND id<>$2",[userId,instanceId]),
+        tx.unsafe("SELECT count(*)::int AS count FROM strategy_accounts WHERE strategy_instance_id=$1",[instanceId])
+      ]);
       assertCanCreateStrategy(snapshot,Number(countRows[0]?.count??0),String(instance.strategy_key));
+      assertStrategyFeatureAccess(snapshot,{accountCount:Number(accountRows[0]?.count??1)});
       await tx.unsafe("UPDATE strategy_instances SET status='ACTIVE',paused_at=NULL,health_status='NEEDS_ATTENTION',updated_at=now() WHERE id=$1",[instanceId]);
       await tx.unsafe("UPDATE strategy_states SET state=jsonb_set(state,'{forceReview}','true'::jsonb,true),calculated_at=now() WHERE strategy_instance_id=$1",[instanceId]);
     } else if (target === "PAUSED") {
