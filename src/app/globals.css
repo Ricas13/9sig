@@ -863,3 +863,46 @@ html[data-theme="light"] .chart-marker-key { background:rgba(255,255,255,.58); }
   color:var(--warning);
   margin-top:7px;
 }
+
+
+/* Guided recovery for safely blocked actions */
+.recovery-banner {
+  align-items:center;
+  gap:12px;
+  scroll-margin-top:92px;
+}
+.recovery-banner-icon {
+  width:36px;
+  height:36px;
+  flex:0 0 auto;
+  display:grid;
+  place-items:center;
+  border-radius:12px;
+  color:var(--warning);
+  background:rgba(255,210,122,.075);
+  border:1px solid rgba(255,210,122,.14);
+}
+.recovery-banner-copy {
+  min-width:0;
+  flex:1;
+  display:grid;
+  gap:4px;
+}
+.recovery-banner-copy strong { font-size:13px; }
+.recovery-banner-copy span {
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.5;
+}
+#portfolio-update,#strategy-update,#trade-preferences,#strategy-health {
+  scroll-margin-top:92px;
+}
+html[data-theme="light"] .recovery-banner-icon {
+  background:rgba(169,111,0,.06);
+  border-color:rgba(169,111,0,.13);
+}
+@media (max-width:680px) {
+  .recovery-banner { align-items:flex-start; flex-wrap:wrap; }
+  .recovery-banner-copy { width:calc(100% - 50px); }
+  .recovery-banner .button { width:100%; margin-left:48px; }
+}
