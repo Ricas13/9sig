@@ -1,6 +1,6 @@
 import "server-only";
 import { sql } from "@/lib/db";
-import { assertCanCreateStrategy, buildEntitlementSnapshot, type EntitlementSnapshot } from "@/domain/entitlements";
+import { assertCanCreateStrategy, assertStrategyFeatureAccess, buildEntitlementSnapshot, type EntitlementSnapshot } from "@/domain/entitlements";
 
 export async function loadEntitlements(userId: string) {
   let rows = await sql.unsafe(
@@ -32,12 +32,29 @@ export async function assertNotificationAllowed(userId: string, channel: string)
 export async function enforceStrategyEntitlements(userId: string, snapshot?: EntitlementSnapshot) {
   const entitlements = snapshot ?? await loadEntitlements(userId);
   const active = await sql.unsafe(
-    "SELECT i.id,d.key FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id WHERE i.user_id=$1 AND i.status='ACTIVE' ORDER BY i.started_at ASC,i.created_at ASC",
+    "SELECT i.id,d.key,(SELECT count(*)::int FROM strategy_accounts sa WHERE sa.strategy_instance_id=i.id) AS account_count "+
+    "FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id "+
+    "WHERE i.user_id=$1 AND i.status='ACTIVE' ORDER BY i.started_at ASC,i.created_at ASC",
     [userId]
   );
 
-  const permitted = active.filter((row) => !entitlements.availableStrategyKeys || entitlements.availableStrategyKeys.has(String(row.key)));
-  const disallowed = active.filter((row) => entitlements.availableStrategyKeys && !entitlements.availableStrategyKeys.has(String(row.key)));
+  const unavailableFeature = active.filter((row) => {
+    try{
+      assertStrategyFeatureAccess(entitlements,{accountCount:Number(row.account_count??1)});
+      return false;
+    }catch{
+      return true;
+    }
+  });
+  const unavailableFeatureIds=new Set(unavailableFeature.map((row)=>String(row.id)));
+  const permitted = active.filter((row) =>
+    !unavailableFeatureIds.has(String(row.id))&&
+    (!entitlements.availableStrategyKeys || entitlements.availableStrategyKeys.has(String(row.key)))
+  );
+  const disallowed = active.filter((row) =>
+    unavailableFeatureIds.has(String(row.id))||
+    Boolean(entitlements.availableStrategyKeys&&!entitlements.availableStrategyKeys.has(String(row.key)))
+  );
   const max = entitlements.maxActiveStrategies;
   const overLimit = max == null ? [] : permitted.slice(max);
   const toPause = [...disallowed, ...overLimit];
@@ -52,7 +69,7 @@ export async function enforceStrategyEntitlements(userId: string, snapshot?: Ent
     );
     await tx.unsafe(
       "INSERT INTO audit_events (actor_user_id,action,entity_type,metadata) VALUES ($1,'entitlements.enforced','subscription',$2::jsonb)",
-      [userId,JSON.stringify({plan:entitlements.planSlug,pausedStrategyInstanceIds:ids})]
+      [userId,JSON.stringify({plan:entitlements.planSlug,pausedStrategyInstanceIds:ids,featurePausedStrategyInstanceIds:[...unavailableFeatureIds].filter((id)=>ids.includes(id))})]
     );
   });
   return { paused: ids.length };
