@@ -18,4 +18,13 @@ describe("notification delivery entitlement safety",()=>{
     expect(source).toContain("status='CANCELLED'");
     expect(source).toContain("last_error_code='CHANNEL_NOT_IN_PLAN'");
   });
+
+  it("cancels queued action notifications after the action stops being executable",()=>{
+    expect(source).toContain("ACTION_NO_LONGER_ACTIVE");
+    expect(source).toContain('!["CALCULATED","NOTIFIED","ACKNOWLEDGED"].includes');
+    const actionCheck=source.indexOf('!["CALCULATED","NOTIFIED","ACKNOWLEDGED"].includes');
+    const emailSend=source.indexOf('if(d.channel==="EMAIL")');
+    expect(actionCheck).toBeGreaterThanOrEqual(0);
+    expect(emailSend).toBeGreaterThan(actionCheck);
+  });
 });
