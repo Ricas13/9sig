@@ -167,6 +167,16 @@ export const strategyInstances = pgTable("strategy_instances", {
   index("strategy_instances_definition_idx").on(t.strategyDefinitionId, t.status)
 ]);
 
+export const strategyAccounts = pgTable("strategy_accounts", {
+  strategyInstanceId: uuid("strategy_instance_id").notNull().references(() => strategyInstances.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+  role: text("role").notNull().default("SECONDARY"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+}, (t) => [
+  primaryKey({ columns: [t.strategyInstanceId, t.accountId] }),
+  index("strategy_accounts_account_idx").on(t.accountId)
+]);
+
 export const strategyVersionMigrations = pgTable("strategy_version_migrations", {
   id: uuid("id").primaryKey().defaultRandom(),
   strategyInstanceId: uuid("strategy_instance_id").notNull().references(() => strategyInstances.id, { onDelete: "cascade" }),
@@ -240,6 +250,7 @@ export const regionalInstrumentMappings = pgTable("regional_instrument_mappings"
 export const ledgerEvents = pgTable("ledger_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   strategyInstanceId: uuid("strategy_instance_id").notNull().references(() => strategyInstances.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   eventType: text("event_type").notNull(),
   currency: text("currency").notNull(),
@@ -261,6 +272,7 @@ export const ledgerEvents = pgTable("ledger_events", {
 export const reconciliations = pgTable("reconciliations", {
   id: uuid("id").primaryKey().defaultRandom(),
   strategyInstanceId: uuid("strategy_instance_id").notNull().references(() => strategyInstances.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   expectedValue: numeric("expected_value", { precision: 24, scale: 8 }),
   brokerReportedValue: numeric("broker_reported_value", { precision: 24, scale: 8 }),
@@ -301,6 +313,7 @@ export const marketDataObservations = pgTable("market_data_observations", {
 export const actions = pgTable("actions", {
   id: uuid("id").primaryKey().defaultRandom(),
   strategyInstanceId: uuid("strategy_instance_id").notNull().references(() => strategyInstances.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
   strategyVersionId: uuid("strategy_version_id").notNull().references(() => strategyVersions.id),
   fingerprint: text("fingerprint").notNull(),
   actionType: text("action_type").notNull(),

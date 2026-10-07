@@ -119,6 +119,10 @@ export async function createStrategy(userId: string, country: string, input: Cre
     );
     const id=String(instances[0].id);
     await tx.unsafe(
+      "INSERT INTO strategy_accounts (strategy_instance_id,account_id,role) VALUES ($1,$2,'PRIMARY') ON CONFLICT DO NOTHING",
+      [id,accounts[0].id]
+    );
+    await tx.unsafe(
       "INSERT INTO strategy_states (strategy_instance_id,strategy_version_id,state,confidence) VALUES ($1,$2,$3::jsonb,$4)",
       [id,definition.version_id,JSON.stringify(state),input.onboardingMode==="RESUME"?"LOW":"HIGH"]
     );
@@ -127,8 +131,8 @@ export async function createStrategy(userId: string, country: string, input: Cre
     if (!startingCash.isFinite() || startingCash.lt(0)) throw new Error("INVALID_STARTING_CASH");
     if (startingCash.gt(0)) {
       await tx.unsafe(
-        "INSERT INTO ledger_events (strategy_instance_id,occurred_at,event_type,currency,cash_amount,provenance,confidence,metadata) VALUES ($1,now(),'CONTRIBUTION',$2,$3,'USER_ENTERED','VERIFIED',$4::jsonb)",
-        [id,input.currency,startingCash.toString(),JSON.stringify({opening:true})]
+        "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,provenance,confidence,metadata) VALUES ($1,$2,now(),'CONTRIBUTION',$3,$4,'USER_ENTERED','VERIFIED',$5::jsonb)",
+        [id,accounts[0].id,input.currency,startingCash.toString(),JSON.stringify({opening:true})]
       );
     }
     await tx.unsafe(
@@ -239,4 +243,15 @@ export async function changeStrategyStatus(
     );
     return {status:target};
   });
+}
+
+
+export async function listStrategyAccounts(userId:string,instanceId:string){
+  return sql.unsafe(
+    "SELECT a.id,a.name,a.wrapper,a.country,a.currency,a.broker_name,sa.role,"+
+    "(SELECT count(*)::int FROM ledger_events l WHERE l.strategy_instance_id=sa.strategy_instance_id AND l.account_id=a.id) AS ledger_event_count "+
+    "FROM strategy_accounts sa JOIN accounts a ON a.id=sa.account_id JOIN strategy_instances i ON i.id=sa.strategy_instance_id "+
+    "WHERE sa.strategy_instance_id=$1 AND i.user_id=$2 ORDER BY CASE WHEN sa.role='PRIMARY' THEN 0 ELSE 1 END,a.created_at,a.name",
+    [instanceId,userId]
+  );
 }
