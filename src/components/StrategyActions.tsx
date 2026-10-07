@@ -347,3 +347,53 @@ export function ContributionPlanForm({id,plan}:{id:string;plan?:Record<string,un
     <div className="inline"><button className="button" disabled={busy}>{busy?"Saving…":"Save contribution plan"}</button>{message&&<span className="success">{message}</span>}</div>
   </form>;
 }
+
+
+type CashPreviewResult={
+  scenario:{type:"CONTRIBUTION"|"WITHDRAWAL";amount:string;currency:string};
+  portfolioValueAfter:string;
+  action:{actionType:string;title:string;instruction:string;amount:string|null;currency:string|null;confidence:string;explanation:Array<{label:string;value:string;kind?:string}>};
+};
+
+export function WhatIfPreview({id,currency}:{id:string;currency:string}){
+  const [type,setType]=useState<"CONTRIBUTION"|"WITHDRAWAL">("CONTRIBUTION");
+  const [result,setResult]=useState<CashPreviewResult|null>(null);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState("");
+  return <div className="what-if">
+    <form className="what-if-form" onSubmit={async(e)=>{
+      e.preventDefault();setBusy(true);setError("");setResult(null);
+      const f=new FormData(e.currentTarget);
+      const response=await fetch("/api/strategies/"+id+"/preview",{
+        method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({type,amount:String(f.get("amount")||"")})
+      });
+      const body=await response.json();setBusy(false);
+      if(!response.ok)return setError(body.error??"Could not preview that scenario.");
+      setResult(body.result);
+    }}>
+      <div className="scenario-switch" role="group" aria-label="Scenario type">
+        <button type="button" className={type==="CONTRIBUTION"?"active":""} onClick={()=>{setType("CONTRIBUTION");setResult(null)}}>Add money</button>
+        <button type="button" className={type==="WITHDRAWAL"?"active":""} onClick={()=>{setType("WITHDRAWAL");setResult(null)}}>Withdraw</button>
+      </div>
+      <div className="what-if-input">
+        <span>{currency}</span>
+        <input name="amount" type="number" min="0.01" step="0.01" placeholder={type==="CONTRIBUTION"?"1000":"5000"} required/>
+        <button className="button primary" disabled={busy}>{busy?"Previewing…":"Preview"}</button>
+      </div>
+      <p className="help">Preview only. This does not change holdings, cash, history, actions or notifications.</p>
+      {error&&<div className="error">{error}</div>}
+    </form>
+
+    {result&&<div className="what-if-result">
+      <div className="preview-badge">PREVIEW · NOT APPLIED</div>
+      <div className="what-if-value"><span>Portfolio after scenario</span><strong>{new Intl.NumberFormat("en-GB",{style:"currency",currency:result.scenario.currency,maximumFractionDigits:0}).format(Number(result.portfolioValueAfter))}</strong></div>
+      <div className="what-if-action">
+        <span>What the strategy would say</span>
+        <h3>{result.action.title}</h3>
+        <p>{result.action.instruction}</p>
+      </div>
+      {result.action.explanation.length>0&&<details><summary>Why?</summary><div>{result.action.explanation.slice(0,6).map((row,index)=><div className="why-row" key={index}><span>{row.label}</span><b>{row.value}</b></div>)}</div></details>}
+    </div>}
+  </div>;
+}
