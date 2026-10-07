@@ -140,7 +140,11 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
     });
     const b = await r.json();
     setMessage(r.ok
-      ? (b.resolved ? "Reconciliation resolved." : "Reconciliation recorded, but the strategy remains blocked until the discrepancy is resolved.")
+      ? (b.strategyResolved
+        ? "Reconciliation resolved."
+        : b.resolved
+          ? "This account is matched, but another linked account still needs attention."
+          : "Reconciliation recorded, but the strategy remains blocked until the discrepancy is resolved.")
       : b.error);
     if (r.ok) router.refresh();
   }}>
