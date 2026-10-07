@@ -31,6 +31,7 @@ export const valueTargetEngine: StrategyEngine = {
     }
 
     const exposureKey=String(ctx.config.targetExposure ?? "");
+    const leverage=String(ctx.config.targetLeverage??"").trim()||undefined;
     const unmanaged=ctx.exposures.filter((x)=>x.economicExposure!==exposureKey&&!x.value.eq(0));
     if(unmanaged.length){
       return {
@@ -65,9 +66,9 @@ export const valueTargetEngine: StrategyEngine = {
     if(gap.gt(0)){
       const amount=Decimal.min(gap,ctx.cash.mul(num(ctx.config,"maxCashUse","1")));
       if(amount.lte(0)) return {actionType:"DATA_REQUIRED",title:"Contribution or cash is required",instruction:"The strategy calls for more exposure, but there is no available cash recorded.",explanation,nextState:ctx.state,confidence:"HIGH",dueAt:ctx.now};
-      return {actionType:"BUY",title:"Buy "+money(amount)+" of the target exposure",instruction:"Under the strategy rules you selected, add "+money(amount)+" "+ctx.baseCurrency+" of "+exposureKey+" exposure.",amount,currency:ctx.baseCurrency,economicExposure:exposureKey,explanation,nextState,confidence:"HIGH",dueAt:ctx.now};
+      return {actionType:"BUY",title:"Buy "+money(amount)+" of the target exposure",instruction:"Under the strategy rules you selected, add "+money(amount)+" "+ctx.baseCurrency+" of "+exposureKey+" exposure.",amount,currency:ctx.baseCurrency,economicExposure:exposureKey,leverage,explanation,nextState,confidence:"HIGH",dueAt:ctx.now};
     }
     const amount=gap.abs();
-    return {actionType:"SELL",title:"Sell "+money(amount)+" of the target exposure",instruction:"Under the strategy rules you selected, reduce "+exposureKey+" exposure by "+money(amount)+" "+ctx.baseCurrency+".",amount,currency:ctx.baseCurrency,economicExposure:exposureKey,explanation,nextState,confidence:"HIGH",dueAt:ctx.now};
+    return {actionType:"SELL",title:"Sell "+money(amount)+" of the target exposure",instruction:"Under the strategy rules you selected, reduce "+exposureKey+" exposure by "+money(amount)+" "+ctx.baseCurrency+".",amount,currency:ctx.baseCurrency,economicExposure:exposureKey,leverage,explanation,nextState,confidence:"HIGH",dueAt:ctx.now};
   }
 };
