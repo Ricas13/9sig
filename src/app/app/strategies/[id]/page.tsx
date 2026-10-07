@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BarChart3, CalendarClock, CheckCircle2, ChevronRight, Sparkles, WalletCards } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, BarChart3, CalendarClock, ChevronRight, Sparkles, WalletCards } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { loadEntitlements } from "@/lib/entitlement-service";
 import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
-import { plainEnglishActionReason } from "@/domain/action-copy";
+import { actionRecoveryGuidance, plainEnglishActionReason } from "@/domain/action-copy";
 import { CashEventForm, ContributionForm, ContributionPlanForm, ExecuteAction, ExecutionConstraintsForm, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategyVersionUpgrade, WhatIfPreview } from "@/components/StrategyActions";
 
 function money(value:number,currency:string){
@@ -174,6 +174,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   const actionReady=Boolean(action)&&isActive;
   const nextReview=action?.due_at?new Date(action.due_at):null;
   const plainReason=action?plainEnglishActionReason({actionType:String(action.action_type),instruction:String(action.instruction??"")}):null;
+  const recovery=action?actionRecoveryGuidance({actionType:String(action.action_type),instruction:String(action.instruction??"")}):null;
   const ruleRows=strategyRuleRows(String(s.engine),(s.config??{}) as Record<string,unknown>);
   const canSeeTechnicalConfig=user.role==="ADMIN"||!Boolean(s.proprietary);
 
@@ -233,15 +234,19 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
       </details>}
     </section>}
 
-    {!isHealthy&&!needsOpeningSnapshot&&<div className="attention-banner">
-      <div><strong>We need a little more information before we can be fully confident.</strong><span>We will never guess when holdings, prices, FX or reconciliation data is uncertain.</span></div>
-      <CheckCircle2 size={20}/>
+    {!isHealthy&&!needsOpeningSnapshot&&<div className="attention-banner recovery-banner" role="status">
+      <div className="recovery-banner-icon"><AlertTriangle size={19}/></div>
+      <div className="recovery-banner-copy">
+        <strong>{action?.action_type==="DATA_REQUIRED"?"Your next action is safely paused.":"We need a little more information before we can be fully confident."}</strong>
+        <span>{action?.action_type==="DATA_REQUIRED"?String(action.instruction):"We will never guess when holdings, prices, FX or reconciliation data is uncertain."}</span>
+      </div>
+      {recovery&&<a className="button compact" href={recovery.href}>{recovery.label}<ArrowRight size={14}/></a>}
     </div>}
 
-    {hasVersionUpdate&&<StrategyVersionUpgrade id={id} currentVersion={String(s.version)} targetVersionId={String(s.latest_version_id)} targetVersion={String(s.latest_version)} releaseNotes={s.latest_release_notes?String(s.latest_release_notes):null} upgradePolicy={String(s.latest_upgrade_policy??"OPTIONAL")} inputSchema={Array.isArray(s.latest_input_schema)?s.latest_input_schema:[]} currentSettings={(s.settings??{}) as Record<string,unknown>} currentConfig={(s.config??{}) as Record<string,unknown>} targetConfig={(s.latest_config??{}) as Record<string,unknown>}/>}
+    {hasVersionUpdate&&<div id="strategy-update"><StrategyVersionUpgrade id={id} currentVersion={String(s.version)} targetVersionId={String(s.latest_version_id)} targetVersion={String(s.latest_version)} releaseNotes={s.latest_release_notes?String(s.latest_release_notes):null} upgradePolicy={String(s.latest_upgrade_policy??"OPTIONAL")} inputSchema={Array.isArray(s.latest_input_schema)?s.latest_input_schema:[]} currentSettings={(s.settings??{}) as Record<string,unknown>} currentConfig={(s.config??{}) as Record<string,unknown>} targetConfig={(s.latest_config??{}) as Record<string,unknown>}/></div>}
 
     <div className="strategy-shortcuts">
-      <details className="glass quick-drawer">
+      <details className="glass quick-drawer" id="portfolio-update">
         <summary><span><WalletCards size={18}/>Update portfolio</span><ChevronRight size={16}/></summary>
         <div className="quick-drawer-content">
           <div className="detail-grid">
@@ -284,10 +289,10 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         <summary><span><CalendarClock size={18}/>Strategy settings & rules</span><ChevronRight size={16}/></summary>
         <div className="quick-drawer-content">
           <div className="detail-grid">
-            <section className="drawer-section"><div className="eyebrow">Strategy health</div><h3>{isHealthy?"Everything looks good":"Needs attention"}</h3><p className="help">High-confidence actions are suppressed whenever critical holdings, FX, market data or reconciliation state is stale, missing or unresolved.</p><div className="strategy-meta"><span className="pill">Version {s.version}</span><span className="pill">{s.currency}</span><span className="pill">{s.onboarding_mode.replaceAll("_"," ")}</span><span className="pill">{s.status}</span></div></section>
+            <section className="drawer-section" id="strategy-health"><div className="eyebrow">Strategy health</div><h3>{isHealthy?"Everything looks good":"Needs attention"}</h3><p className="help">High-confidence actions are suppressed whenever critical holdings, FX, market data or reconciliation state is stale, missing or unresolved.</p><div className="strategy-meta"><span className="pill">Version {s.version}</span><span className="pill">{s.currency}</span><span className="pill">{s.onboarding_mode.replaceAll("_"," ")}</span><span className="pill">{s.status}</span></div></section>
             <section className="drawer-section"><div className="eyebrow">Lifecycle</div><h3>Pause, resume or stop</h3><p className="help">These controls preserve your history. They never erase the journey you have already recorded.</p><StrategyLifecycleControls id={id} status={s.status}/></section>
           </div>
-          <section className="drawer-section execution-settings"><div className="eyebrow">Trade preferences</div><h3>Make the strategy fit your broker.</h3><p className="help">These preferences change how an ideal strategy action is translated into a practical order. They do not change the strategy rules themselves.</p><ExecutionConstraintsForm id={id} constraints={(s.execution_constraints??{}) as Record<string,unknown>}/></section>
+          <section className="drawer-section execution-settings" id="trade-preferences"><div className="eyebrow">Trade preferences</div><h3>Make the strategy fit your broker.</h3><p className="help">These preferences change how an ideal strategy action is translated into a practical order. They do not change the strategy rules themselves.</p><ExecutionConstraintsForm id={id} constraints={(s.execution_constraints??{}) as Record<string,unknown>}/></section>
           <section className="drawer-section rules-section">
             <div className="eyebrow">Rules & disclosure</div>
             <h3>How this version operates</h3>
