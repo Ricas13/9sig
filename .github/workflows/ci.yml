@@ -56,6 +56,24 @@ jobs:
       - run: npm run build
       - name: Install browser for responsive smoke tests
         run: npx playwright install --with-deps chromium
+      - name: Bootstrap visual baselines when absent
+        id: visual_baselines
+        shell: bash
+        run: |
+          if [ ! -d tests/e2e/visual.spec.ts-snapshots ]; then
+            npx playwright test tests/e2e/visual.spec.ts --update-snapshots
+            echo "generated=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "generated=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload generated visual baselines
+        if: steps.visual_baselines.outputs.generated == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines
+          path: tests/e2e/visual.spec.ts-snapshots
+          if-no-files-found: error
+          retention-days: 1
       - run: npm run test:e2e
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high
