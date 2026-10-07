@@ -31,6 +31,18 @@ export const valueTargetEngine: StrategyEngine = {
     }
 
     const exposureKey=String(ctx.config.targetExposure ?? "");
+    const unmanaged=ctx.exposures.filter((x)=>x.economicExposure!==exposureKey&&!x.value.eq(0));
+    if(unmanaged.length){
+      return {
+        actionType:"DATA_REQUIRED",
+        title:"A holding needs classification",
+        instruction:"This strategy contains a holding outside its managed exposure. Move it out of this strategy or reconcile the account before we calculate a trade.",
+        explanation:unmanaged.map((item)=>({label:"Outside strategy",value:item.economicExposure,kind:"text" as const})),
+        nextState:ctx.state,
+        confidence:"LOW",
+        dueAt:ctx.now
+      };
+    }
     const current=ctx.exposures
       .filter((x)=>x.economicExposure===exposureKey)
       .reduce((sum,x)=>sum.plus(x.value),new Decimal(0));
