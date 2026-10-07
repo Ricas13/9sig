@@ -737,9 +737,9 @@ Use this checklist as the shared cross-chat roadmap.
 - [ ] TypeScript
 - [ ] production build
 - [ ] dependency/security audit
-- [ ] final workflow-gap sweep
-- [ ] final financial-safety sweep
-- [ ] final simplicity review: can a new user understand the next action within 5 seconds?
+- [x] final workflow-gap sweep
+- [x] final financial-safety sweep
+- [x] final simplicity review: can a new user understand the next action within 5 seconds?
 
 ## Definition of done
 
@@ -853,3 +853,12 @@ Still open for sign-off: typography / numeric-formatting polish, a dedicated con
 - financial headline values use tabular lining figures for stable, readable number changes
 - the core dark/light semantic palette is now regression-tested at WCAG AA 4.5:1 or better against the base background for text, muted text, accents, warnings and danger states
 - contrast coverage is intentionally a core-token guardrail; component-level semantic/accessibility browser coverage remains part of the final release sweep
+
+
+## Final audit checkpoint — 7 October 2026
+
+- workflow sweep covered financial mutations, recalculation ordering, strategy lifecycle, linked-account onboarding, entitlement enforcement, strategy switching, webhook ownership, idempotency and notification dedupe
+- financial-safety sweep closed calculation-vs-mutation races, subscription-vs-multi-account races, stale-status recalculation decisions, execution-currency invariants and ambiguous trading-line selection
+- all changed mutating API routes were checked for same-origin, signed webhook, cron secret or equivalent machine-auth protection
+- the authenticated home and strategy-detail hierarchy was reviewed against the original “where am I / what do I do / what happens next” brief; the primary action remains visible within the first screen without requiring settings or technical detail
+- visual-regression screenshot baselines remain deliberately open rather than being represented by a weaker non-visual assertion
