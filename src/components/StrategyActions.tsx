@@ -457,9 +457,16 @@ export function ContributionPlanForm({id,plan}:{id:string;plan?:Record<string,un
 }
 
 
+type StrategySwitchOption={
+  key:string;
+  name:string;
+  version:string;
+  inputSchema:VersionInputField[];
+};
+
 type WhatIfResult={
   scenario:{
-    type:"CONTRIBUTION"|"WITHDRAWAL"|"EXECUTION_CONSTRAINTS";
+    type:"CONTRIBUTION"|"WITHDRAWAL"|"EXECUTION_CONSTRAINTS"|"STRATEGY_SWITCH";
     amount?:string;
     currency:string;
     constraints?:{
@@ -469,23 +476,33 @@ type WhatIfResult={
       flatFee:string;
       allowSelling:boolean;
     };
+    targetStrategy?:{key:string;name:string;version:string};
   };
   portfolioValueAfter:string;
   action:{actionType:string;title:string;instruction:string;amount:string|null;currency:string|null;confidence:string;explanation:Array<{label:string;value:string;kind?:string}>};
 };
 
-export function WhatIfPreview({id,currency}:{id:string;currency:string}){
-  const [type,setType]=useState<"CONTRIBUTION"|"WITHDRAWAL"|"EXECUTION_CONSTRAINTS">("CONTRIBUTION");
+export function WhatIfPreview({
+  id,currency,switchOptions=[]
+}:{
+  id:string;
+  currency:string;
+  switchOptions?:StrategySwitchOption[];
+}){
+  const [type,setType]=useState<"CONTRIBUTION"|"WITHDRAWAL"|"EXECUTION_CONSTRAINTS"|"STRATEGY_SWITCH">("CONTRIBUTION");
+  const [switchKey,setSwitchKey]=useState(switchOptions[0]?.key??"");
   const [result,setResult]=useState<WhatIfResult|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  const selectedSwitch=switchOptions.find((option)=>option.key===switchKey)??switchOptions[0];
 
   return <div className="what-if">
     <form className="what-if-form" onSubmit={async(e)=>{
       e.preventDefault();setBusy(true);setError("");setResult(null);
       const f=new FormData(e.currentTarget);
-      const payload=type==="EXECUTION_CONSTRAINTS"
-        ?{
+      let payload:Record<string,unknown>;
+      if(type==="EXECUTION_CONSTRAINTS"){
+        payload={
           type,
           constraints:{
             fractionalShares:Boolean(f.get("fractionalShares")),
@@ -494,8 +511,21 @@ export function WhatIfPreview({id,currency}:{id:string;currency:string}){
             flatFee:String(f.get("flatFee")||"0"),
             allowSelling:Boolean(f.get("allowSelling"))
           }
+        };
+      }else if(type==="STRATEGY_SWITCH"){
+        const settings:Record<string,unknown>={};
+        for(const field of selectedSwitch?.inputSchema??[]){
+          if(field.type==="boolean")settings[field.key]=Boolean(f.get("switchInput:"+field.key));
+          else {
+            const value=f.get("switchInput:"+field.key);
+            if(value!==null&&String(value)!=="")settings[field.key]=String(value);
+          }
         }
-        :{type,amount:String(f.get("amount")||"")};
+        payload={type,targetStrategyKey:switchKey,settings};
+      }else{
+        payload={type,amount:String(f.get("amount")||"")};
+      }
+
       const response=await fetch("/api/strategies/"+id+"/preview",{
         method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)
       });
@@ -503,10 +533,11 @@ export function WhatIfPreview({id,currency}:{id:string;currency:string}){
       if(!response.ok)return setError(body.error??"Could not preview that scenario.");
       setResult(body.result);
     }}>
-      <div className="scenario-switch three" role="group" aria-label="Scenario type">
+      <div className={"scenario-switch "+(switchOptions.length?"four":"three")} role="group" aria-label="Scenario type">
         <button type="button" className={type==="CONTRIBUTION"?"active":""} onClick={()=>{setType("CONTRIBUTION");setResult(null)}}>Add money</button>
         <button type="button" className={type==="WITHDRAWAL"?"active":""} onClick={()=>{setType("WITHDRAWAL");setResult(null)}}>Withdraw</button>
         <button type="button" className={type==="EXECUTION_CONSTRAINTS"?"active":""} onClick={()=>{setType("EXECUTION_CONSTRAINTS");setResult(null)}}>Trade settings</button>
+        {switchOptions.length>0&&<button type="button" className={type==="STRATEGY_SWITCH"?"active":""} onClick={()=>{setType("STRATEGY_SWITCH");setResult(null)}}>Switch strategy</button>}
       </div>
 
       {type==="EXECUTION_CONSTRAINTS"?<div className="preview-settings">
@@ -518,19 +549,40 @@ export function WhatIfPreview({id,currency}:{id:string;currency:string}){
         </div>
         <label className="toggle-row"><input type="checkbox" name="allowSelling" defaultChecked/><span><b>Allow sell recommendations</b><small>Preview how the next action changes if sells are unavailable.</small></span></label>
         <button className="button primary" disabled={busy}>{busy?"Previewing…":"Preview trade settings"}</button>
+      </div>:type==="STRATEGY_SWITCH"&&selectedSwitch?<div className="preview-settings strategy-switch-preview-form">
+        <div className="field">
+          <label>Try another strategy</label>
+          <select value={switchKey} onChange={(event)=>{setSwitchKey(event.target.value);setResult(null)}}>
+            {switchOptions.map((option)=><option key={option.key} value={option.key}>{option.name} · v{option.version}</option>)}
+          </select>
+        </div>
+        {selectedSwitch.inputSchema.length>0&&<div className="form-grid">
+          {selectedSwitch.inputSchema.map((field)=><div className="field full" key={field.key}>
+            <label>{field.label}</label>
+            {field.type==="select"?<select name={"switchInput:"+field.key} defaultValue={String(field.default??"")} required={field.required}>{!field.required&&<option value="">Not set</option>}{field.options?.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</select>:
+            field.type==="boolean"?<label className="toggle-row"><input name={"switchInput:"+field.key} type="checkbox" defaultChecked={Boolean(field.default)}/><span>{field.help??field.label}</span></label>:
+            <input name={"switchInput:"+field.key} type={field.type} defaultValue={field.default==null?undefined:String(field.default)} required={field.required} min={field.min==null?undefined:String(field.min)} max={field.max==null?undefined:String(field.max)}/>}
+            {field.help&&field.type!=="boolean"&&<div className="help">{field.help}</div>}
+          </div>)}
+        </div>}
+        <button className="button primary" disabled={busy||!switchKey}>{busy?"Previewing…":"Preview "+selectedSwitch.name}</button>
       </div>:<div className="what-if-input">
         <span>{currency}</span>
         <input name="amount" type="number" min="0.01" step="0.01" placeholder={type==="CONTRIBUTION"?"1000":"5000"} required/>
         <button className="button primary" disabled={busy}>{busy?"Previewing…":"Preview"}</button>
       </div>}
 
-      <p className="help">Preview only. This does not change holdings, cash, settings, history, actions or notifications.</p>
-      {error&&<div className="error">{error}</div>}
+      <p className="help">Preview only. This does not change holdings, cash, settings, strategy version, history, actions or notifications.</p>
+      {error&&<div className="error" role="alert">{error}</div>}
     </form>
 
     {result&&<div className="what-if-result">
       <div className="preview-badge">PREVIEW · NOT APPLIED</div>
-      <div className="what-if-value"><span>{result.scenario.type==="EXECUTION_CONSTRAINTS"?"Portfolio value stays":"Portfolio after scenario"}</span><strong>{new Intl.NumberFormat("en-GB",{style:"currency",currency:result.scenario.currency,maximumFractionDigits:0}).format(Number(result.portfolioValueAfter))}</strong></div>
+      <div className="what-if-value">
+        <span>{["EXECUTION_CONSTRAINTS","STRATEGY_SWITCH"].includes(result.scenario.type)?"Portfolio value stays":"Portfolio after scenario"}</span>
+        <strong>{new Intl.NumberFormat("en-GB",{style:"currency",currency:result.scenario.currency,maximumFractionDigits:0}).format(Number(result.portfolioValueAfter))}</strong>
+      </div>
+      {result.scenario.type==="STRATEGY_SWITCH"&&result.scenario.targetStrategy&&<div className="switch-preview-target"><span>Previewing</span><strong>{result.scenario.targetStrategy.name} · v{result.scenario.targetStrategy.version}</strong></div>}
       <div className="what-if-action">
         <span>What the strategy would say</span>
         <h3>{result.action.title}</h3>
