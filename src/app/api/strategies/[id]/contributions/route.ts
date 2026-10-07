@@ -9,7 +9,8 @@ import { assertSameOrigin } from "@/lib/security";
 
 const schema = z.object({
   amount: z.string().regex(/^\d+(?:\.\d{1,8})?$/),
-  occurredAt: z.string().datetime({ offset: true }).optional()
+  occurredAt: z.string().datetime({ offset: true }).optional(),
+  accountId: z.string().uuid().optional()
 });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -31,8 +32,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const occurredAt=input.occurredAt ? new Date(input.occurredAt) : new Date();
     const result=await sql.begin(async(tx)=>{
       const locked=await tx.unsafe(
-        "SELECT i.status,i.contribution_plan,a.id AS account_id,a.currency FROM strategy_instances i JOIN accounts a ON a.id=i.account_id WHERE i.id=$1 AND i.user_id=$2 FOR UPDATE OF i",
-        [id,user.id]
+        "SELECT i.status,i.contribution_plan,a.id AS account_id,a.currency FROM strategy_instances i JOIN strategy_accounts sa ON sa.strategy_instance_id=i.id JOIN accounts a ON a.id=sa.account_id WHERE i.id=$1 AND i.user_id=$2 AND a.id=COALESCE($3::uuid,i.account_id) FOR UPDATE OF i",
+        [id,user.id,input.accountId??null]
       );
       if(!locked[0])throw new Error("STRATEGY_NOT_FOUND");
       if(String(locked[0].status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
@@ -65,6 +66,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     const code=error instanceof Error?error.message:"FAILED";
     if(code==="STRATEGY_CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
+    if(code==="STRATEGY_NOT_FOUND")return Response.json({error:"That account is not linked to this strategy."},{status:404});
     return Response.json({ error: "Could not record contribution." }, { status: 500 });
   }
 }
