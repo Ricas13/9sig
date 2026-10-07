@@ -8,7 +8,8 @@ const nonNegative = z.string().regex(/^\d+(?:\.\d{1,12})?$/);
 const schema = z.object({
   price: positive.optional(),
   quantity: positive.optional(),
-  fee: nonNegative.optional()
+  fee: nonNegative.optional(),
+  partial: z.boolean().optional()
 });
 
 export async function POST(request:Request,context:{params:Promise<{id:string}>}){
