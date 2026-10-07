@@ -2,7 +2,7 @@ import Decimal from "decimal.js";
 import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { getStrategyForUser } from "@/lib/strategy-service";
-import { calculateAction } from "@/lib/action-service";
+import { recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
 
@@ -103,15 +103,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return {pendingAccountIds:pending.map((row)=>String(row.id)),pendingAccountNames:pending.map((row)=>String(row.name))};
     });
 
-    let actionId: string | null = null;
-    try {
-      actionId = (await calculateAction(id)).actionId;
-    } catch {
-      // The snapshot is still valid even if market data is not ready; the dashboard remains NEEDS_ATTENTION.
-    }
+    const recalc=await recalculateAfterMutation(id,user.id,"opening-snapshot");
     return Response.json({
       ok:true,
-      actionId,
+      actionId:recalc.actionId,
+      recalculationPending:recalc.recalculationPending,
       complete:snapshotState.pendingAccountIds.length===0,
       pendingAccountIds:snapshotState.pendingAccountIds,
       pendingAccountNames:snapshotState.pendingAccountNames
