@@ -37,13 +37,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const snapshotState=await sql.begin(async (tx) => {
       const locked = await tx.unsafe(
-        "SELECT i.id,i.status,i.onboarding_mode,i.account_id AS primary_account_id,a.id AS account_id,a.currency,a.name AS account_name "+
+        "SELECT i.id,i.status,i.onboarding_mode,i.account_id AS primary_account_id,a.id AS account_id,a.currency,a.name AS account_name,sa.role "+
         "FROM strategy_instances i JOIN strategy_accounts sa ON sa.strategy_instance_id=i.id JOIN accounts a ON a.id=sa.account_id "+
         "WHERE i.id=$1 AND i.user_id=$2 AND a.id=COALESCE($3::uuid,i.account_id) FOR UPDATE OF i",
         [id,user.id,input.accountId??null]
       );
       if (!locked[0]) throw new Error("STRATEGY_NOT_FOUND");
       if (String(locked[0].status) === "CLOSED") throw new Error("STRATEGY_CLOSED");
+      if(String(locked[0].onboarding_mode)!=="RESUME"&&String(locked[0].role)==="PRIMARY"){
+        throw new Error("OPENING_SNAPSHOT_NOT_ALLOWED");
+      }
       const existing = await tx.unsafe(
         "SELECT count(*)::int AS count FROM ledger_events WHERE strategy_instance_id=$1 AND account_id=$2",
         [id,locked[0].account_id]
@@ -118,6 +121,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const code = error instanceof Error ? error.message : "FAILED";
     if (code === "STRATEGY_CLOSED") return Response.json({ error: "Closed strategies are read-only." }, { status: 409 });
     if (code === "STRATEGY_NOT_FOUND") return Response.json({ error: "That account is not linked to this strategy." }, { status: 404 });
+    if (code === "OPENING_SNAPSHOT_NOT_ALLOWED") return Response.json({ error: "Opening snapshots are only for resumed portfolios or newly linked existing accounts." }, { status: 409 });
     if (code === "OPENING_SNAPSHOT_EXISTS") return Response.json({ error: "This account already has activity, so its opening position cannot be replaced." }, { status: 409 });
     if (code.startsWith("TRADING_LINE_NOT_FOUND:")) {
       const [, ticker, exchange] = code.split(":");
