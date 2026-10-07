@@ -4,7 +4,7 @@ import Decimal from "decimal.js";
 import { sql } from "@/lib/db";
 import { foldLedger } from "@/domain/ledger";
 import { getStrategyEngine } from "@/domain/strategy/registry";
-import { resolveMapping, type MappingCandidate } from "@/domain/instruments";
+import { exposureLeverage, resolveMapping, type MappingCandidate } from "@/domain/instruments";
 import { normalizeExecutionConstraints, planPracticalTrade, validateExecution } from "@/domain/execution";
 import { nextReviewDueAt } from "@/domain/schedule";
 
@@ -84,7 +84,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
     if(!tradingLineId){
       const mappingRows=await sql.unsafe("SELECT m.id,m.economic_exposure,m.leverage,m.direction,m.country,m.wrapper,m.broker,m.preferred_currency,m.fidelity,m.effective_from,m.effective_to,m.trading_line_id,tl.currency AS trading_line_currency,tl.effective_from AS trading_line_effective_from,tl.effective_to AS trading_line_effective_to FROM regional_instrument_mappings m JOIN trading_lines tl ON tl.id=m.trading_line_id WHERE m.economic_exposure=$1 AND m.country=$2 AND m.wrapper=$3 AND m.enabled=true",[proposal.economicExposure,instance.country,instance.wrapper]);
       const candidates:MappingCandidate[]=mappingRows.map((r)=>({id:String(r.id),economicExposure:String(r.economic_exposure),leverage:String(r.leverage),direction:String(r.direction),country:String(r.country),wrapper:String(r.wrapper),broker:r.broker?String(r.broker):null,preferredCurrency:r.preferred_currency?String(r.preferred_currency):null,fidelity:String(r.fidelity),effectiveFrom:isoDate(r.effective_from),effectiveTo:r.effective_to?isoDate(r.effective_to):null,tradingLineId:String(r.trading_line_id),tradingLineCurrency:String(r.trading_line_currency),tradingLineEffectiveFrom:isoDate(r.trading_line_effective_from),tradingLineEffectiveTo:r.trading_line_effective_to?isoDate(r.trading_line_effective_to):null}));
-      const leverage=proposal.economicExposure.includes("3X")?"3.000000":"1.000000";
+      const leverage=exposureLeverage(proposal.economicExposure,proposal.leverage);
       const mapping=resolveMapping(candidates,{economicExposure:proposal.economicExposure,leverage,direction:"LONG",country:String(instance.country),wrapper:String(instance.wrapper),broker:instance.broker_name?String(instance.broker_name):null,preferredCurrency:String(instance.currency),asOf:new Date().toISOString().slice(0,10)});
       if(!mapping) proposal={actionType:"DATA_REQUIRED",title:"This implementation is not supported yet",instruction:"No sufficiently faithful regional instrument mapping is configured for this account type.",explanation:[...proposal.explanation,{label:"Required exposure",value:proposal.economicExposure}],nextState:state,confidence:"LOW",dueAt:proposal.dueAt};
       else tradingLineId=mapping.tradingLineId;
@@ -147,7 +147,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:{cashD
   const stablePositions=exposurePositions.map((p)=>p.economicExposure+":"+p.value.toString()+":"+(p.tradingLineId??"")).sort().join(",");
   const material=[
     strategyInstanceId,String(instance.strategy_version_id),lastReview.toISOString(),proposal.actionType,
-    proposal.amount?.toString()??"",proposal.currency??"",proposal.economicExposure??"",tradingLineId??"",
+    proposal.amount?.toString()??"",proposal.currency??"",proposal.economicExposure??"",proposal.leverage??"",tradingLineId??"",
     effectiveCash.toString(),contributionsSinceReview.toString(),stablePositions,dataStatus
   ].join("|");
   const fingerprint=crypto.createHash("sha256").update(material).digest("hex");
