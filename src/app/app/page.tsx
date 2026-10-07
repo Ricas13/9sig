@@ -17,6 +17,11 @@ export default async function OverviewPage(){
   const knownValue=values.length?values.reduce((sum,r)=>sum+Number(r.value),0):null;
   const activeStrategies=strategies.filter((s:any)=>s.status==="ACTIVE");
   const primaryAction:any=actions[0];
+  const plannedContributions=activeStrategies
+    .map((s:any)=>({strategy:s,plan:s.contribution_plan as Record<string,unknown>|null}))
+    .filter(({plan})=>plan?.enabled===true&&plan.nextDate)
+    .sort((a,b)=>String(a.plan?.nextDate).localeCompare(String(b.plan?.nextDate)));
+  const nextContribution=plannedContributions[0];
 
   if(!strategies.length){
     return <section className="glass welcome-state">
@@ -69,7 +74,7 @@ export default async function OverviewPage(){
 
     <div className="quick-strip">
       <div><span>Portfolio</span><strong>{knownValue==null?"Waiting for first valuation":money(knownValue,user.baseCurrency)}</strong></div>
-      <div><span>Strategies</span><strong>{activeStrategies.length} active</strong></div>
+      <div><span>Next contribution</span><strong>{nextContribution?money(Number(nextContribution.plan?.amount??0),String(nextContribution.strategy.currency))+" · "+new Date(String(nextContribution.plan?.nextDate)+"T00:00:00Z").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):"Flexible"}</strong></div>
       <div><span>Attention</span><strong>{actions.length?actions.length+" open":"None"}</strong></div>
     </div>
 
