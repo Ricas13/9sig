@@ -19,7 +19,8 @@ export function AddLinkedAccountForm({id,currency,wrappers}:{id:string;currency:
 
   return <form className="form-grid linked-account-form" onSubmit={async(e)=>{
     e.preventDefault();setBusy(true);setMessage("");
-    const f=new FormData(e.currentTarget);
+    const form=e.currentTarget;
+    const f=new FormData(form);
     const response=await fetch("/api/strategies/"+id+"/accounts",{
       method:"POST",
       headers:{"content-type":"application/json"},
@@ -33,7 +34,7 @@ export function AddLinkedAccountForm({id,currency,wrappers}:{id:string;currency:
     const body=await response.json();setBusy(false);
     if(!response.ok)return setMessage(body.error??"Could not add this account.");
     setMessage("Account linked.");
-    e.currentTarget.reset();
+    form.reset();
     router.refresh();
   }}>
     <div className="field"><label>Account name</label><input name="name" maxLength={80} placeholder="e.g. SIPP at InvestEngine" required/></div>
@@ -99,9 +100,11 @@ export function ExecuteAction({ action }: { action: { id: string; actionType: st
 export function ContributionForm({ id, accounts=[] }: { id: string; accounts?:AccountOption[] }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
+  const [busy,setBusy]=useState(false);
   return <form className="form-grid" onSubmit={async (e) => {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
+    e.preventDefault();setBusy(true);setMessage("");
+    const form=e.currentTarget;
+    const f = new FormData(form);
     const value = String(f.get("when") || "");
     const occurredAt = value ? new Date(value).toISOString() : undefined;
     const r = await fetch("/api/strategies/" + id + "/contributions", {
@@ -109,23 +112,25 @@ export function ContributionForm({ id, accounts=[] }: { id: string; accounts?:Ac
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ amount: String(f.get("amount")), occurredAt, accountId:f.get("accountId")||undefined })
     });
+    setBusy(false);
     setMessage(r.ok ? "Contribution recorded as cash." : "Could not record contribution.");
     if (r.ok) {
-      e.currentTarget.reset();
+      form.reset();
       router.refresh();
     }
   }}>
     <AccountSelect accounts={accounts}/><div className="field"><label>Contribution</label><input name="amount" type="number" min="0.01" step="0.01" required /></div>
     <div className="field"><label>Date & time</label><input name="when" type="datetime-local" /></div>
-    <div className="field full"><button className="button">Record contribution</button>{message && <div className={message.startsWith("Contribution recorded") ? "success" : "error"}>{message}</div>}</div>
+    <div className="field full"><button className="button" disabled={busy}>{busy?"Recording…":"Record contribution"}</button>{message && <div className={message.startsWith("Contribution recorded") ? "success" : "error"}>{message}</div>}</div>
   </form>;
 }
 
 export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expected?: number | null; accounts?:AccountOption[] }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
+  const [busy,setBusy]=useState(false);
   return <form className="form-grid" onSubmit={async (e) => {
-    e.preventDefault();
+    e.preventDefault();setBusy(true);setMessage("");
     const f = new FormData(e.currentTarget);
     const r = await fetch("/api/strategies/" + id + "/reconcile", {
       method: "POST",
@@ -138,7 +143,7 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
         accountId: f.get("accountId") || undefined
       })
     });
-    const b = await r.json();
+    const b = await r.json();setBusy(false);
     setMessage(r.ok
       ? (b.strategyResolved
         ? "Reconciliation resolved."
@@ -155,7 +160,7 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
       <label><input name="affectsCash" type="checkbox" /> This difference definitely changes available cash</label>
       <div className="help">Use this for a fee, tax, financing or FX cash charge. Leave it off for an unexplained valuation difference; actions stay blocked instead of treating unknown drift as spendable cash.</div>
     </div>
-    <div className="field full"><button className="button">Reconcile</button>{message && <div className={message.includes("resolved") ? "success" : "error"}>{message}</div>}</div>
+    <div className="field full"><button className="button" disabled={busy}>{busy?"Reconciling…":"Reconcile"}</button>{message && <div className={message.includes("resolved") ? "success" : "error"}>{message}</div>}</div>
   </form>;
 }
 
@@ -167,6 +172,7 @@ export function OpeningSnapshotForm({ id, accounts=[] }: { id: string; accounts?
   const [cash, setCash] = useState("0");
   const [holdings, setHoldings] = useState([{ ticker: "", exchange: "LSE", quantity: "" }]);
   const [message, setMessage] = useState("");
+  const [busy,setBusy]=useState(false);
 
   function update(index: number, field: "ticker" | "exchange" | "quantity", value: string) {
     setHoldings((rows) => rows.map((row, i) => i === index ? { ...row, [field]: value } : row));
@@ -178,14 +184,14 @@ export function OpeningSnapshotForm({ id, accounts=[] }: { id: string; accounts?
 
   return <form className="stack opening-snapshot-form" onSubmit={async (e) => {
     e.preventDefault();
-    setMessage("");
+    setBusy(true);setMessage("");
     const cleanHoldings = holdings.filter((h) => h.ticker.trim() && h.exchange.trim() && h.quantity.trim());
     const response = await fetch("/api/strategies/" + id + "/opening-snapshot", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ accountId:effectiveAccountId||undefined, cash, holdings: cleanHoldings })
     });
-    const body = await response.json();
+    const body = await response.json();setBusy(false);
     if(!response.ok){
       setMessage(body.error ?? "Could not save snapshot.");
       return;
@@ -215,7 +221,7 @@ export function OpeningSnapshotForm({ id, accounts=[] }: { id: string; accounts?
     <div className="inline">
       <button type="button" className="button" onClick={() => setHoldings((rows) => [...rows, { ticker: "", exchange: "LSE", quantity: "" }])}>Add holding</button>
       {holdings.length > 1 && <button type="button" className="button" onClick={() => setHoldings((rows) => rows.slice(0, -1))}>Remove last</button>}
-      <button className="button primary">Save {accounts.length>1?"this account":"opening snapshot"}</button>
+      <button className="button primary" disabled={busy}>{busy?"Saving…":"Save "+(accounts.length>1?"this account":"opening snapshot")}</button>
     </div>
     <div className="help">This records what you hold now. It does not invent historical trades, cost basis or contributions.</div>
     {accounts.length>1&&pendingAccounts.length>1&&<div className="help">{pendingAccounts.length} linked accounts still need a starting position.</div>}
@@ -373,20 +379,20 @@ export function StrategyVersionUpgrade({
 }
 
 export function CashEventForm({id,accounts=[]}:{id:string;accounts?:AccountOption[]}){
-  const router=useRouter();const[message,setMessage]=useState("");
+  const router=useRouter();const[message,setMessage]=useState("");const[busy,setBusy]=useState(false);
   return <form className="form-grid" onSubmit={async(e)=>{
-    e.preventDefault();const f=new FormData(e.currentTarget);const when=String(f.get("when")||"");
+    e.preventDefault();setBusy(true);setMessage("");const form=e.currentTarget;const f=new FormData(form);const when=String(f.get("when")||"");
     const response=await fetch("/api/strategies/"+id+"/ledger-events",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
       eventType:f.get("eventType"),amount:String(f.get("amount")),occurredAt:when?new Date(when).toISOString():undefined,note:f.get("note")||undefined,accountId:f.get("accountId")||undefined
     })});
-    const body=await response.json();setMessage(response.ok?"Cash event recorded.":body.error??"Could not record cash event.");
-    if(response.ok){e.currentTarget.reset();router.refresh();}
+    const body=await response.json();setBusy(false);setMessage(response.ok?"Cash event recorded.":body.error??"Could not record cash event.");
+    if(response.ok){form.reset();router.refresh();}
   }}>
     <AccountSelect accounts={accounts}/><div className="field"><label>Event</label><select name="eventType"><option>WITHDRAWAL</option><option>DIVIDEND</option><option>DISTRIBUTION</option><option>INTEREST</option><option>FEE</option><option>TAX</option></select></div>
     <div className="field"><label>Amount</label><input name="amount" type="number" min="0.01" step="0.01" required/></div>
     <div className="field"><label>Date & time</label><input name="when" type="datetime-local"/></div>
     <div className="field"><label>Note (optional)</label><input name="note" maxLength={240}/></div>
-    <div className="field full"><button className="button">Record cash event</button><div className="help">Withdrawals, fees and tax reduce cash; dividends, distributions and interest increase cash. The original ledger history remains append-only.</div>{message&&<div className={message.startsWith("Cash event recorded")?"success":"error"}>{message}</div>}</div>
+    <div className="field full"><button className="button" disabled={busy}>{busy?"Recording…":"Record cash event"}</button><div className="help">Withdrawals, fees and tax reduce cash; dividends, distributions and interest increase cash. The original ledger history remains append-only.</div>{message&&<div className={message.startsWith("Cash event recorded")?"success":"error"}>{message}</div>}</div>
   </form>;
 }
 
