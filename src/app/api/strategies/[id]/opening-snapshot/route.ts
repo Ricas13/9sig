@@ -100,10 +100,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy.opening-snapshot','strategy_instance',$2,$3::jsonb)",
         [user.id, id, JSON.stringify({ accountId:String(locked[0].account_id), holdings: holdings.length, cashEntered: cash.gt(0), pendingAccounts:pending.map((row)=>String(row.id)) })]
       );
-      return {pendingAccountIds:pending.map((row)=>String(row.id)),pendingAccountNames:pending.map((row)=>String(row.name))};
+      return {status:String(locked[0].status),pendingAccountIds:pending.map((row)=>String(row.id)),pendingAccountNames:pending.map((row)=>String(row.name))};
     });
 
-    const recalc=String(strategy.status)==="ACTIVE"?await recalculateAfterMutation(id,user.id,"opening-snapshot"):{actionId:null,recalculationPending:false,errorCode:null};
+    const recalc=snapshotState.status==="ACTIVE"?await recalculateAfterMutation(id,user.id,"opening-snapshot"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({
       ok:true,
       actionId:recalc.actionId,
