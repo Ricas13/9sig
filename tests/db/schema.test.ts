@@ -21,6 +21,21 @@ describe.skipIf(!url)("database schema",()=>{
     const rows=await sql!.unsafe("SELECT data_type FROM information_schema.columns WHERE table_name='strategy_instances' AND column_name='settings'");
     expect(rows[0]?.data_type).toBe("jsonb");
   });
+  it("supports account-aware strategy portfolios",async()=>{
+    const tables=await sql!.unsafe("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='strategy_accounts'");
+    expect(tables.length).toBe(1);
+
+    const ledger=await sql!.unsafe("SELECT data_type FROM information_schema.columns WHERE table_name='ledger_events' AND column_name='account_id'");
+    const actions=await sql!.unsafe("SELECT data_type FROM information_schema.columns WHERE table_name='actions' AND column_name='account_id'");
+    const reconciliations=await sql!.unsafe("SELECT data_type FROM information_schema.columns WHERE table_name='reconciliations' AND column_name='account_id'");
+    expect(ledger[0]?.data_type).toBe("uuid");
+    expect(actions[0]?.data_type).toBe("uuid");
+    expect(reconciliations[0]?.data_type).toBe("uuid");
+
+    const indexes=await sql!.unsafe("SELECT indexdef FROM pg_indexes WHERE tablename='strategy_accounts'");
+    expect(indexes.some((row)=>String(row.indexdef).includes("WHERE (role = 'PRIMARY'"))).toBe(true);
+  });
+
   it("supports multiple named benchmark histories per strategy version",async()=>{
     const rows=await sql!.unsafe("SELECT indexdef FROM pg_indexes WHERE tablename='strategy_version_benchmarks'");
     expect(rows.some((r)=>String(r.indexdef).includes("strategy_version_id"))).toBe(true);
