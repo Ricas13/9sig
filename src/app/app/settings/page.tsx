@@ -5,10 +5,12 @@ import { BillingButtons,DiscordForm,PrivacyControls } from "@/components/Setting
 export default async function SettingsPage(){
   const user=await requireUser();
   const rows=await sql.unsafe(
-    "SELECT p.display_name,p.slug,s.status,s.cadence,s.current_period_end,s.stripe_subscription_id FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.user_id=$1 LIMIT 1",
+    "SELECT p.display_name,p.slug,p.max_active_strategies,s.status,s.cadence,s.current_period_end,s.stripe_subscription_id FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.user_id=$1 LIMIT 1",
     [user.id]
   );
   const plan=rows[0];
+  const activeRows=await sql.unsafe("SELECT count(*)::int AS count FROM strategy_instances WHERE user_id=$1 AND status='ACTIVE'",[user.id]);
+  const activeStrategyCount=Number(activeRows[0]?.count??0);
   const priceRows=await sql.unsafe(
     "SELECT p.slug,p.display_name,p.max_active_strategies,p.entitlements,pp.currency,pp.cadence,pp.amount_minor FROM plan_prices pp JOIN plans p ON p.id=pp.plan_id WHERE pp.active=true AND p.visible=true AND p.archived=false AND p.slug<>'free' ORDER BY p.sort_order,pp.currency,pp.cadence"
   );
@@ -31,7 +33,7 @@ export default async function SettingsPage(){
       <section id="plan" className="glass form-card settings-plan-card">
         <div className="settings-card-heading"><div><div className="eyebrow">Plan</div><h3>{plan?.display_name??"Free"}</h3></div><span className="pill good">{currentStatus.replaceAll("_"," ")}</span></div>
         {plan?.current_period_end&&paidSubscription&&<p className="help">Current billing period runs to {new Date(plan.current_period_end).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}.</p>}
-        <BillingButtons prices={prices} defaultCurrency={user.baseCurrency} currentPlanSlug={currentPlanSlug} paidSubscription={paidSubscription}/>
+        <BillingButtons prices={prices} defaultCurrency={user.baseCurrency} currentPlanSlug={currentPlanSlug} paidSubscription={paidSubscription} activeStrategyCount={activeStrategyCount} currentMaxActiveStrategies={plan?.max_active_strategies==null?null:Number(plan.max_active_strategies)}/>
       </section>
       <section className="glass form-card">
         <div className="eyebrow">Notifications</div><h3>Discord</h3>
