@@ -646,7 +646,7 @@ Use this checklist as the shared cross-chat roadmap.
 
 ### Foundation / product model
 
-- [ ] audit current post-PR-2 customer flows before changing behavior
+- [x] audit current post-PR-2 customer flows before changing behavior
 - [ ] formalize strategy / portfolio / execution / explanation boundaries
 - [ ] add / extend customer constraint model
 - [ ] add execution optimizer for practical trade recommendations
@@ -656,16 +656,16 @@ Use this checklist as the shared cross-chat roadmap.
 
 ### Onboarding
 
-- [ ] redesign onboarding into short visual stepper
-- [ ] implement Start flow
-- [ ] implement Resume flow from current snapshot
+- [x] redesign onboarding into short visual stepper
+- [x] implement Start flow
+- [x] implement Resume flow from current snapshot
 - [ ] preserve pre-platform / tracked-performance distinction
-- [ ] progressive advanced settings
+- [x] progressive advanced settings
 
 ### Action Mode
 
-- [ ] redesign main dashboard hierarchy
-- [ ] premium Today's Action card
+- [x] redesign main dashboard hierarchy
+- [x] premium Today's Action card
 - [ ] concise plain-English explanation layer
 - [ ] next-review / contribution / allocation health
 - [ ] partial / actual execution capture
@@ -674,7 +674,7 @@ Use this checklist as the shared cross-chat roadmap.
 
 ### Explore Mode
 
-- [ ] separate advanced analytics from Action Mode
+- [x] separate advanced analytics from Action Mode
 - [ ] premium interactive performance chart
 - [ ] benchmark toggles
 - [ ] contribution / rebalance markers
@@ -705,15 +705,15 @@ Use this checklist as the shared cross-chat roadmap.
 - [ ] typography and number formatting
 - [ ] cards / surfaces / gradients / depth
 - [ ] icon system
-- [ ] animation / motion primitives
-- [ ] reduced-motion path
+- [x] animation / motion primitives
+- [x] reduced-motion path
 - [ ] loading / empty / error / success states
 
 ### Responsive / accessibility
 
 - [ ] mobile-first dashboard
 - [ ] responsive charts
-- [ ] compact navigation
+- [x] compact navigation
 - [ ] keyboard audit
 - [ ] contrast audit
 - [ ] screen-reader labels
@@ -780,3 +780,23 @@ When resuming work:
 10. Before merge, run the full release gate and a fresh holistic audit against this document.
 
 The goal is one coherent product-experience PR, not a collection of disconnected cosmetic patches.
+
+
+## Implementation checkpoint — 7 October 2026
+
+Completed in the first implementation pass on this PR:
+
+- customer navigation reduced to Home / Portfolio / Activity / Explore / Settings
+- home dashboard redesigned around one dominant Today action
+- no-strategy state converted into a single first-strategy onboarding CTA
+- strategy setup converted from one long form into a three-step visual flow
+- Start and Resume paths made explicit; Resume continues into the existing opening-snapshot workflow
+- advanced account details progressively disclosed rather than shown by default
+- individual strategy screen redesigned around the next action, current value and next review
+- performance, ledger history, reconciliation and lifecycle controls moved behind progressive detail drawers
+- portfolio and activity surfaces simplified
+- premium interaction / hover / reveal treatment added
+- keyboard focus treatment added
+- prefers-reduced-motion path added
+
+Still intentionally open: execution-constraint model, contribution-first optimizer, what-if engine, version-comparison UX, richer benchmark controls, visual regression suite, full accessibility/mobile audit and the final release/safety sweep.
