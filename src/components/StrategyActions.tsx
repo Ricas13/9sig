@@ -265,18 +265,26 @@ export function CashEventForm({id}:{id:string}){
 
 
 export function ReverseLedgerEventButton({strategyId,eventId}:{strategyId:string;eventId:string}){
-  const router=useRouter();const[busy,setBusy]=useState(false);const[error,setError]=useState("");
-  return <button className="button" disabled={busy} onClick={async()=>{
-    const reason=prompt("Why are you reversing this entry?");
-    if(!reason?.trim())return;
+  const router=useRouter();
+  const[open,setOpen]=useState(false);
+  const[busy,setBusy]=useState(false);
+  const[error,setError]=useState("");
+  if(!open)return <button type="button" className="button compact quiet correction-trigger" onClick={()=>{setOpen(true);setError("")}}>Correct</button>;
+  return <form className="correction-inline" onSubmit={async(e)=>{
+    e.preventDefault();const f=new FormData(e.currentTarget);const reason=String(f.get("reason")||"").trim();
+    if(!reason)return setError("Add a short reason.");
     setBusy(true);setError("");
-    const response=await fetch("/api/strategies/"+strategyId+"/ledger-events/"+eventId+"/correct",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({reason:reason.trim()})});
+    const response=await fetch("/api/strategies/"+strategyId+"/ledger-events/"+eventId+"/correct",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({reason})});
     const body=await response.json();setBusy(false);
-    if(!response.ok){setError(body.error??"Could not reverse entry.");return;}
-    router.refresh();
-  }}>Reverse entry{error?" · "+error:""}</button>;
+    if(!response.ok)return setError(body.error??"Could not correct entry.");
+    setOpen(false);router.refresh();
+  }}>
+    <input name="reason" maxLength={240} placeholder="What was wrong?" autoFocus/>
+    <button className="button compact" disabled={busy}>{busy?"Saving…":"Reverse"}</button>
+    <button type="button" className="button compact quiet" disabled={busy} onClick={()=>setOpen(false)}>Cancel</button>
+    {error&&<span className="error">{error}</span>}
+  </form>;
 }
-
 
 export function ExecutionConstraintsForm({id,constraints}:{id:string;constraints?:Record<string,unknown>|null}){
   const router=useRouter();
