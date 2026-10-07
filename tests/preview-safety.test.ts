@@ -46,4 +46,18 @@ describe("What-if preview safety boundary",()=>{
     expect(preview).not.toMatch(/sql\.begin\(/i);
   });
 
+
+  it("keeps strategy switch previews read-only",()=>{
+    const source=readFileSync(new URL("../src/lib/action-service.ts",import.meta.url),"utf8");
+    const start=source.indexOf("export async function previewStrategySwitchScenario");
+    const end=source.indexOf("export async function previewStrategyVersionScenario",start);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const preview=source.slice(start,end);
+    expect(preview).not.toMatch(/sql\.unsafe\(\s*["'`]INSERT\b/i);
+    expect(preview).not.toMatch(/sql\.unsafe\(\s*["'`]UPDATE\b/i);
+    expect(preview).not.toMatch(/sql\.unsafe\(\s*["'`]DELETE\b/i);
+    expect(preview).not.toMatch(/sql\.begin\(/i);
+  });
+
 });
