@@ -103,7 +103,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return {pendingAccountIds:pending.map((row)=>String(row.id)),pendingAccountNames:pending.map((row)=>String(row.name))};
     });
 
-    const recalc=await recalculateAfterMutation(id,user.id,"opening-snapshot");
+    const recalc=String(strategy.status)==="ACTIVE"?await recalculateAfterMutation(id,user.id,"opening-snapshot"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({
       ok:true,
       actionId:recalc.actionId,
