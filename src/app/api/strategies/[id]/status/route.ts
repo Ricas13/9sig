@@ -23,8 +23,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const code = error instanceof Error ? error.message : "FAILED";
     if (code === "STRATEGY_INSTANCE_NOT_FOUND") return Response.json({ error: "Not found." }, { status: 404 });
     if (code === "STRATEGY_ALREADY_CLOSED") return Response.json({ error: "A closed strategy cannot be reopened." }, { status: 409 });
-    if (code === "PLAN_STRATEGY_LIMIT" || code === "STRATEGY_NOT_IN_PLAN") {
-      return Response.json({ error: "Your current plan does not allow this strategy to be resumed." }, { status: 403 });
+    if (code === "PLAN_STRATEGY_LIMIT" || code === "STRATEGY_NOT_IN_PLAN" || code === "MULTI_ACCOUNT_NOT_IN_PLAN") {
+      return Response.json({
+        error: code==="MULTI_ACCOUNT_NOT_IN_PLAN"
+          ? "This strategy uses multiple linked accounts, which are not included in your current plan."
+          : "Your current plan does not allow this strategy to be resumed."
+      }, { status: 403 });
     }
     return Response.json({ error: "Could not update strategy status." }, { status: 500 });
   }
