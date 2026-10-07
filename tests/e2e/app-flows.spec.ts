@@ -124,3 +124,33 @@ test("Pro user can link another account without complicating the main flow",asyn
   await expect(page.getByLabel("Account").first()).toBeVisible();
 });
 
+test("authenticated shell remains keyboard and reduced-motion friendly",async({page},testInfo)=>{
+  const user=await createVerifiedUser(testInfo,"accessibility");
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await login(page,user);
+
+  const themeButton=page.getByRole("button",{name:"Toggle light or dark theme"});
+  await themeButton.focus();
+  await expect(themeButton).toBeFocused();
+  const focusStyle=await themeButton.evaluate((element)=>{
+    const style=getComputedStyle(element);
+    return {outlineStyle:style.outlineStyle,outlineWidth:style.outlineWidth,transitionDuration:style.transitionDuration};
+  });
+  expect(focusStyle.outlineStyle).not.toBe("none");
+  expect(focusStyle.outlineWidth).not.toBe("0px");
+
+  const unnamedButtons=await page.locator("button").evaluateAll((buttons)=>buttons.filter((button)=>{
+    const label=button.getAttribute("aria-label")||button.textContent?.trim();
+    return !label;
+  }).length);
+  expect(unnamedButtons).toBe(0);
+
+  const viewport=page.viewportSize();
+  if(viewport&&viewport.width<=680){
+    const targets=await page.locator(".nav-link,.theme-toggle,.app-topbar .button").evaluateAll((elements)=>
+      elements.map((element)=>Math.round(element.getBoundingClientRect().height))
+    );
+    expect(targets.every((height)=>height>=44)).toBe(true);
+  }
+});
+
