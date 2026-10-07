@@ -647,19 +647,19 @@ Use this checklist as the shared cross-chat roadmap.
 ### Foundation / product model
 
 - [x] audit current post-PR-2 customer flows before changing behavior
-- [ ] formalize strategy / portfolio / execution / explanation boundaries
-- [ ] add / extend customer constraint model
-- [ ] add execution optimizer for practical trade recommendations
-- [ ] add pause / resume / stop lifecycle where incomplete
+- [x] formalize strategy / portfolio / execution / explanation boundaries
+- [x] add / extend customer constraint model
+- [x] add execution optimizer for practical trade recommendations
+- [x] add pause / resume / stop lifecycle where incomplete
 - [ ] verify multi-account abstraction
-- [ ] verify instrument-substitution safety path
+- [x] verify instrument-substitution safety path
 
 ### Onboarding
 
 - [x] redesign onboarding into short visual stepper
 - [x] implement Start flow
 - [x] implement Resume flow from current snapshot
-- [ ] preserve pre-platform / tracked-performance distinction
+- [x] preserve pre-platform / tracked-performance distinction
 - [x] progressive advanced settings
 
 ### Action Mode
@@ -675,27 +675,27 @@ Use this checklist as the shared cross-chat roadmap.
 ### Explore Mode
 
 - [x] separate advanced analytics from Action Mode
-- [ ] premium interactive performance chart
-- [ ] benchmark toggles
-- [ ] contribution / rebalance markers
-- [ ] filters / timeframes
-- [ ] detailed strategy explanation
-- [ ] history and activity improvements
+- [x] premium interactive performance chart
+- [x] benchmark toggles
+- [x] contribution / rebalance markers
+- [x] filters / timeframes
+- [x] detailed strategy explanation
+- [x] history and activity improvements
 
 ### What-if
 
-- [ ] contribution preview
-- [ ] withdrawal preview
+- [x] contribution preview
+- [x] withdrawal preview
 - [ ] strategy-switch preview
 - [ ] constraint-change preview
-- [ ] guarantee non-mutating simulation path
+- [x] guarantee non-mutating simulation path
 
 ### Strategy evolution
 
-- [ ] customer-friendly update notification
-- [ ] version comparison
+- [x] customer-friendly update notification
+- [x] version comparison
 - [ ] immediate-action impact preview
-- [ ] audited upgrade / migration flow
+- [x] audited upgrade / migration flow
 
 ### Visual system
 
@@ -707,7 +707,7 @@ Use this checklist as the shared cross-chat roadmap.
 - [ ] icon system
 - [x] animation / motion primitives
 - [x] reduced-motion path
-- [ ] loading / empty / error / success states
+- [x] loading / empty / error / success states
 
 ### Responsive / accessibility
 
@@ -721,10 +721,10 @@ Use this checklist as the shared cross-chat roadmap.
 
 ### Commercial experience
 
-- [ ] keep plan definitions data-driven
+- [x] keep plan definitions data-driven
 - [ ] polished upgrade / downgrade flows
-- [ ] graceful plan-limit handling
-- [ ] keep admin configuration separate from customer UX
+- [x] graceful plan-limit handling
+- [x] keep admin configuration separate from customer UX
 
 ### Verification
 
@@ -800,3 +800,25 @@ Completed in the first implementation pass on this PR:
 - prefers-reduced-motion path added
 
 Still intentionally open: execution-constraint model, contribution-first optimizer, what-if engine, version-comparison UX, richer benchmark controls, visual regression suite, full accessibility/mobile audit and the final release/safety sweep.
+
+
+## Safety checkpoint — 7 October 2026
+
+Additional implementation completed during the continuing PR #3 sweep:
+
+- broker-specific instrument mappings now require an explicit matching broker
+- duplicate holdings of the same economic exposure are aggregated before strategy calculations
+- holdings outside a strategy's managed exposures fail closed instead of being silently ignored
+- cash-event ledger + audit writes are atomic
+- contribution-plan advancement is read and updated under the strategy lock
+- CLOSED strategies reject new snapshots, cash events, reconciliation, contribution-plan changes and execution-preference changes
+- action recalculations are serialised per strategy with an advisory transaction lock and persisted atomically
+- trade execution follows the same strategy → action lock order as pause/close flows
+- Home portfolio totals exclude closed strategies and fail closed for incomplete or mixed-currency valuations
+- proprietary strategies no longer expose raw engine configuration to normal customers
+- strategy rules are rendered as customer-readable versioned rules
+- chart events show contributions and completed review actions
+- analytics comparison failures no longer crash the core strategy page
+- generic multi-benchmark histories are supported per strategy version, allowing QQQ / 3QQQ / future comparisons with the user's same cash flows
+
+Still intentionally open: multi-account strategy ownership/execution, strategy-switch and constraint-change What-If previews, immediate-action preview for version upgrades, authenticated browser/visual regression expansion, final accessibility/mobile audit, and the final release/security/financial sweep.
