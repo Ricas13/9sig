@@ -21,6 +21,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const strategy = await getStrategyForUser(user.id, id);
     if (!strategy) return Response.json({ error: "Not found." }, { status: 404 });
+    if (String(strategy.status) === "CLOSED") return Response.json({ error: "Closed strategies are read-only." }, { status: 409 });
 
     const input = schema.parse(await request.json());
     const expected = new Decimal(input.expectedValue);
@@ -29,6 +30,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const resolved = difference.eq(0) || input.affectsCash;
 
     await sql.begin(async (tx) => {
+      const locked=await tx.unsafe("SELECT id,status FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE",[id,user.id]);
+      if(!locked[0])throw new Error("STRATEGY_NOT_FOUND");
+      if(String(locked[0].status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
       await tx.unsafe(
         "INSERT INTO reconciliations (strategy_instance_id,occurred_at,expected_value,broker_reported_value,difference,reason,provenance,metadata) VALUES ($1,now(),$2,$3,$4,$5,'USER_CONFIRMED',$6::jsonb)",
         [id, expected.toString(), broker.toString(), difference.toString(), input.reason ?? null, JSON.stringify({ affectsCash: input.affectsCash, resolved })]
@@ -70,6 +74,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Enter valid monetary amounts with up to 8 decimal places." }, { status: 400 });
     }
+    const code=error instanceof Error?error.message:"FAILED";
+    if(code==="STRATEGY_CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
     return Response.json({ error: "Could not reconcile strategy." }, { status: 500 });
   }
 }
