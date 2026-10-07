@@ -47,7 +47,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
           "SELECT id FROM ledger_events WHERE strategy_instance_id=$1 AND request_key=$2 LIMIT 1",
           [id,input.requestKey]
         );
-        if(existing[0])return {eventId:String(existing[0].id),duplicate:true};
+        if(existing[0])return {eventId:String(existing[0].id),status:String(locked[0].status),duplicate:true};
       }
       const rows=await tx.unsafe(
         "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,fee_amount,provenance,confidence,metadata,request_key)"+
@@ -59,9 +59,9 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
         "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'ledger.cash-event-created','ledger_event',$2,$3::jsonb)",
         [user.id,ledgerEventId,JSON.stringify({strategyInstanceId:id,eventType:input.eventType})]
       );
-      return {eventId:ledgerEventId,duplicate:false};
+      return {eventId:ledgerEventId,status:String(locked[0].status),duplicate:false};
     });
-    const recalc=String(strategy.status)==="ACTIVE"&&!eventResult.duplicate?await recalculateAfterMutation(id,user.id,"cash-event"):{actionId:null,recalculationPending:false,errorCode:null};
+    const recalc=eventResult.status==="ACTIVE"&&!eventResult.duplicate?await recalculateAfterMutation(id,user.id,"cash-event"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({ok:true,id:eventResult.eventId,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending,duplicate:eventResult.duplicate});
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Check the cash event details."},{status:400});
