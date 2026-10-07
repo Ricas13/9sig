@@ -2,7 +2,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { loadEntitlements } from "@/lib/entitlement-service";
 import { listStrategyAccounts } from "@/lib/strategy-service";
-import { calculateAction } from "@/lib/action-service";
+import { recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
 
@@ -28,7 +28,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     const {id}=await context.params;
     const input=schema.parse(await request.json());
 
-    const accountId=await sql.begin(async(tx)=>{
+    const result=await sql.begin(async(tx)=>{
       const rows=await tx.unsafe(
         "SELECT i.id,i.status,d.supported_regions,d.supported_wrappers,a.currency,a.country "+
         "FROM strategy_instances i JOIN strategy_definitions d ON d.id=i.strategy_definition_id JOIN accounts a ON a.id=i.account_id "+
@@ -56,10 +56,10 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
         "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy.account-added','strategy_instance',$2,$3::jsonb)",
         [user.id,id,JSON.stringify({accountId:newId,wrapper:input.wrapper,currency,broker:input.broker??null})]
       );
-      return newId;
+      return {accountId:newId,status:String(strategy.status)};
     });
-    try{await calculateAction(id);}catch{}
-    return Response.json({ok:true,accountId},{status:201});
+    const recalc=result.status==="ACTIVE"?await recalculateAfterMutation(id,user.id,"linked-account-added"):{actionId:null,recalculationPending:false,errorCode:null};
+    return Response.json({ok:true,accountId:result.accountId,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending},{status:201});
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Check the account details."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
