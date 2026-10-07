@@ -215,11 +215,26 @@ export async function executeAction(
   execution?:{price?:string;quantity?:string;fee?:string;partial?:boolean}
 ){
   const result=await sql.begin(async(tx)=>{
-    const rows=await tx.unsafe(
-      "SELECT a.*,i.user_id,i.execution_constraints,acc.currency,tl.instrument_id FROM actions a JOIN strategy_instances i ON i.id=a.strategy_instance_id JOIN accounts acc ON acc.id=i.account_id LEFT JOIN trading_lines tl ON tl.id=a.trading_line_id WHERE a.id=$1 AND i.user_id=$2 FOR UPDATE OF a",
+    const ownership=await tx.unsafe(
+      "SELECT a.strategy_instance_id FROM actions a JOIN strategy_instances i ON i.id=a.strategy_instance_id WHERE a.id=$1 AND i.user_id=$2 LIMIT 1",
       [actionId,userId]
     );
-    const action=rows[0];
+    if(!ownership[0])throw new Error("ACTION_NOT_FOUND");
+
+    // Keep lock ordering consistent with pause/close flows: strategy first, then action.
+    const strategyRows=await tx.unsafe(
+      "SELECT i.id,i.status,i.execution_constraints,acc.currency FROM strategy_instances i JOIN accounts acc ON acc.id=i.account_id WHERE i.id=$1 AND i.user_id=$2 FOR UPDATE OF i",
+      [ownership[0].strategy_instance_id,userId]
+    );
+    const strategy=strategyRows[0];
+    if(!strategy)throw new Error("ACTION_NOT_FOUND");
+    if(String(strategy.status)!=="ACTIVE")throw new Error("STRATEGY_NOT_ACTIVE");
+
+    const actionRows=await tx.unsafe(
+      "SELECT a.*,tl.instrument_id FROM actions a LEFT JOIN trading_lines tl ON tl.id=a.trading_line_id WHERE a.id=$1 AND a.strategy_instance_id=$2 FOR UPDATE OF a",
+      [actionId,strategy.id]
+    );
+    const action=actionRows[0];
     if(!action)throw new Error("ACTION_NOT_FOUND");
     if(!["CALCULATED","NOTIFIED","ACKNOWLEDGED"].includes(String(action.status)))throw new Error("ACTION_NOT_EXECUTABLE");
 
@@ -227,14 +242,12 @@ export async function executeAction(
     if(["DATA_REQUIRED","NO_ACTION"].includes(actionType))throw new Error("ACTION_NOT_EXECUTABLE");
     if(actionType==="REBALANCE")throw new Error("REBALANCE_TRADES_REQUIRED");
 
-    await tx.unsafe("SELECT id FROM strategy_instances WHERE id=$1 FOR UPDATE",[action.strategy_instance_id]);
-
     let partial=false;
     let actualNotional:string|null=null;
 
     if(["BUY","SELL"].includes(actionType)){
       if(!execution?.price||!execution?.quantity||!action.instrument_id||!action.amount)throw new Error("EXECUTION_DETAILS_REQUIRED");
-      if(String(action.currency)!==String(action.currency??rows[0].currency)||String(action.currency)!==String(rows[0].currency)){
+      if(String(action.currency)!==String(action.currency??rows[0].currency)||String(action.currency)!==String(strategy.currency)){
         throw new Error("EXECUTION_CURRENCY_MISMATCH");
       }
 
@@ -249,9 +262,9 @@ export async function executeAction(
         feeAmount:String(r.fee_amount),
         instrumentId:r.instrument_id?String(r.instrument_id):null,
         quantity:String(r.quantity)
-      })),String(rows[0].currency));
+      })),String(strategy.currency));
       const held=position.quantities.get(String(action.instrument_id))??new Decimal(0);
-      const constraints=normalizeExecutionConstraints(action.execution_constraints);
+      const constraints=normalizeExecutionConstraints(strategy.execution_constraints);
       if(actionType==="SELL"&&!constraints.allowSelling)throw new Error("SELLING_DISABLED");
       if(!constraints.fractionalShares&&!new Decimal(execution.quantity).isInteger())throw new Error("FRACTIONAL_SHARES_DISABLED");
       const spendableCash=Decimal.max(position.cash.minus(constraints.cashBufferAmount),0);
