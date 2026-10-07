@@ -12,7 +12,8 @@ const schema=z.object({
   amount,
   occurredAt:z.string().datetime({offset:true}).optional(),
   note:z.string().max(240).optional(),
-  accountId:z.string().uuid().optional()
+  accountId:z.string().uuid().optional(),
+  requestKey:z.string().uuid().optional()
 });
 
 export async function POST(request:Request,context:{params:Promise<{id:string}>}){
@@ -34,28 +35,35 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
 
     if(String(strategy.status)==="CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
 
-    const eventId=await sql.begin(async(tx)=>{
+    const eventResult=await sql.begin(async(tx)=>{
       const locked=await tx.unsafe(
         "SELECT i.id,i.status,a.id AS account_id,a.currency FROM strategy_instances i JOIN strategy_accounts sa ON sa.strategy_instance_id=i.id JOIN accounts a ON a.id=sa.account_id WHERE i.id=$1 AND i.user_id=$2 AND a.id=COALESCE($3::uuid,i.account_id) FOR UPDATE OF i",
         [id,user.id,input.accountId??null]
       );
       if(!locked[0])throw new Error("STRATEGY_NOT_FOUND");
       if(String(locked[0].status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
+      if(input.requestKey){
+        const existing=await tx.unsafe(
+          "SELECT id FROM ledger_events WHERE strategy_instance_id=$1 AND request_key=$2 LIMIT 1",
+          [id,input.requestKey]
+        );
+        if(existing[0])return {eventId:String(existing[0].id),duplicate:true};
+      }
       const rows=await tx.unsafe(
-        "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,fee_amount,provenance,confidence,metadata)"+
-        " VALUES ($1,$2,$3,$4,$5,$6,$7,'USER_ENTERED','VERIFIED',$8::jsonb) RETURNING id",
-        [id,locked[0].account_id,input.occurredAt?new Date(input.occurredAt):new Date(),input.eventType,String(locked[0].currency),cashAmount.toString(),feeAmount.toString(),JSON.stringify({note:input.note??null})]
+        "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,fee_amount,provenance,confidence,metadata,request_key)"+
+        " VALUES ($1,$2,$3,$4,$5,$6,$7,'USER_ENTERED','VERIFIED',$8::jsonb,$9) RETURNING id",
+        [id,locked[0].account_id,input.occurredAt?new Date(input.occurredAt):new Date(),input.eventType,String(locked[0].currency),cashAmount.toString(),feeAmount.toString(),JSON.stringify({note:input.note??null}),input.requestKey??null]
       );
       const ledgerEventId=String(rows[0].id);
       await tx.unsafe(
         "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'ledger.cash-event-created','ledger_event',$2,$3::jsonb)",
         [user.id,ledgerEventId,JSON.stringify({strategyInstanceId:id,eventType:input.eventType})]
       );
-      return ledgerEventId;
+      return {eventId:ledgerEventId,duplicate:false};
     });
     let actionId:string|null=null;
     if(String(strategy.status)==="ACTIVE"){try{actionId=(await calculateAction(id)).actionId;}catch{}}
-    return Response.json({ok:true,id:eventId,actionId});
+    return Response.json({ok:true,id:eventResult.eventId,actionId,duplicate:eventResult.duplicate});
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Check the cash event details."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
