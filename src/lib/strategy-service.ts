@@ -43,7 +43,7 @@ export async function listUserStrategies(userId: string) {
 
 export async function getStrategyForUser(userId: string, instanceId: string) {
   const rows = await sql.unsafe(
-    "SELECT i.*,d.key AS strategy_key,d.name AS strategy_name,d.family,d.description,d.proprietary,"+
+    "SELECT i.*,d.key AS strategy_key,d.name AS strategy_name,d.family,d.description,d.proprietary,d.supported_wrappers,"+
     "v.version,v.engine_key AS engine,v.config,v.disclosure,v.release_notes,v.input_schema,v.upgrade_policy,"+
     "a.wrapper,a.currency,a.country,a.broker_name,s.state,s.confidence AS state_confidence,"+
     "latest.id AS latest_version_id,latest.version AS latest_version,latest.release_notes AS latest_release_notes,"+
