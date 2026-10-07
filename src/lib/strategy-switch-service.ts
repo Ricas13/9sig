@@ -4,7 +4,7 @@ import { foldLedger } from "@/domain/ledger";
 import { getStrategyEngine } from "@/domain/strategy/registry";
 import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/config";
 import { assertCanCreateStrategy, assertStrategyFeatureAccess, buildEntitlementSnapshot } from "@/domain/entitlements";
-import { calculateAction } from "@/lib/action-service";
+import { recalculateAfterMutation } from "@/lib/action-service";
 
 export async function switchStrategy(
   userId:string,
@@ -170,7 +170,6 @@ export async function switchStrategy(
     return {newStrategyInstanceId:newId,targetName:String(target.name)};
   });
 
-  let actionId:string|null=null;
-  try{actionId=(await calculateAction(switched.newStrategyInstanceId)).actionId;}catch{}
-  return {...switched,actionId};
+  const recalc=await recalculateAfterMutation(switched.newStrategyInstanceId,userId,"strategy-switch");
+  return {...switched,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending};
 }
