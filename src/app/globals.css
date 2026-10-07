@@ -594,3 +594,139 @@ th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacin
   .plan-inline-error { align-items:flex-start; flex-direction:column; }
   .plan-inline-error .button { width:100%; }
 }
+
+
+/* Persistent premium light/dark theme */
+html { color-scheme:dark; }
+html[data-theme="light"] {
+  color-scheme:light;
+  --bg:#f4f7fb;
+  --bg2:#edf2f8;
+  --panel:rgba(255,255,255,.82);
+  --panel-solid:#ffffff;
+  --panel-light:#ffffff;
+  --text:#102036;
+  --muted:#64758a;
+  --line:rgba(31,57,87,.12);
+  --accent:#0c9f76;
+  --accent2:#477ff0;
+  --danger:#d84a63;
+  --warning:#a96f00;
+  --ink:#102036;
+  --ink-muted:#687a91;
+  --shadow:0 24px 70px rgba(31,55,82,.12);
+}
+html[data-theme="light"] body {
+  background:
+    radial-gradient(circle at 8% 0%,rgba(71,127,240,.12),transparent 34%),
+    radial-gradient(circle at 92% 8%,rgba(12,159,118,.10),transparent 30%),
+    linear-gradient(180deg,#f8fafe 0%,var(--bg) 56%,#eef3f8 100%);
+}
+html[data-theme="light"] .hero-card,
+html[data-theme="light"] .glass {
+  background:linear-gradient(180deg,rgba(255,255,255,.91),rgba(248,251,255,.84));
+  box-shadow:var(--shadow);
+}
+html[data-theme="light"] .sidebar {
+  background:rgba(248,251,255,.79);
+}
+html[data-theme="light"] .card,
+html[data-theme="light"] .kpi,
+html[data-theme="light"] .today-card,
+html[data-theme="light"] .what-if-form,
+html[data-theme="light"] .what-if-result {
+  background:rgba(255,255,255,.65);
+}
+html[data-theme="light"] .nav-label { color:#8796a9; }
+html[data-theme="light"] .nav-link { color:#5f7187; }
+html[data-theme="light"] .nav-link:hover {
+  background:rgba(46,74,108,.065);
+  color:#14263c;
+}
+html[data-theme="light"] .button {
+  background:rgba(255,255,255,.72);
+}
+html[data-theme="light"] .button:hover { background:#fff; }
+html[data-theme="light"] .button.primary {
+  color:#06131b;
+  background:linear-gradient(135deg,#73e8bf,#8fd8ff);
+  box-shadow:0 12px 32px rgba(12,159,118,.16);
+}
+html[data-theme="light"] .field input,
+html[data-theme="light"] .field select,
+html[data-theme="light"] .field textarea,
+html[data-theme="light"] .correction-inline input {
+  background:rgba(255,255,255,.84);
+  color:var(--text);
+}
+html[data-theme="light"] .field option { color:#102036; }
+html[data-theme="light"] .scenario-switch {
+  background:rgba(221,230,241,.48);
+}
+html[data-theme="light"] .timeframe.active,
+html[data-theme="light"] .series-chip.active {
+  background:rgba(31,57,87,.08);
+  color:var(--text);
+}
+html[data-theme="light"] .status-dot {
+  box-shadow:0 0 0 5px rgba(12,159,118,.08),0 0 20px rgba(12,159,118,.3);
+}
+html[data-theme="light"] .activity-icon {
+  background:rgba(71,127,240,.055);
+}
+html[data-theme="light"] .skeleton { background:rgba(31,57,87,.06); }
+html[data-theme="light"] .skeleton:after {
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.8),transparent);
+}
+html[data-theme="light"] .brand-mark {
+  box-shadow:0 0 34px rgba(12,159,118,.18);
+}
+html[data-theme="light"] ::selection { background:rgba(12,159,118,.18); }
+
+.topbar-actions { display:flex; align-items:center; gap:9px; }
+.theme-toggle {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  min-height:36px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:7px 10px;
+  background:rgba(255,255,255,.035);
+  color:var(--muted);
+  font-size:11px;
+  font-weight:800;
+  transition:transform .18s ease,background .18s ease,color .18s ease,border-color .18s ease;
+}
+.theme-toggle:hover {
+  transform:translateY(-1px);
+  color:var(--text);
+  background:rgba(255,255,255,.065);
+}
+.theme-toggle-icon {
+  width:20px;
+  height:20px;
+  display:grid;
+  place-items:center;
+  border-radius:7px;
+  color:var(--accent2);
+  background:rgba(121,168,255,.08);
+}
+html[data-theme="light"] .theme-toggle {
+  background:rgba(255,255,255,.72);
+}
+html[data-theme="light"] .theme-toggle:hover { background:#fff; }
+html[data-theme="light"] .theme-toggle-icon {
+  background:rgba(71,127,240,.08);
+}
+
+@media (max-width:680px) {
+  .topbar-actions { gap:6px; }
+  .theme-toggle { width:36px; padding:7px; justify-content:center; }
+  .theme-toggle-label { display:none; }
+  .app-topbar .button.primary.compact { padding-inline:11px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .theme-toggle { transition:none; }
+  .theme-toggle:hover { transform:none; }
+}
