@@ -247,7 +247,7 @@ export async function executeAction(
 
     if(["BUY","SELL"].includes(actionType)){
       if(!execution?.price||!execution?.quantity||!action.instrument_id||!action.amount)throw new Error("EXECUTION_DETAILS_REQUIRED");
-      if(String(action.currency)!==String(action.currency??rows[0].currency)||String(action.currency)!==String(strategy.currency)){
+      if(!action.currency||String(action.currency)!==String(strategy.currency)){
         throw new Error("EXECUTION_CURRENCY_MISMATCH");
       }
 
