@@ -5,8 +5,8 @@ const allowed:Record<ActionStatus,ActionStatus[]>={
   ACKNOWLEDGED:["EXECUTED","CANCELLED","SUPERSEDED"],
   EXECUTED:["RECONCILED"],
   RECONCILED:[],
-  CANCELLED:[],
-  SUPERSEDED:[]
+  CANCELLED:["CALCULATED"],
+  SUPERSEDED:["CALCULATED"]
 };
 export function canTransitionAction(from:ActionStatus,to:ActionStatus){return allowed[from].includes(to);}
 export function assertActionTransition(from:ActionStatus,to:ActionStatus){if(!canTransitionAction(from,to))throw new Error("INVALID_ACTION_TRANSITION");}
