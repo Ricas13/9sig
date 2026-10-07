@@ -686,7 +686,7 @@ Use this checklist as the shared cross-chat roadmap.
 
 - [x] contribution preview
 - [x] withdrawal preview
-- [ ] strategy-switch preview
+- [x] strategy-switch preview
 - [x] constraint-change preview
 - [x] guarantee non-mutating simulation path
 
