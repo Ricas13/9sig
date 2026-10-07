@@ -580,3 +580,17 @@ th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacin
 
 
 .tracking-boundary { display:flex; gap:8px 14px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--line); color:#647b96; font-size:10px; line-height:1.45; }
+
+
+/* Plan-limit and upgrade recovery */
+.plan-limit-state { max-width:760px; margin:4vh auto 0; padding:clamp(30px,6vw,58px); text-align:center; }
+.plan-limit-icon { width:54px; height:54px; display:grid; place-items:center; margin:0 auto 18px; border:1px solid rgba(255,210,122,.2); border-radius:18px; color:var(--warning); background:rgba(255,210,122,.06); box-shadow:0 18px 48px rgba(0,0,0,.18); }
+.plan-limit-state h1 { margin:8px auto 12px; max-width:650px; font-size:clamp(36px,6vw,56px); line-height:1; letter-spacing:-.06em; }
+.plan-limit-state p { max-width:590px; margin:0 auto 25px; color:var(--muted); line-height:1.65; }
+.plan-limit-actions { justify-content:center; }
+.plan-inline-error { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:16px; padding:11px 12px 11px 14px; border:1px solid rgba(255,210,122,.18); border-radius:13px; color:#d7b979; background:rgba(255,210,122,.045); font-size:12px; }
+.settings-plan-card { scroll-margin-top:86px; }
+@media (max-width:600px) {
+  .plan-inline-error { align-items:flex-start; flex-direction:column; }
+  .plan-inline-error .button { width:100%; }
+}
