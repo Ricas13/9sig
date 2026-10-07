@@ -1,6 +1,6 @@
 "use client";
-import { useMemo, useState } from "react";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
+import { useEffect, useId, useMemo, useState } from "react";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type Point={date:string; actual?:number; model?:number; benchmark?:number};
 const frames=["1M","3M","6M","YTD","1Y","3Y","5Y","MAX"];
@@ -13,27 +13,61 @@ function cutoff(frame:string) {
   const d=new Date(now); d.setUTCMonth(d.getUTCMonth()-months); return d;
 }
 
+function compact(value:number){
+  return new Intl.NumberFormat("en-GB",{notation:"compact",maximumFractionDigits:1}).format(value);
+}
+
 export function PerformanceChart({data}:{data:Point[]}) {
+  const gradientId=("actual-"+useId()).replaceAll(":","");
+  const hasActual=data.some((point)=>point.actual!=null);
+  const hasModel=data.some((point)=>point.model!=null);
+  const hasBenchmark=data.some((point)=>point.benchmark!=null);
   const [frame,setFrame]=useState("MAX");
+  const [showActual,setShowActual]=useState(hasActual);
+  const [showModel,setShowModel]=useState(!hasActual&&hasModel);
+  const [showBenchmark,setShowBenchmark]=useState(!hasActual&&!hasModel&&hasBenchmark);
+  const [reduceMotion,setReduceMotion]=useState(false);
+
+  useEffect(()=>{
+    const media=window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update=()=>setReduceMotion(media.matches);
+    update();
+    media.addEventListener("change",update);
+    return ()=>media.removeEventListener("change",update);
+  },[]);
+
   const filtered=useMemo(()=>{
     const min=cutoff(frame); return min ? data.filter((p)=>new Date(p.date)>=min) : data;
   },[data,frame]);
+
   if(!data.length) return <div className="empty">Performance appears here once the strategy has enough valued history.</div>;
-  return <div>
-    <div className="timeframes">{frames.map((f)=><button key={f} className={"timeframe "+(frame===f?"active":"")} onClick={()=>setFrame(f)}>{f}</button>)}</div>
+
+  return <div className="performance-chart">
+    <div className="chart-toolbar">
+      <div className="timeframes">{frames.map((f)=><button type="button" key={f} className={"timeframe "+(frame===f?"active":"")} onClick={()=>setFrame(f)}>{f}</button>)}</div>
+      <div className="series-toggles" aria-label="Chart comparisons">
+        {hasActual&&<button type="button" className={"series-chip actual "+(showActual?"active":"")} aria-pressed={showActual} onClick={()=>setShowActual(!showActual)}><span/>Your portfolio</button>}
+        {hasModel&&<button type="button" className={"series-chip model "+(showModel?"active":"")} aria-pressed={showModel} onClick={()=>setShowModel(!showModel)}><span/>Strategy model</button>}
+        {hasBenchmark&&<button type="button" className={"series-chip benchmark "+(showBenchmark?"active":"")} aria-pressed={showBenchmark} onClick={()=>setShowBenchmark(!showBenchmark)}><span/>Benchmark</button>}
+      </div>
+    </div>
     <div className="chart-wrap"><ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={filtered} margin={{top:18,right:8,left:0,bottom:0}}>
+      <AreaChart data={filtered} margin={{top:22,right:8,left:0,bottom:0}}>
         <defs>
-          <linearGradient id="actualFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#78f3c6" stopOpacity={.25}/><stop offset="100%" stopColor="#78f3c6" stopOpacity={0}/></linearGradient>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#78f3c6" stopOpacity={.28}/><stop offset="100%" stopColor="#78f3c6" stopOpacity={0}/></linearGradient>
         </defs>
-        <CartesianGrid vertical={false} stroke="rgba(158,184,214,.10)"/>
-        <XAxis dataKey="date" tick={{fill:"#7f95ae",fontSize:11}} axisLine={false} tickLine={false} minTickGap={28}/>
-        <YAxis tick={{fill:"#7f95ae",fontSize:11}} axisLine={false} tickLine={false} width={54}/>
-        <Tooltip contentStyle={{background:"#0f1e31",border:"1px solid rgba(158,184,214,.16)",borderRadius:14}}/>
-        <Legend/>
-        <Area type="monotone" dataKey="actual" name="Actual" stroke="#78f3c6" fill="url(#actualFill)" strokeWidth={3} connectNulls/>
-        <Area type="monotone" dataKey="model" name="Model" stroke="#79a8ff" fillOpacity={0} strokeWidth={2} connectNulls/>
-        <Area type="monotone" dataKey="benchmark" name="Benchmark" stroke="#ffd27a" fillOpacity={0} strokeWidth={2} connectNulls/>
+        <CartesianGrid vertical={false} stroke="rgba(158,184,214,.085)"/>
+        <XAxis dataKey="date" tick={{fill:"#7f95ae",fontSize:10}} axisLine={false} tickLine={false} minTickGap={30}/>
+        <YAxis tick={{fill:"#7f95ae",fontSize:10}} tickFormatter={(v)=>compact(Number(v))} axisLine={false} tickLine={false} width={48}/>
+        <Tooltip
+          contentStyle={{background:"#0b192a",border:"1px solid rgba(158,184,214,.16)",borderRadius:14,boxShadow:"0 18px 50px rgba(0,0,0,.3)"}}
+          labelStyle={{color:"#8ea3bd",fontSize:11}}
+          itemStyle={{fontSize:12}}
+          formatter={(value,name)=>[new Intl.NumberFormat("en-GB",{maximumFractionDigits:2}).format(Number(value)),String(name)]}
+        />
+        {showActual&&<Area type="monotone" dataKey="actual" name="Your portfolio" stroke="#78f3c6" fill={"url(#"+gradientId+")"} strokeWidth={3} connectNulls isAnimationActive={!reduceMotion} animationDuration={650}/>}
+        {showModel&&<Area type="monotone" dataKey="model" name="Strategy model" stroke="#79a8ff" fillOpacity={0} strokeWidth={2.25} connectNulls isAnimationActive={!reduceMotion} animationDuration={650}/>}
+        {showBenchmark&&<Area type="monotone" dataKey="benchmark" name="Benchmark" stroke="#ffd27a" fillOpacity={0} strokeWidth={2} connectNulls isAnimationActive={!reduceMotion} animationDuration={650}/>}
       </AreaChart>
     </ResponsiveContainer></div>
   </div>;
