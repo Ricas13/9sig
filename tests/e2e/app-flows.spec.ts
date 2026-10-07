@@ -154,3 +154,33 @@ test("authenticated shell remains keyboard and reduced-motion friendly",async({p
   }
 });
 
+test("Pro customer can resume an existing strategy across multiple accounts",async({page},testInfo)=>{
+  const user=await createVerifiedUser(testInfo,"resume-multi","pro");
+  await login(page,user);
+
+  await page.getByRole("link",{name:"Start my first strategy"}).click();
+  await page.getByRole("button",{name:/Continue/}).click();
+  await page.getByRole("button",{name:/Already following it/}).click();
+  await page.getByRole("button",{name:/Continue/}).click();
+  await page.getByLabel("What should we call it?").fill("Existing multi-account 9Sig");
+  await page.getByLabel(/Rough account value/).fill("25000");
+  await page.getByRole("button",{name:/Resume my strategy/}).click();
+  await page.waitForURL(/\/app\/strategies\//);
+
+  await expect(page.getByRole("heading",{name:"Tell us what you own today."})).toBeVisible();
+  await page.getByText("Add another account first").click();
+  await page.getByLabel("Account name").fill("Pension account");
+  await page.getByLabel("Account type").selectOption("SIPP");
+  await page.getByRole("button",{name:"Add linked account"}).click();
+  await expect(page.getByText("Pension account")).toBeVisible();
+
+  await page.getByLabel("Current cash balance").fill("5000");
+  await page.getByRole("button",{name:"Save this account"}).click();
+  await expect(page.getByText(/Next: Pension account/)).toBeVisible();
+
+  await page.getByLabel("Current cash balance").fill("2000");
+  await page.getByRole("button",{name:"Save this account"}).click();
+  await expect(page.getByRole("heading",{name:"Tell us what you own today."})).not.toBeVisible();
+  await expect(page.getByText(/2 accounts/)).toBeVisible();
+});
+
