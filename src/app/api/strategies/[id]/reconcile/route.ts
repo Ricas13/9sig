@@ -49,6 +49,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           const states=await tx.unsafe("SELECT state FROM strategy_states WHERE strategy_instance_id=$1",[id]);
           const state=(states[0]?.state??{}) as Record<string,unknown>;
           return {
+            status:String(locked[0].status),
             strategyResolved:!Boolean(state.resumeNeedsReconciliation)&&!Boolean(state.unresolvedReconciliation),
             difference:String(existing[0].difference),
             resolved:Boolean(existing[0].metadata?.resolved),
@@ -108,10 +109,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         [summary.strategyResolved?"HEALTHY":"NEEDS_ATTENTION",id]
       );
 
-      return {strategyResolved:summary.strategyResolved,difference:difference.toString(),resolved,duplicate:false};
+      return {status:String(locked[0].status),strategyResolved:summary.strategyResolved,difference:difference.toString(),resolved,duplicate:false};
     });
 
-    const recalc=String(strategy.status)==="ACTIVE"&&!reconciliationState.duplicate?await recalculateAfterMutation(id,user.id,"reconciliation"):{actionId:null,recalculationPending:false,errorCode:null};
+    const recalc=reconciliationState.status==="ACTIVE"&&!reconciliationState.duplicate?await recalculateAfterMutation(id,user.id,"reconciliation"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({
       ok:true,
       difference:reconciliationState.difference,
