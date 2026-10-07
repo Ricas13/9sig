@@ -577,3 +577,6 @@ th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacin
 @media (max-width:680px) {
   .close-confirmation { align-items:flex-start; flex-direction:column; }
 }
+
+
+.tracking-boundary { display:flex; gap:8px 14px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--line); color:#647b96; font-size:10px; line-height:1.45; }
