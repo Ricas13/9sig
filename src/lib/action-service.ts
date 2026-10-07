@@ -285,11 +285,18 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
     }
   }
 
-  const stablePositions=exposurePositions.map((p)=>p.accountId+":"+p.economicExposure+":"+p.value.toString()+":"+(p.tradingLineId??"")).sort().join(",");
+  const stableHoldings=accounts.flatMap((account)=>{
+    const accountId=String(account.id);
+    const position=accountPositions.get(accountId);
+    if(!position)return [] as string[];
+    return [...position.quantities.entries()]
+      .filter(([,quantity])=>!quantity.eq(0))
+      .map(([instrumentId,quantity])=>accountId+":"+instrumentId+":"+quantity.toString());
+  }).sort().join(",");
   const material=[
     strategyInstanceId,calculationVersionId,lastReview.toISOString(),proposal.actionType,
-    proposal.amount?.toString()??"",proposal.currency??"",proposal.economicExposure??"",proposal.leverage??"",tradingLineId??"",executionAccountId??"",
-    effectiveCash.toString(),contributionsSinceReview.toString(),stablePositions,dataStatus
+    proposal.currency??"",proposal.economicExposure??"",proposal.leverage??"",tradingLineId??"",executionAccountId??"",
+    effectiveCash.toString(),contributionsSinceReview.toString(),stableHoldings,dataStatus
   ].join("|");
   const fingerprint=crypto.createHash("sha256").update(material).digest("hex");
   const reviewAction=["BUY","SELL","REBALANCE","HOLD"].includes(proposal.actionType);
