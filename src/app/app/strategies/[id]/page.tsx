@@ -6,7 +6,7 @@ import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
-import { CashEventForm, ContributionForm, ExecuteAction, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategyVersionUpgrade } from "@/components/StrategyActions";
+import { CashEventForm, ContributionForm, ExecuteAction, ExecutionConstraintsForm, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategyVersionUpgrade } from "@/components/StrategyActions";
 
 function money(value:number,currency:string){
   return new Intl.NumberFormat("en-GB",{style:"currency",currency,maximumFractionDigits:0}).format(value);
@@ -184,6 +184,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
             <section className="drawer-section"><div className="eyebrow">Strategy health</div><h3>{isHealthy?"Everything looks good":"Needs attention"}</h3><p className="help">High-confidence actions are suppressed whenever critical holdings, FX, market data or reconciliation state is stale, missing or unresolved.</p><div className="strategy-meta"><span className="pill">Version {s.version}</span><span className="pill">{s.currency}</span><span className="pill">{s.onboarding_mode.replaceAll("_"," ")}</span><span className="pill">{s.status}</span></div></section>
             <section className="drawer-section"><div className="eyebrow">Lifecycle</div><h3>Pause, resume or stop</h3><p className="help">These controls preserve your history. They never erase the journey you have already recorded.</p><StrategyLifecycleControls id={id} status={s.status}/></section>
           </div>
+          <section className="drawer-section execution-settings"><div className="eyebrow">Trade preferences</div><h3>Make the strategy fit your broker.</h3><p className="help">These preferences change how an ideal strategy action is translated into a practical order. They do not change the strategy rules themselves.</p><ExecutionConstraintsForm id={id} constraints={(s.execution_constraints??{}) as Record<string,unknown>}/></section>
           <section className="drawer-section rules-section"><div className="eyebrow">Rules & disclosure</div><h3>Versioned strategy definition</h3><p>{s.disclosure}</p><details><summary>Show configured engine inputs</summary><pre>{JSON.stringify(s.config,null,2)}</pre></details></section>
         </div>
       </details>
