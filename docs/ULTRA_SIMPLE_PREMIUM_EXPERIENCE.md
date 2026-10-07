@@ -694,7 +694,7 @@ Use this checklist as the shared cross-chat roadmap.
 
 - [x] customer-friendly update notification
 - [x] version comparison
-- [ ] immediate-action impact preview
+- [x] immediate-action impact preview
 - [x] audited upgrade / migration flow
 
 ### Visual system
