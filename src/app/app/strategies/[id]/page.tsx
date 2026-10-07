@@ -201,6 +201,8 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   const latestValue=actualPoints.at(-1);
   const explanation=Array.isArray(action?.explanation)?action.explanation:[];
   const needsOpeningSnapshot=Boolean(s.state?.resumeNeedsReconciliation);
+  const pendingOpeningAccounts=accountOptions.filter((account)=>account.ledgerEventCount===0);
+  const capturedOpeningAccountCount=accountOptions.length-pendingOpeningAccounts.length;
   const hasVersionUpdate=Boolean(s.latest_version_id)&&String(s.latest_version_id)!==String(s.strategy_version_id);
   const isHealthy=s.health_status==="HEALTHY";
   const isActive=s.status==="ACTIVE";
@@ -233,6 +235,9 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         <h2>Tell us what you own today.</h2>
         <p>You do not need to rebuild your old transaction history. Enter your current cash and holdings so we can calculate from here.</p>
       </div>
+      {accountOptions.length>1&&capturedOpeningAccountCount>0&&pendingOpeningAccounts[0]&&<div className="resume-progress" role="status">
+        <span>Next</span><strong>{pendingOpeningAccounts[0].name}</strong><small>{pendingOpeningAccounts[0].wrapper} · {pendingOpeningAccounts[0].currency}</small>
+      </div>}
       <OpeningSnapshotForm id={id} accounts={accountOptions}/>
       {canMultiAccount&&<details className="resume-add-account">
         <summary>Add another account first</summary>
