@@ -7,7 +7,7 @@ type AccountOption={id:string;name:string;wrapper:string;currency:string;brokerN
 
 function AccountSelect({accounts}:{accounts:AccountOption[]}){
   if(accounts.length<=1)return null;
-  return <div className="field full"><label>Account</label><select name="accountId" defaultValue={accounts.find((account)=>account.role==="PRIMARY")?.id??accounts[0]?.id}>{accounts.map((account)=><option key={account.id} value={account.id}>{account.name} · {account.wrapper}{account.brokerName?" · "+account.brokerName:""}</option>)}</select></div>;
+  return <div className="field full"><label htmlFor="linked-account-select">Account</label><select id="linked-account-select" name="accountId" defaultValue={accounts.find((account)=>account.role==="PRIMARY")?.id??accounts[0]?.id}>{accounts.map((account)=><option key={account.id} value={account.id}>{account.name} · {account.wrapper}{account.brokerName?" · "+account.brokerName:""}</option>)}</select></div>;
 }
 
 
@@ -37,9 +37,9 @@ export function AddLinkedAccountForm({id,currency,wrappers}:{id:string;currency:
     form.reset();
     router.refresh();
   }}>
-    <div className="field"><label>Account name</label><input name="name" maxLength={80} placeholder="e.g. SIPP at InvestEngine" required/></div>
-    <div className="field"><label>Account type</label><select name="wrapper" required>{options.map((wrapper)=><option key={wrapper} value={wrapper}>{wrapper}</option>)}</select></div>
-    <div className="field full"><label>Broker (optional)</label><input name="broker" maxLength={80} placeholder="Broker name"/></div>
+    <div className="field"><label htmlFor={"linked-account-name-"+id}>Account name</label><input id={"linked-account-name-"+id} name="name" maxLength={80} placeholder="e.g. SIPP at InvestEngine" required/></div>
+    <div className="field"><label htmlFor={"linked-account-wrapper-"+id}>Account type</label><select id={"linked-account-wrapper-"+id} name="wrapper" required>{options.map((wrapper)=><option key={wrapper} value={wrapper}>{wrapper}</option>)}</select></div>
+    <div className="field full"><label htmlFor={"linked-account-broker-"+id}>Broker (optional)</label><input id={"linked-account-broker-"+id} name="broker" maxLength={80} placeholder="Broker name"/></div>
     <div className="field full linked-account-currency"><span>Uses strategy currency</span><strong>{currency}</strong></div>
     <div className="field full"><button className="button" disabled={busy}><Plus size={15}/>{busy?"Adding…":"Add linked account"}</button>{message&&<span className={message.includes("Recalculation needs attention")?"attention-message":message.startsWith("Account linked")?"success":"error"}>{message}</span>}</div>
   </form>;
