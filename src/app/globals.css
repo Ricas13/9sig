@@ -832,3 +832,28 @@ html[data-theme="light"] .rule-summary-row { background:rgba(255,255,255,.56); }
 @media (max-width:680px) {
   .rule-summary-grid { grid-template-columns:1fr; }
 }
+
+
+.chart-markers {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:2px 0 8px;
+}
+.chart-marker-key {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:4px 7px;
+  border-radius:999px;
+  font-size:9px;
+  font-weight:850;
+  letter-spacing:.02em;
+  color:var(--muted);
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.02);
+}
+.chart-marker-key.contribution { color:#8db3ff; }
+.chart-marker-key.review { color:#d9b667; }
+html[data-theme="light"] .chart-marker-key { background:rgba(255,255,255,.58); }
