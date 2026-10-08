@@ -132,9 +132,12 @@ export async function POST(request:Request){
             if(canonical&&canonical!==subscription.id&&!isTerminalLocalStatus(rows[0].status))return {duplicate:true};
             const status=subscription.status==="active"?"ACTIVE":subscription.status==="trialing"?"TRIALING":subscription.status.toUpperCase();
             const item=subscription.items.data[0];
+            // Newer Stripe API versions report the billing period per item, older ones on the
+            // subscription. Renewals must keep moving the period end whichever the payload uses.
+            const periodEnd=item?.current_period_end??(subscription as unknown as {current_period_end?:number}).current_period_end??null;
             await tx.unsafe(
               "UPDATE subscriptions SET plan_id=$1,status=$2,cadence=$3,stripe_subscription_id=$4,current_period_end=$5,cancel_at_period_end=$6,updated_at=now() WHERE user_id=$7",
-              [planId,status,item?.price.recurring?.interval==="year"?"ANNUAL":"MONTHLY",subscription.id,item?.current_period_end?new Date(item.current_period_end*1000):null,subscription.cancel_at_period_end,userId]
+              [planId,status,item?.price.recurring?.interval==="year"?"ANNUAL":"MONTHLY",subscription.id,periodEnd?new Date(periodEnd*1000):null,subscription.cancel_at_period_end,userId]
             );
             return {duplicate:false};
           });
