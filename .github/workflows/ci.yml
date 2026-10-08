@@ -50,6 +50,12 @@ jobs:
           npm run db:migrate
           npm run db:migrate
           npm run db:seed
+      - name: Validate Oracle Compose and offsite backup image
+        run: |
+          printf 'POSTGRES_PASSWORD=ci-db-pass\nDATABASE_URL=postgresql://strategyos:ci-db-pass@db:5432/strategyos\n' > .env.production
+          docker compose --profile backups -f docker-compose.oracle.yml --env-file .env.production config --quiet
+          docker build --quiet -f docker/backup.Dockerfile .
+          rm -f .env.production
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
