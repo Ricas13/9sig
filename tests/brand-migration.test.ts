@@ -12,22 +12,24 @@ const visibleFiles=[
  "src/app/admin/layout.tsx","src/app/admin/seo/page.tsx",
  "src/components/AppShell.tsx"
 ];
-describe("Rebalune brand migration",()=>{
- it("uses Rebalune throughout product UI rather than former brand",()=>{
+describe("Wealtharr brand migration",()=>{
+ it("uses Wealtharr throughout product UI rather than former brand",()=>{
   for(const path of visibleFiles){
    const content=read(path);
-   expect(content,path).toContain("Rebalune");
+   expect(content,path).toContain("Wealtharr");
+   expect(content,path).not.toContain("Rebalune");
    expect(content,path).not.toContain("StrategyOS");
   }
  });
- it("uses Rebalune as the default production brand",()=>{
-  expect(read(".env.example")).toContain("NEXT_PUBLIC_BRAND_NAME=Rebalune");
-  expect(read("src/app/layout.tsx")).toContain('||"Rebalune"');
+ it("uses Wealtharr as the default production brand",()=>{
+  expect(read(".env.example")).toContain("NEXT_PUBLIC_BRAND_NAME=Wealtharr");
+  expect(read("src/app/layout.tsx")).toContain('||"Wealtharr"');
  });
  it("preserves previous theme setting while writing only the new key",()=>{
   expect(read("src/app/layout.tsx")).toContain('localStorage.getItem("strategyos-theme")');
+  expect(read("src/app/layout.tsx")).toContain('localStorage.getItem("wealtharr-theme")');
   expect(read("src/app/layout.tsx")).toContain('localStorage.getItem("rebalune-theme")');
-  expect(read("src/components/ThemeToggle.tsx")).toContain('localStorage.setItem("rebalune-theme", next)');
+  expect(read("src/components/ThemeToggle.tsx")).toContain('localStorage.setItem("wealtharr-theme", next)');
  });
 });
 

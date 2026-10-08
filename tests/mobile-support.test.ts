@@ -10,6 +10,8 @@ const SAFARI_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWeb
 describe("native app detection",()=>{
  it("recognises only the app shell's marker",()=>{
   expect(isNativeApp(IOS_UA)).toBe(true);
+  expect(isNativeApp("Legacy shell RebaluneApp")).toBe(true);
+  expect(purchasesAllowedFor("Legacy shell RebaluneApp")).toBe(false);
   for(const ua of [SAFARI_UA,"",null,undefined])expect(isNativeApp(ua)).toBe(false);
  });
  it("blocks purchases only inside the apps",()=>{
@@ -50,11 +52,11 @@ describe("app link files",()=>{
 describe("mobile app settings",()=>{
  it("validate identifiers so a typo cannot publish a broken association file",()=>{
   const v=(key:string,value:string)=>validateSetting(settingByKey(key)!,value).ok;
-  expect(v("ANDROID_PACKAGE_NAME","com.example.rebalune")).toBe(true);
-  expect(v("ANDROID_PACKAGE_NAME","rebalune")).toBe(false);
+  expect(v("ANDROID_PACKAGE_NAME","com.example.wealtharr")).toBe(true);
+  expect(v("ANDROID_PACKAGE_NAME","wealtharr")).toBe(false);
   expect(v("IOS_TEAM_ID","ABCDE12345")).toBe(true);
   expect(v("IOS_TEAM_ID","abcde12345")).toBe(false);
-  expect(v("IOS_BUNDLE_ID","com.example.rebalune")).toBe(true);
+  expect(v("IOS_BUNDLE_ID","com.example.wealtharr")).toBe(true);
   const fp=Array.from({length:32},(_,i)=>i.toString(16).padStart(2,"0").toUpperCase()).join(":");
   expect(v("ANDROID_SHA256_CERT_FINGERPRINTS",fp)).toBe(true);
   expect(v("ANDROID_SHA256_CERT_FINGERPRINTS",fp+", "+fp)).toBe(true);

@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import postgres from "postgres";
 
 const PASSWORD="e2e-password-1234";
-const NATIVE_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 RebaluneApp";
+const NATIVE_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 WealtharrApp";
 
 async function createUser(testInfo:{project:{name:string};workerIndex:number}){
   const url=process.env.DATABASE_URL;

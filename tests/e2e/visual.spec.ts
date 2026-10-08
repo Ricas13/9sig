@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { inflateSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
 
-// Reviewed 2026-10-08 against the rendered pages (Rebalune brand, accessible mobile menu, demo chart
+// Reviewed 2026-10-08 against the rendered pages (Wealtharr brand, accessible mobile menu, demo chart
 // settled). Digests are those produced by CI's renderer (Playwright Chromium 153, ubuntu-latest) and
 // were identical across both attempts of the run, so they are deterministic there. They will not
 // match a different browser build: regenerate from CI's "Received" values after reviewing the diff.

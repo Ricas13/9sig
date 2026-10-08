@@ -2,7 +2,7 @@
 
 ## Public discoverability and crawl safety
 
-1. The chosen working brand is **Rebalune**. Check UK and international trademarks, similar marks, UK company names, domains, and social handles before any paid brand campaign. An empty exact-name search does not establish exclusive rights.
+1. The chosen working brand is **Wealtharr**. Check UK and international trademarks, similar marks, UK company names, domains, and social handles before any paid brand campaign. An empty exact-name search does not establish exclusive rights.
 2. Deploy the canonical HTTPS origin in `NEXT_PUBLIC_APP_URL`. Configure `NEXT_PUBLIC_BRAND_NAME` consistently across public pages; the GitHub repository may remain `9sig`.
 3. Keep `PUBLIC_INDEXING_ENABLED=false` until the customer purchase flow, support/legal pages, public claims and HTTPS deployment are reviewed. This makes robots disallow crawling and the pages emit noindex.
 4. Only after launch approval set `PUBLIC_INDEXING_ENABLED=true` on the production host; staging remains blocked.
