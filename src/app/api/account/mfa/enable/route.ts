@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/session";
 import { assertSameOrigin, consumeRateLimit } from "@/lib/security";
 import { authFailure } from "@/lib/api-auth";
 import { confirmEnrollment } from "@/lib/mfa";
+import { notifySecurityEvent } from "@/lib/security-notice";
 
 const schema = z.object({ code: z.string().min(6).max(12) });
 
@@ -13,6 +14,7 @@ export async function POST(request: Request) {
     await consumeRateLimit("mfa-enable:" + user.id, 10, 15 * 60);
     const input = schema.parse(await request.json());
     const recoveryCodes = await confirmEnrollment(user.id, input.code);
+    await notifySecurityEvent(user.id, "MFA_ENABLED");
     // Shown once; only hashes are stored.
     return Response.json({ ok: true, recoveryCodes }, { headers: { "cache-control": "no-store" } });
   } catch (error) {

@@ -9,7 +9,7 @@ export type OAuthIdentity = {
 };
 
 export type OAuthResolution =
-  | { ok: true; user: { id: string; email: string; role: string; sessionVersion: number }; created: boolean }
+  | { ok: true; user: { id: string; email: string; role: string; sessionVersion: number }; created: boolean; newlyLinked?: boolean }
   | { ok: false; reason: "EMAIL_NOT_VERIFIED" | "ACCOUNT_UNAVAILABLE" | "USE_PASSWORD_SIGN_IN" | "INVALID_IDENTITY" };
 
 type UserRow = Record<string, any>;
@@ -72,7 +72,7 @@ export async function resolveOAuthSignIn(identity: OAuthIdentity): Promise<OAuth
         [row.id, JSON.stringify({ provider, passwordCleared: !row.email_verified_at })]
       );
       const fresh = await tx.unsafe("SELECT id,email,role,session_version FROM users WHERE id=$1", [row.id]);
-      return { ok: true, user: asUser(fresh[0] as UserRow), created: false };
+      return { ok: true, user: asUser(fresh[0] as UserRow), created: false, newlyLinked: true };
     }
 
     const free = await tx.unsafe("SELECT id FROM plans WHERE slug='free' LIMIT 1");
