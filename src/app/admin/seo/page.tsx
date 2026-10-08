@@ -4,7 +4,7 @@ export const dynamic="force-dynamic";
 export default function SeoAdminPage(){
  const origin=siteOrigin(process.env.NEXT_PUBLIC_APP_URL);
  const indexing=publicIndexingEnabled(process.env);
- const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"StrategyOS";
+ const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune";
  const checks=[
   ["Public HTTPS origin",origin.protocol==="https:","Set NEXT_PUBLIC_APP_URL to your production HTTPS domain."],
   ["Search indexing authorised",indexing,"Set PUBLIC_INDEXING_ENABLED=true only after customer and public-site release gates pass."],
