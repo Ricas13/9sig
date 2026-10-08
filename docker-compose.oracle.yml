@@ -36,7 +36,7 @@ services:
       app:
         condition: service_healthy
     env_file: [.env.production]
-    command: ["/bin/sh","-ec","apk add --no-cache curl >/dev/null; while :; do curl --fail --silent --show-error --max-time 180 -H \"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/cron/actions || echo 'Cron cycle failed'; sleep 3600; done"]
+    command: ["/bin/sh","-ec","apk add --no-cache curl >/dev/null; while :; do curl --fail --silent --show-error --max-time 180 -H \"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/cron/actions || echo 'Cron cycle failed'; curl --silent --max-time 60 -H \"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/cron/health >/dev/null || true; sleep 3600; done"]
     networks: [internal]
   backup:
     profiles: [backups]
@@ -53,6 +53,7 @@ services:
       PGUSER: strategyos
       PGDATABASE: strategyos
       PGPASSWORD: ${POSTGRES_PASSWORD:?Required}
+      HEARTBEAT_URL: http://app:3000/api/cron/heartbeat
     volumes:
       - backup_status:/backup-status
     healthcheck:

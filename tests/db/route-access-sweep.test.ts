@@ -30,7 +30,7 @@ const PUBLIC=[
   "/src/app/api/health/route.ts",
   "/src/app/api/setup/route.ts"
 ];
-const SELF_AUTHENTICATED=["/src/app/api/stripe/webhook/route.ts","/src/app/api/cron/actions/route.ts","/src/app/api/billing/store/webhook/route.ts"];
+const SELF_AUTHENTICATED=["/src/app/api/stripe/webhook/route.ts","/src/app/api/cron/actions/route.ts","/src/app/api/billing/store/webhook/route.ts","/src/app/api/cron/health/route.ts","/src/app/api/cron/heartbeat/route.ts"];
 
 const ordinary:SessionUser={id:randomUUID(),email:"nobody@example.test",country:"GB",baseCurrency:"GBP",timezone:"Europe/London",role:"USER",anonymousAggregateOptIn:true};
 const outcomes:Array<{route:string;method:string;caller:string;status:number}> = [];

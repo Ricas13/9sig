@@ -23,7 +23,7 @@ export type SettingDefinition = {
 };
 
 export const SETTING_GROUPS = [
-  "General", "Billing (Stripe)", "Email", "Market data", "Sign-in providers", "Mobile apps", "Mobile app purchases", "Security", "Launch sign-offs", "Background worker"
+  "General", "Billing (Stripe)", "Email", "Market data", "Sign-in providers", "Mobile apps", "Mobile app purchases", "Monitoring", "Security", "Launch sign-offs", "Background worker"
 ] as const;
 
 const bool = (key: string, label: string, group: string, help: string): SettingDefinition => ({ key, label, group, kind: "boolean", help });
@@ -67,6 +67,10 @@ export const SETTINGS: readonly SettingDefinition[] = [
   { key: "REVENUECAT_APPLE_PUBLIC_KEY", label: "RevenueCat public SDK key (iOS)", group: "Mobile app purchases", kind: "text", pattern: /^appl_[A-Za-z0-9]{10,}$/, patternMessage: "Starts with appl_ (RevenueCat > API keys).", help: "Public key the iOS app uses to show and start purchases. Not secret, but leave empty until iOS purchases are ready." },
   { key: "REVENUECAT_GOOGLE_PUBLIC_KEY", label: "RevenueCat public SDK key (Android)", group: "Mobile app purchases", kind: "text", pattern: /^goog_[A-Za-z0-9]{10,}$/, patternMessage: "Starts with goog_ (RevenueCat > API keys).", help: "Public key the Android app uses to show and start purchases." },
   bool("STORE_ALLOW_SANDBOX", "Accept test purchases (sandbox)", "Mobile app purchases", "Only for testing with TestFlight / Play test accounts. Test purchases are free to make, so leave OFF on the live site."),
+
+  bool("OPS_ALERTS_ENABLED", "Email administrators about operational problems", "Monitoring", "Turn on for the live site. Sends one email when something breaks (hourly job stopped, prices stale, billing notifications failing, backups missing), a daily reminder while it lasts, and one when it clears."),
+  bool("OPS_EXPECT_BACKUP_HEARTBEAT", "Expect a daily backup report", "Monitoring", "Turn on once the backup container reports to /api/cron/heartbeat (see the deployment guide). Raises an alert when no successful backup is reported for 36 hours."),
+  { key: "OPS_ALERT_EXTRA_EMAIL", label: "Also send alerts to", group: "Monitoring", kind: "text", pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, patternMessage: "Enter one email address.", help: "Optional extra recipient, for example a shared on-call mailbox. Administrators always receive alerts." },
 
   bool("ADMIN_MFA_REQUIRED", "Require two-step sign-in for admins", "Security", "Turn on once every admin has enabled two-step sign-in under Settings. Admins without it are kept out of admin tools."),
   { key: "CRON_SECRET", label: "Background job secret", group: "Security", kind: "secret", help: "Bearer token your scheduler sends to /api/cron/actions. At least 32 characters." },
