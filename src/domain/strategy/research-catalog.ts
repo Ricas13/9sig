@@ -89,6 +89,6 @@ export const RESEARCH_STRATEGIES: readonly StrategyProfile[] = [
   ...(["3sig","6sig"] as const).map(key=>({
     key,name:key.toUpperCase()+" (research pending)",engine:"CUSTOM_PENDING" as const,launchState:"DRAFT_REQUIRES_VERIFICATION" as const,
     rules:"Do not infer "+key+" parameters by renaming the 9Sig engine. Verify the source book's target growth, signal frequency, bands, cash management and reset rules before publication.",
-    research:["https://jasonkelly.com/"], risks:["Proprietary method ambiguity","Version-specific interpretation"]
+    research:["https://jasonkelly.com/2017/01/how-my-signal-system-works/","https://jasonkelly.com/books/3sig/","https://jasonkelly.com/"], risks:["Proprietary method ambiguity","Version-specific interpretation"]
   }))
 ];
