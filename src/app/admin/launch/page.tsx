@@ -10,7 +10,7 @@ const descriptions:Record<string,{title:string;where:string}>={
  stripe_live:{title:"Stripe Live",where:"Connect Stripe through deployment secrets; manage plans and Stripe price IDs on the Plans page."},
  stripe_webhook:{title:"Stripe webhook signing",where:"Create the Stripe webhook and set STRIPE_WEBHOOK_SECRET securely."},
  email:{title:"Transactional email",where:"Configure EMAIL_PROVIDER, EMAIL_HTTP_ENDPOINT, EMAIL_HTTP_TOKEN and EMAIL_FROM in deployment secrets."},
- licensed_market_data:{title:"Licensed market data",where:"Choose a commercially licensed quote provider; configure HTTPS base URL and token and verify mapping coverage in Instruments."},
+ market_data_mode:{title:"Licensed market data",where:"Choose manual entries or a licensed provider; for manual mode verify every price is user-entered and clearly timestamped."},
  backup_operator_attestation:{title:"Backup restoration evidence",where:"Perform a real point-in-time restore drill. Only then set BACKUPS_RESTORE_VERIFIED=true via deployment configuration."},
  regulatory_signoff:{title:"UK legal and regulatory review",where:"Get written UK regulatory/financial-promotion and privacy advice. Do not self-certify legal approval."},
  instrument_review:{title:"UK ISA and regional instruments",where:"Use Instruments to map actual eligible trading lines and verify broker/ISA tradability before setting REGIONAL_INSTRUMENTS_VERIFIED=true."}
