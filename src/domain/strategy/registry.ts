@@ -22,3 +22,13 @@ export function validateEngineConfig(key: string, config: Record<string, unknown
 export function supportedEngineKeys() {
   return [...engines.keys()];
 }
+
+/**
+ * Engine presence means it is available for internal calculation and research,
+ * NOT that an admin can publish it to customers. Require separate release review.
+ */
+const customerPublishableEngines = new Set(["VALUE_TARGET","FIXED_ALLOCATION"]);
+export function assertCustomerPublishableEngine(key:string) {
+  if (!customerPublishableEngines.has(key)) throw new Error("ENGINE_NOT_CUSTOMER_VERIFIED");
+  getStrategyEngine(key);
+}
