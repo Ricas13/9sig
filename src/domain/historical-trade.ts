@@ -11,7 +11,7 @@ const exchangeZones: Record<string,string> = {
   AMEX:"America/New_York", BATS:"America/New_York",
   LSE:"Europe/London", XLON:"Europe/London",
   XETRA:"Europe/Berlin", XETR:"Europe/Berlin", FRA:"Europe/Berlin",
-  EuronextParis:"Europe/Paris", XPAR:"Europe/Paris"
+  EURONEXTPARIS:"Europe/Paris", XPAR:"Europe/Paris"
 };
 
 export function exchangeTradingDate(at:Date,exchange:string):string{
