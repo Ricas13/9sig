@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const user = await requireUser();
     const secret = await beginEnrollment(user.id);
-    const issuer = process.env.NEXT_PUBLIC_BRAND_NAME?.trim() || "Rebalune";
+    const issuer = process.env.NEXT_PUBLIC_BRAND_NAME?.trim() || "Wealtharr";
     return Response.json({ secret, otpauthUri: otpauthUri(secret, user.email, issuer) }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     const denied = authFailure(error);

@@ -586,7 +586,8 @@ export async function calculateAction(strategyInstanceId:string){
       // Keep the *alert* stable, not an obsolete execution quantity. An
       // in-flight or delivered alert always points to the latest revision.
       const noticeTitle=proposal.actionType==="DATA_REQUIRED"?"Strategy data needs attention":"Strategy review ready";
-      const noticeBody="Open your Rebalune dashboard for the latest calculated amounts and current data. Do not trade from an old notification.";
+      const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Wealtharr";
+      const noticeBody=`Open your ${brand} dashboard for the latest calculated amounts and current data. Do not trade from an old notification.`;
       await tx.unsafe(
         "INSERT INTO notifications (user_id,action_id,type,title,body,review_key) "+
         "VALUES ($1,$2,'ACTION',$3,$4,$5) "+

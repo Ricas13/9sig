@@ -46,7 +46,7 @@ docker compose -f docker-compose.oracle.yml --env-file .env.production --profile
 
 ## SEO public launch
 
-Set `NEXT_PUBLIC_BRAND_NAME=Wealtharr`; the GitHub source repository may remain `Ricas13/9sig`. Trademark/domain clearance still needs to be independently confirmed before public launch. Configure `GOOGLE_SITE_VERIFICATION` and verify the production domain. After the site and policies are reviewed, set `PUBLIC_INDEXING_ENABLED=true` and redeploy. Then verify `/robots.txt` and `/sitemap.xml`, submit the sitemap to Search Console, and run Lighthouse/Core Web Vitals checks. See `docs/COMMERCIAL_SEO_LAUNCH.md`.
+Set `NEXT_PUBLIC_BRAND_NAME=Wealtharr`; the GitHub source repository is `Ricas13/wealtharr`. Trademark/domain clearance still needs to be independently confirmed before public launch. Configure `GOOGLE_SITE_VERIFICATION` and verify the production domain. After the site and policies are reviewed, set `PUBLIC_INDEXING_ENABLED=true` and redeploy. Then verify `/robots.txt` and `/sitemap.xml`, submit the sitemap to Search Console, and run Lighthouse/Core Web Vitals checks. See `docs/COMMERCIAL_SEO_LAUNCH.md`.
 
 ## Still required before commercial launch
 
@@ -72,4 +72,4 @@ Only four values stay in the server environment because the app cannot start wit
 
 ## Rebrand rollout notes
 
-The product brand is **Wealtharr** while the GitHub repository remains `Ricas13/9sig`; strategy key `9sig`, existing PostgreSQL names, Stripe idempotency identifiers and backup snapshot tags intentionally remain stable. On existing installs set `NEXT_PUBLIC_BRAND_NAME=Wealtharr` (or clear the old admin override); old saved default brand values are normalized at runtime. Replace `REBALUNE_PAID_LAUNCH_ENABLED` with `WEALTHARR_PAID_LAUNCH_ENABLED=false` until a separately approved paid launch. Renew and verify OAuth domains, Stripe callback settings, email-sender identity, search verification, mobile association files and deployment DNS once the actual owned HTTPS domain is configured. Existing mobile store app IDs should not be changed on already published binaries without a store migration plan.
+The product brand is **Wealtharr** while the GitHub repository remains `Ricas13/wealtharr`; strategy key `9sig`, existing PostgreSQL names, Stripe idempotency identifiers and backup snapshot tags intentionally remain stable. On existing installs set `NEXT_PUBLIC_BRAND_NAME=Wealtharr` (or clear the old admin override); old saved default brand values are normalized at runtime. Replace `REBALUNE_PAID_LAUNCH_ENABLED` with `WEALTHARR_PAID_LAUNCH_ENABLED=false` until a separately approved paid launch. Renew and verify OAuth domains, Stripe callback settings, email-sender identity, search verification, mobile association files and deployment DNS once the actual owned HTTPS domain is configured. Existing mobile store app IDs should not be changed on already published binaries without a store migration plan.

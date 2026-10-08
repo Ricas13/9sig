@@ -13,11 +13,13 @@ describe("summarizeUserAgent",()=>{
   expect(summarizeUserAgent(EDGE_WIN).label).toBe("Edge on Windows");
   expect(summarizeUserAgent(SAFARI_IOS).label).toBe("Safari on iOS");
   expect(summarizeUserAgent(FIREFOX_LINUX).label).toBe("Firefox on Linux");
-  expect(summarizeUserAgent(SAFARI_IOS+" RebaluneApp").label).toBe("the Rebalune app on iOS");
+  expect(summarizeUserAgent(SAFARI_IOS+" WealtharrApp").label).toBe("the Wealtharr app on iOS");
+  expect(summarizeUserAgent(SAFARI_IOS+" RebaluneApp").label).toBe("the Wealtharr app on iOS");
+  expect(summarizeUserAgent(SAFARI_IOS+" RebaluneApp").key).toBe(summarizeUserAgent(SAFARI_IOS+" WealtharrApp").key);
  });
  it("does not treat a browser update as a new device, but does tell different browsers or systems apart",()=>{
   expect(summarizeUserAgent(CHROME_WIN).key).toBe(summarizeUserAgent(CHROME_WIN_NEWER).key);
-  const keys=new Set([CHROME_WIN,EDGE_WIN,SAFARI_IOS,FIREFOX_LINUX,SAFARI_IOS+" RebaluneApp"].map((u)=>summarizeUserAgent(u).key));
+  const keys=new Set([CHROME_WIN,EDGE_WIN,SAFARI_IOS,FIREFOX_LINUX,SAFARI_IOS+" WealtharrApp"].map((u)=>summarizeUserAgent(u).key));
   expect(keys.size).toBe(5);
  });
  it("copes with missing or odd agents without storing them",()=>{
