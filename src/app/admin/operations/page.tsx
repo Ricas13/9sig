@@ -4,11 +4,11 @@ import { IntegrationTests } from "@/components/IntegrationTests";
 import { checkCommercialLaunch } from "@/domain/commercial-launch";
 export const dynamic="force-dynamic";
 const explanations:Record<string,string>={
- stripe_live:"Configure the Stripe secret in your Oracle Docker secret store; never paste it into ordinary settings.",
- stripe_webhook:"Register /api/stripe/webhook with Stripe and supply the signing secret. Webhook events below show actual processing results.",
- email:"Set EMAIL_PROVIDER=http, EMAIL_HTTP_ENDPOINT, EMAIL_HTTP_TOKEN and EMAIL_FROM as protected secrets; use a supported transactional provider adapter.",
+ stripe_live:"Enter the Stripe key in Admin › Settings › Billing. It is stored encrypted and never shown again.",
+ stripe_webhook:"Register /api/stripe/webhook with Stripe and enter the signing secret in Admin › Settings › Billing. Webhook events below show actual processing results.",
+ email:"Enter the email service details in Admin › Settings › Email; use a supported transactional provider.",
  market_data_mode:"Connect a quote provider offering live prices, historical intraday observations, currencies and adjusted data.",
- worker_auth:"Set CRON_SECRET and run the private scheduler. Review last execution and failures below.",
+ worker_auth:"Generate the job secret in Admin › Settings › Security and run the private scheduler. Review last execution and failures below.",
  backup_operator_attestation:"Configure encrypted offsite backups and demonstrate a restore before attesting success."
 };
 export default async function OperationsPage(){

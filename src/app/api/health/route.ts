@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { ensureSettings } from "@/lib/settings";
 
 export const dynamic="force-dynamic";
 
@@ -18,6 +19,7 @@ function validEncryptionKey(value:string|undefined){
 }
 
 export async function GET(){
+  await ensureSettings();
   const headers={"cache-control":"no-store"};
   try{
     await sql.unsafe("SELECT 1 AS ok");

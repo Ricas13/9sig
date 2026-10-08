@@ -1,4 +1,5 @@
 import { requestIp } from "@/domain/client-ip";
+import { ensureSettings } from "@/lib/settings";
 import { z } from "zod";
 import { sql } from "@/lib/db";
 import { assertSameOrigin, consumeRateLimit, hashToken, newToken } from "@/lib/security";
@@ -7,6 +8,7 @@ import { getEmailProvider } from "@/lib/email";
 const schema = z.object({email:z.string().email()});
 
 export async function POST(request: Request) {
+  await ensureSettings();
   try {
     assertSameOrigin(request);
     const input = schema.parse(await request.json());

@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 
 // Route gate for the signed-in areas only. This file must live in src/ (the app directory is
 // src/app); a copy at the repository root is silently ignored by Next.js. Marketing and SEO pages,
@@ -7,7 +7,9 @@ import { NextResponse } from "next/server";
 // are not matched either: every handler authenticates itself and answers 401/403 as JSON.
 // Revoked sessions (for example after a password reset) are detected by requirePageUser, which
 // needs the database and therefore cannot run here.
-export const proxy = auth((request) => {
+// The auth configuration is built per request (so provider settings saved in the admin screen apply
+// without a restart), which makes `auth(callback)` resolve to the real handler asynchronously.
+const gate = auth((request) => {
   if (!request.auth) {
     const url = new URL("/login", request.url);
     url.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
@@ -15,6 +17,11 @@ export const proxy = auth((request) => {
   }
   return NextResponse.next();
 });
+
+export async function proxy(request: NextRequest, event: NextFetchEvent) {
+  const handler = (await gate) as unknown as (request: NextRequest, event: NextFetchEvent) => Promise<Response>;
+  return handler(request, event);
+}
 
 export const config = {
   matcher: ["/app/:path*", "/admin/:path*"]

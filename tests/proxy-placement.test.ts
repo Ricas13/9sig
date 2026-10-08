@@ -19,4 +19,10 @@ describe("route gate",()=>{
     expect(matcher).toContain("/admin/:path*");
     for(const publicPath of ["pricing","features","faq","strategies","robots","sitemap","login","demo","api"])expect(matcher).not.toContain(publicPath);
   });
+
+  it("exports a real function, not the promise Auth.js returns when its configuration is built per request",()=>{
+    const source=readFileSync(root("src/proxy.ts"),"utf8");
+    expect(source).toMatch(/export async function proxy\(/);
+    expect(source).not.toMatch(/export const proxy\s*=\s*auth\(/);
+  });
 });

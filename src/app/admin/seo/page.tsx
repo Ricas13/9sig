@@ -6,9 +6,9 @@ export default function SeoAdminPage(){
  const indexing=publicIndexingEnabled(process.env);
  const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune";
  const checks=[
-  ["Public HTTPS origin",origin.protocol==="https:","Set NEXT_PUBLIC_APP_URL to your production HTTPS domain."],
-  ["Search indexing authorised",indexing,"Set PUBLIC_INDEXING_ENABLED=true only after customer and public-site release gates pass."],
-  ["Google Search Console verification",Boolean(process.env.GOOGLE_SITE_VERIFICATION),"Supply GOOGLE_SITE_VERIFICATION after verifying your domain in Search Console."],
+  ["Public HTTPS origin",origin.protocol==="https:","Set the public web address to your production HTTPS domain in Admin › Settings › General."],
+  ["Search indexing authorised",indexing,"Turn on search indexing in Admin › Settings › General only after customer and public-site release gates pass."],
+  ["Google Search Console verification",Boolean(process.env.GOOGLE_SITE_VERIFICATION),"Enter the Search Console token in Admin › Settings › General after verifying your domain."],
   ["Brand reviewed",process.env.BRAND_CLEARANCE_VERIFIED==="true","Confirm trade mark, company and domain clearance before claiming the name."],
   ["Public terms and privacy",process.env.LEGAL_PUBLIC_PAGES_VERIFIED==="true","Publish accurate business identity, privacy policy, support and subscription terms after review."]
  ];

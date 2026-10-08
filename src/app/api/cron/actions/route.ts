@@ -6,6 +6,7 @@ import { refreshMarketData } from "@/lib/market-data-worker";
 import { enforceStrategyEntitlements } from "@/lib/entitlement-service";
 import { finishPendingAccountDeletions } from "@/lib/account-deletion";
 import { runBounded } from "@/lib/work-pool";
+import { ensureSettings } from "@/lib/settings";
 
 function authorized(request: Request) {
   return Boolean(process.env.CRON_SECRET) && request.headers.get("authorization") === "Bearer " + process.env.CRON_SECRET;
@@ -44,6 +45,7 @@ async function aggregatesDue() {
 }
 
 export async function GET(request: Request) {
+  await ensureSettings();
   if (!authorized(request)) return new Response("Unauthorized", { status: 401 });
 
   const startedAt = Date.now();

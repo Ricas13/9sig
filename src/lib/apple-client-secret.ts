@@ -16,3 +16,16 @@ export async function createAppleClientSecret(env: { teamId: string; clientId: s
     .setSubject(env.clientId)
     .sign(key);
 }
+
+// The secret is signed once and reused until it is old, so reading settings on every request does
+// not mean signing on every request. A change to any input produces a new one.
+const cache = new Map<string, { secret: string; at: number }>();
+export async function getAppleClientSecret(env: { teamId: string; clientId: string; keyId: string; privateKey: string }, now = new Date()) {
+  const signature = [env.teamId, env.clientId, env.keyId, env.privateKey].join("\u0000");
+  const hit = cache.get(signature);
+  if (hit && now.getTime() - hit.at < 100 * 86_400_000) return hit.secret;
+  const secret = await createAppleClientSecret(env, now);
+  cache.clear();
+  cache.set(signature, { secret, at: now.getTime() });
+  return secret;
+}

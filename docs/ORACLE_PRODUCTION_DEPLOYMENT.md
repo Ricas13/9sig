@@ -60,3 +60,12 @@ Buttons appear on the sign-in and register pages only for providers whose variab
 2. Apple needs HTTPS, a Services ID (`AUTH_APPLE_ID`), and either a ready client secret or the team ID, key ID and private key (a secret is generated at start-up and lasts 150 days, so restart at least that often).
 3. Account rules (tested in `tests/db/oauth-sign-in.test.ts`): a provider is matched by its own subject id; an existing account is linked by email only if the provider says the email is verified; an account that was never email-verified loses its password when claimed this way; administrators and accounts with two-step sign-in cannot use a provider and must use password + code; deleted accounts are never revived.
 4. Providers deliberately not added: Microsoft, GitHub and Facebook do not reliably vouch for the email address they return, and linking on an unverified email would allow account takeover.
+
+## Configuring from the browser instead of environment files
+
+Only four values stay in the server environment because the app cannot start without them: `DATABASE_URL`, `AUTH_SECRET`, `APP_ENCRYPTION_KEY` and `AUTH_TRUST_HOST=true`. Everything else (Stripe, email, market data, Google/Apple sign-in, launch sign-offs, worker tuning, product name, public address) is managed in **Admin › Settings**.
+
+- First run: with no administrator, the server prints a line starting `[setup]` containing a one-time code. Open `/setup`, enter the code and create the first administrator. The page then closes permanently. The public address is saved automatically from the address you used.
+- Saved values are encrypted with `APP_ENCRYPTION_KEY` (do not lose or rotate it without re-entering them), override a same-named environment variable, and apply within about 15 seconds. Clearing a value falls back to the environment file.
+- Secrets are write-only: the screen shows whether one is set, never the value. Changes are audited by key name only.
+- Two guards prevent self-lockout: the public address must be the one you are currently using, and "require admin two-step sign-in" cannot be switched on until your own account has it.
