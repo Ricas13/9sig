@@ -1,0 +1,22 @@
+# Staging at https://wealtharr.vpn4u.cc via the existing oraclefree2 Traefik.
+# Apply together with docker-compose.oracle.yml (never alone).
+# Reuse Traefik's HTTPS entrypoint; do not publish an HTTP host port.
+services:
+  app:
+    ports: !reset []
+    networks:
+      - internal
+      - media_net
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "media_net"
+      traefik.http.routers.wealtharr.rule: "Host(`wealtharr.vpn4u.cc`)"
+      traefik.http.routers.wealtharr.entrypoints: "websecure"
+      traefik.http.routers.wealtharr.tls: "true"
+      traefik.http.routers.wealtharr.tls.certresolver: "le"
+      traefik.http.routers.wealtharr.service: "wealtharr"
+      traefik.http.services.wealtharr.loadbalancer.server.port: "3000"
+networks:
+  media_net:
+    external: true
+    name: media_net

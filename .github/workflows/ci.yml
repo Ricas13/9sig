@@ -54,6 +54,19 @@ jobs:
         run: |
           printf 'POSTGRES_PASSWORD=ci-db-pass\nDATABASE_URL=postgresql://strategyos:ci-db-pass@db:5432/strategyos\n' > .env.production
           docker compose --profile backups -f docker-compose.oracle.yml --env-file .env.production config --quiet
+          docker compose -f docker-compose.oracle.yml -f docker-compose.traefik.yml --env-file .env.production config --format json > /tmp/wealtharr-traefik-compose.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/wealtharr-traefik-compose.json') as file:
+              config = json.load(file)
+          app = config['services']['app']
+          assert not app.get('ports'), 'Wealtharr must not publish a host port behind Traefik'
+          assert 'media_net' in app['networks'], 'Wealtharr must join the shared proxy network'
+          assert 'internal' in app['networks'], 'Wealtharr must retain the private database network'
+          assert config['networks']['media_net']['external'] is True
+          assert config['services']['db'].get('ports') in (None, []), 'Database must remain private'
+          assert app['labels']['traefik.http.routers.wealtharr.rule'] == 'Host(`wealtharr.vpn4u.cc`)'
+          PY
           docker build --quiet -f docker/backup.Dockerfile .
           rm -f .env.production
       - run: npm run lint
