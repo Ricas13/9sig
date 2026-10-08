@@ -23,8 +23,8 @@ export async function POST(request:Request){
    if(p.service==="STRIPE"){
     const token=process.env.STRIPE_SECRET_KEY;
     if(!token)throw new Error("STRIPE_NOT_CONFIGURED");
-    const account=await new Stripe(token,{timeout:8000,maxNetworkRetries:0}).accounts.retrieve();
-    ok=Boolean(account.id);
+    const balance=await new Stripe(token,{timeout:8000,maxNetworkRetries:0}).balance.retrieve();
+    ok=Boolean(balance.object==="balance");
     message=ok?"Stripe authenticated successfully. This does not test billing webhooks.":"Stripe did not return an account.";
    }else if(p.service==="EMAIL"){
     if(process.env.EMAIL_PROVIDER!=="http"||!process.env.EMAIL_HTTP_ENDPOINT||!process.env.EMAIL_HTTP_TOKEN)throw new Error("EMAIL_NOT_CONFIGURED");
