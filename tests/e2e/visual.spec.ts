@@ -8,12 +8,12 @@ import { expect, test } from "@playwright/test";
 // match a different browser build: regenerate from CI's "Received" values after reviewing the diff.
 const expected:Record<string,Record<string,string>>={
   "mobile-chromium":{
-    landing:"f6c5e27bd990a9e66392c135c0270e5f557d06168ce4cca2aa53de4d883faa4e",
-    demo:"98df88f7a9b407e830587114f5516d405098581ceabf7adcb7ab3f0a47ea9ced"
+    landing:"ab2449678ad2041fe9fc187867787b6d0b138c60ceeee5aa8344395e409b7a92",
+    demo:"c87404a114ffa8c8e6aff764efd84a756316e1fce55f1e163555e12350b31c3a"
   },
   "desktop-chromium":{
-    landing:"5a43da4367e98822b20fc1209af6cffe8282e4c2fe2a024f56bb540165bc40f9",
-    demo:"23e2e025d27445a9c2df9d7a510e2542fe9bba75862ddc7a46eddc491bad6267"
+    landing:"3d58a726a49ee89a7b016437a2a7e82b3f3be54c49356fb512621c5fc744aba1",
+    demo:"c8914f040431b4a09b17504d26bea12064975ee298c64695a20728ed7698b895"
   }
 };
 
@@ -99,8 +99,20 @@ for(const entry of [
         }
       });
     }
-    const screenshot=await page.screenshot({fullPage:true,animations:"disabled",caret:"hide",scale:"css"});
-    const digest=createHash("sha256").update(rgbPixels(screenshot)).digest("hex");
+    // Accept a frame only once two consecutive captures are pixel-identical (up to 6 captures), so a
+    // late paint on a loaded runner cannot be mistaken for the page's real appearance.
+    const capture=async()=>{
+      const image=await page.screenshot({fullPage:true,animations:"disabled",caret:"hide",scale:"css"});
+      return {image,digest:createHash("sha256").update(rgbPixels(image)).digest("hex")};
+    };
+    let {image:screenshot,digest}=await capture();
+    for(let attempt=0;attempt<5;attempt+=1){
+      const next=await capture();
+      const settled=next.digest===digest;
+      screenshot=next.image;
+      digest=next.digest;
+      if(settled)break;
+    }
     const baseline=expected[testInfo.project.name]?.[entry.name];
     expect(baseline,"Missing visual baseline for "+testInfo.project.name+" / "+entry.name).toBeTruthy();
     if(digest!==baseline)await testInfo.attach(entry.name+"-actual.png",{body:screenshot,contentType:"image/png"});
