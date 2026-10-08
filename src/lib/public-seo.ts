@@ -5,7 +5,7 @@ export function siteOrigin(input?:string){
   try{
     const url=new URL(input||"http://localhost:3000");
     if(!["http:","https:"].includes(url.protocol))throw new Error("INVALID_ORIGIN");
-    url.pathname="/";url.search="";url.hash="";
+    url.pathname="/";url.search="";url.hash="";url.username="";url.password="";
     return url;
   }catch{return new URL("http://localhost:3000");}
 }
