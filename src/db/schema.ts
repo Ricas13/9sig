@@ -299,6 +299,8 @@ export const overrides = pgTable("overrides", {
   manualValue: jsonb("manual_value"),
   active: boolean("active").notNull().default(true),
   reason: text("reason"),
+  observedAt: timestamp("observed_at", { withTimezone:true }),
+  expiresAt: timestamp("expires_at", { withTimezone:true }),
   createdBy: text("created_by").notNull().default("USER"),
   restoredAt: timestamp("restored_at", { withTimezone: true }),
   ...timestamps
