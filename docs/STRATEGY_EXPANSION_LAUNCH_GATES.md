@@ -15,6 +15,8 @@ Reference strategy records are in `src/domain/strategy/research-catalog.ts`. Sou
 - [x] Add a research-stage fail-closed relative/absolute momentum rotation engine and unit test fixtures (not wired to live data)
 - [x] Implement pure fail-closed research Ivy 10-month closing-price decision helper with signal tests
 - [x] Implement research-only VAA weighted-momentum/breadth allocation calculator with regression tests (not enabled)
+- [x] Implement research-only PAA 13-month SMA breadth/defensive allocation calculator and unit tests (not enabled)
+- [ ] Independently validate PAA against author golden cases and exact monthly close conventions
 - [ ] Verify full VAA variants against independent golden cases, wire trusted monthly series and execution/rebalance lifecycle
 - [ ] Integrate licensed historical prices into EngineContext, handle corporate actions and calendars, and independently backtest momentum signal engines with no look-ahead
 - [x] Confirm author-published basic 3Sig/6Sig quarterly growth targets and leverage levels
