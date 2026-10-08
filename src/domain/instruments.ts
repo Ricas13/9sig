@@ -29,6 +29,10 @@ export type ResolveRequest = {
   asOf: string;
 };
 
+// Currency codes are compared case-insensitively: a lowercase code stored on an account must not
+// make every mapping silently "unsupported".
+const normCurrency = (value: string | null | undefined) => (value == null ? null : String(value).toUpperCase());
+
 export function resolveMapping(candidates: MappingCandidate[], request: ResolveRequest) {
   const eligible = candidates.filter((c) =>
     c.economicExposure === request.economicExposure &&
@@ -41,7 +45,7 @@ export function resolveMapping(candidates: MappingCandidate[], request: ResolveR
     (!c.effectiveTo || c.effectiveTo >= request.asOf) &&
     c.tradingLineEffectiveFrom <= request.asOf &&
     (!c.tradingLineEffectiveTo || c.tradingLineEffectiveTo >= request.asOf) &&
-    (!request.preferredCurrency || c.tradingLineCurrency === request.preferredCurrency) &&
+    (!request.preferredCurrency || normCurrency(c.tradingLineCurrency) === normCurrency(request.preferredCurrency)) &&
     (!c.broker || (!!request.broker && c.broker.toLowerCase() === request.broker.toLowerCase()))
   );
 
@@ -49,8 +53,8 @@ export function resolveMapping(candidates: MappingCandidate[], request: ResolveR
     const brokerA = a.broker && request.broker && a.broker.toLowerCase() === request.broker.toLowerCase() ? 1 : 0;
     const brokerB = b.broker && request.broker && b.broker.toLowerCase() === request.broker.toLowerCase() ? 1 : 0;
     if (brokerA !== brokerB) return brokerB - brokerA;
-    const configuredCurrencyA = a.preferredCurrency === request.preferredCurrency ? 1 : 0;
-    const configuredCurrencyB = b.preferredCurrency === request.preferredCurrency ? 1 : 0;
+    const configuredCurrencyA = normCurrency(a.preferredCurrency) === normCurrency(request.preferredCurrency) ? 1 : 0;
+    const configuredCurrencyB = normCurrency(b.preferredCurrency) === normCurrency(request.preferredCurrency) ? 1 : 0;
     if (configuredCurrencyA !== configuredCurrencyB) return configuredCurrencyB - configuredCurrencyA;
     return b.effectiveFrom.localeCompare(a.effectiveFrom);
   });
@@ -58,7 +62,7 @@ export function resolveMapping(candidates: MappingCandidate[], request: ResolveR
   if(!chosen)return null;
   const score=(c:MappingCandidate)=>({
     broker:Number(Boolean(c.broker&&request.broker&&c.broker.toLowerCase()===request.broker.toLowerCase())),
-    currency:Number(c.preferredCurrency===request.preferredCurrency),
+    currency:Number(normCurrency(c.preferredCurrency)===normCurrency(request.preferredCurrency)),
     effectiveFrom:c.effectiveFrom
   });
   const first=score(chosen);

@@ -21,6 +21,11 @@ describe("commercial launch preflight",()=>{
   const r=checkCommercialLaunch({...baseline,STRIPE_SECRET_KEY:"sk_test_"+"a".repeat(30)});
   expect(r.find(x=>x.key==="stripe_live")?.passed).toBe(false);
  });
+ it("accepts a restricted live key, which Stripe recommends for production, but still blocks test keys",()=>{
+  expect(checkCommercialLaunch({...baseline,STRIPE_SECRET_KEY:"rk_live_"+"d".repeat(30)}).find(x=>x.key==="stripe_live")?.passed).toBe(true);
+  expect(checkCommercialLaunch({...baseline,STRIPE_SECRET_KEY:"rk_test_"+"d".repeat(30)}).find(x=>x.key==="stripe_live")?.passed).toBe(false);
+  expect(checkCommercialLaunch({...baseline,STRIPE_SECRET_KEY:"pk_live_"+"d".repeat(30)}).find(x=>x.key==="stripe_live")?.passed).toBe(false);
+ });
  it("blocks unverified legal, backup and instrument attestations",()=>{
   const r=checkCommercialLaunch({...baseline,UK_REGULATORY_SIGNOFF_VERIFIED:"false",BACKUPS_RESTORE_VERIFIED:"false",REGIONAL_INSTRUMENTS_VERIFIED:"false"});
   expect(r.filter(x=>!x.passed).map(x=>x.key)).toEqual(["backup_operator_attestation","regulatory_signoff","instrument_review"]);

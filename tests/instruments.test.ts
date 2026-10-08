@@ -79,3 +79,21 @@ describe("regional instrument resolver",()=>{
     expect(result).toBeNull();
   });
 });
+
+describe("currency matching",()=>{
+  const candidate={
+    id:"m1",economicExposure:"NASDAQ_100_3X_LONG",leverage:"3",direction:"LONG",country:"GB",wrapper:"ISA",broker:null,
+    preferredCurrency:"GBP",fidelity:"EXACT",effectiveFrom:"2020-01-01",effectiveTo:null,tradingLineId:"line-1",
+    tradingLineCurrency:"GBP",tradingLineEffectiveFrom:"2020-01-01",tradingLineEffectiveTo:null
+  };
+  const request={economicExposure:"NASDAQ_100_3X_LONG",leverage:"3",direction:"LONG",country:"GB",wrapper:"ISA",asOf:"2030-01-01"};
+
+  it("resolves a mapping for an account whose currency was stored in lower case",()=>{
+    expect(resolveMapping([candidate],{...request,preferredCurrency:"gbp"})?.tradingLineId).toBe("line-1");
+    expect(resolveMapping([{...candidate,tradingLineCurrency:"gbp",preferredCurrency:"gbp"}],{...request,preferredCurrency:"GBP"})?.tradingLineId).toBe("line-1");
+  });
+
+  it("still refuses a different currency",()=>{
+    expect(resolveMapping([candidate],{...request,preferredCurrency:"usd"})).toBeNull();
+  });
+});

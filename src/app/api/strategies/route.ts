@@ -10,7 +10,7 @@ const schema = z.object({
   name:z.string().min(1).max(80),
   wrapper:z.string().min(1).max(40),
   broker:z.string().max(80).optional().nullable(),
-  currency:z.string().length(3),
+  currency:z.string().regex(/^[A-Za-z]{3}$/),
   onboardingMode:z.enum(["START_NEW","RESUME"]),
   startingCash:z.string().optional(),
   approximateValue:z.string().optional(),

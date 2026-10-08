@@ -62,7 +62,11 @@ export async function getStrategyForUser(userId: string, instanceId: string) {
   return rows[0] ?? null;
 }
 
-export async function createStrategy(userId: string, country: string, input: CreateStrategyInput, timezone?: string) {
+export async function createStrategy(userId: string, country: string, rawInput: CreateStrategyInput, timezone?: string) {
+  // Currency is stored and compared as an upper-case ISO code everywhere else.
+  const currency = rawInput.currency.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("INVALID_CURRENCY");
+  const input = { ...rawInput, currency };
   return sql.begin(async (tx) => {
     const locked = await tx.unsafe("SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL FOR UPDATE",[userId]);
     if (!locked[0]) throw new Error("UNAUTHENTICATED");

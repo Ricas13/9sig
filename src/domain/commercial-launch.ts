@@ -13,7 +13,7 @@ export function checkCommercialLaunch(env:Environment):LaunchCheck[]{
  {key:"auth_secret",passed:enough(env.AUTH_SECRET,32),reason:"Supply a unique secure authentication secret."},
  {key:"encryption",passed:validKey(env.APP_ENCRYPTION_KEY),reason:"Supply a properly generated 32-byte encryption key."},
  {key:"worker_auth",passed:enough(env.CRON_SECRET,32),reason:"Supply a unique worker bearer token."},
- {key:"stripe_live",passed:!!stripe&&stripe.startsWith("sk_live_")&&stripe.length>=20,reason:"Stripe LIVE secret key is required for paid launch."},
+ {key:"stripe_live",passed:!!stripe&&/^(sk|rk)_live_/.test(stripe)&&stripe.length>=20,reason:"A Stripe LIVE secret or restricted (rk_live_) key is required for paid launch."},
  {key:"stripe_webhook",passed:!!webhook&&webhook.startsWith("whsec_")&&webhook.length>=20,reason:"Stripe webhook signing secret is required."},
  {key:"email",passed:env.EMAIL_PROVIDER==="http"&&validHttps(env.EMAIL_HTTP_ENDPOINT)&&enough(env.EMAIL_HTTP_TOKEN,12)&&!!env.EMAIL_FROM&&!env.EMAIL_FROM.endsWith("@example.com"),reason:"Configure live transactional email with HTTPS credentials."},
  {key:"market_data_mode",passed:env.MARKET_DATA_PROVIDER==="http"&&validHttps(env.MARKET_DATA_HTTP_BASE_URL)&&enough(env.MARKET_DATA_HTTP_TOKEN,12),reason:"Configure an authenticated historical/intraday and current-price service that permits your commercial use."},
