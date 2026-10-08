@@ -4,6 +4,7 @@ import {assertSameOrigin,consumeRateLimit} from "@/lib/security";
 import {sql} from "@/lib/db";
 import {getMarketDataProvider} from "@/lib/market-data";
 import {validateHistoricalTradePrice} from "@/domain/historical-trade-price";
+import {exchangeTradingDate} from "@/domain/historical-trade";
 const inputSchema=z.object({
  accountId:z.string().uuid(),
  ticker:z.string().regex(/^[A-Za-z0-9.^_-]{1,24}$/),
@@ -19,6 +20,7 @@ export async function POST(request:Request){
   const at=new Date(p.executedAt);
   if(!Number.isFinite(at.getTime())||at.getTime()>Date.now()||at.getTime()<Date.UTC(1990,0,1))
    return Response.json({error:"Choose a valid past trade timestamp including its timezone offset."},{status:400});
+  const tradingDate=exchangeTradingDate(at,p.exchange);
   // The account must belong to an active or paused user-owned strategy. No guessed ticker mapping.
   const rows=await sql.unsafe(
    "SELECT DISTINCT tl.id,tl.ticker,tl.currency,tl.provider_symbol FROM strategy_instances si "+
@@ -27,7 +29,7 @@ export async function POST(request:Request){
    "JOIN trading_lines tl ON upper(tl.ticker)=upper($3) AND upper(tl.exchange)=upper($4) AND upper(tl.currency)=upper(a.currency) "+
    "WHERE si.user_id=$1 AND si.status IN ('ACTIVE','PAUSED') AND sa.account_id=$2 "+
    "AND tl.effective_from<=$5::date AND (tl.effective_to IS NULL OR tl.effective_to>=$5::date) LIMIT 2",
-   [user.id,p.accountId,p.ticker,p.exchange,at.toISOString().slice(0,10)]);
+   [user.id,p.accountId,p.ticker,p.exchange,tradingDate]);
   if(rows.length!==1)return Response.json({error:"No unambiguous trading line in this account and currency at that date."},{status:422});
   const row=rows[0];
   if(!row.provider_symbol)return Response.json({error:"Historical price provider mapping is not configured."},{status:503});
@@ -52,6 +54,7 @@ export async function POST(request:Request){
   }
  }catch(error){
   if(error instanceof z.ZodError)return Response.json({error:"Enter a valid account, ticker, exchange and ISO timestamp with timezone."},{status:400});
+  if(error instanceof Error&&error.message==="UNSUPPORTED_EXCHANGE_TIMEZONE")return Response.json({error:"Exchange timezone has not yet been verified."},{status:422});
   if(error instanceof Error&&error.message==="RATE_LIMITED")return Response.json({error:"Too many requests. Retry later."},{status:429});
   return Response.json({error:"Historical price lookup failed."},{status:503});
  }
