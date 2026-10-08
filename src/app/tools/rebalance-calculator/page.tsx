@@ -12,7 +12,7 @@ export default function RebalanceCalculatorPage(){return <main><div className="c
  <section className="section"><div className="eyebrow">Free investing tool</div><h1>Portfolio rebalancing calculator</h1>
  <p>Calculate how far a holding is from a chosen target percentage. The result is an arithmetic illustration, not personal investment advice or a strategy recommendation.</p>
  <div style={{marginTop:24}}><PublicRebalanceCalculator/></div></section>
- <section className="section"><h2>How the calculation works</h2><p>First multiply the total portfolio value by the holding's target weight. Then subtract its current market value. A positive result is the amount needed to reach that target; a negative result is the excess above target.</p>
+ <section className="section"><h2>How the calculation works</h2><p>First multiply the total portfolio value by the holding&apos;s target weight. Then subtract its current market value. A positive result is the amount needed to reach that target; a negative result is the excess above target.</p>
  <p><strong>Example:</strong> £10,000 × 60% = £6,000. If your holding is worth £6,500, it is £500 above the chosen target.</p>
  <h2>Is this the same as 9Sig, PAA or momentum?</h2><p>No. This basic calculator assumes a fixed target weight. Value-targeting, percentage bands and momentum signals follow different rules, which must be evaluated separately using their own validated strategy versions.</p>
  <p><Link href="/strategies" className="button">Explore strategy methodologies</Link></p>
