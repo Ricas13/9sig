@@ -45,7 +45,7 @@ export function resolveMapping(candidates: MappingCandidate[], request: ResolveR
     (!c.broker || (!!request.broker && c.broker.toLowerCase() === request.broker.toLowerCase()))
   );
 
-  return eligible.sort((a,b) => {
+  const ranked = eligible.sort((a,b) => {
     const brokerA = a.broker && request.broker && a.broker.toLowerCase() === request.broker.toLowerCase() ? 1 : 0;
     const brokerB = b.broker && request.broker && b.broker.toLowerCase() === request.broker.toLowerCase() ? 1 : 0;
     if (brokerA !== brokerB) return brokerB - brokerA;
@@ -53,7 +53,22 @@ export function resolveMapping(candidates: MappingCandidate[], request: ResolveR
     const configuredCurrencyB = b.preferredCurrency === request.preferredCurrency ? 1 : 0;
     if (configuredCurrencyA !== configuredCurrencyB) return configuredCurrencyB - configuredCurrencyA;
     return b.effectiveFrom.localeCompare(a.effectiveFrom);
-  })[0] ?? null;
+  });
+  const chosen=ranked[0];
+  if(!chosen)return null;
+  const score=(c:MappingCandidate)=>({
+    broker:Number(Boolean(c.broker&&request.broker&&c.broker.toLowerCase()===request.broker.toLowerCase())),
+    currency:Number(c.preferredCurrency===request.preferredCurrency),
+    effectiveFrom:c.effectiveFrom
+  });
+  const first=score(chosen);
+  const equallyRanked=ranked.filter(c=>{
+    const candidate=score(c);
+    return candidate.broker===first.broker&&candidate.currency===first.currency&&candidate.effectiveFrom===first.effectiveFrom;
+  });
+  // If equally preferred mappings resolve to different trading lines,
+  // never invent a deterministic investment choice from arbitrary DB ordering.
+  return new Set(equallyRanked.map(c=>c.tradingLineId)).size===1?chosen:null;
 }
 
 
