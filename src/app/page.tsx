@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { sql } from "@/lib/db";
+import {safeJsonLd,siteOrigin} from "@/lib/public-seo";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +19,19 @@ export default async function HomePage() {
     // Public financial/community data fails closed instead of rendering cached or invented values.
   }
 
+  const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"StrategyOS";
+  const origin=siteOrigin(process.env.NEXT_PUBLIC_APP_URL).toString();
+  const schema={"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":brand,"url":origin},{"@type":"SoftwareApplication","name":brand,"applicationCategory":"FinanceApplication","operatingSystem":"Web","url":origin,"description":"Rules-based portfolio tracker with holdings, user-selected strategies, market price references and scheduled investment review calculations."}]};
   return <main>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:safeJsonLd(schema)}}/>
     <div className="container">
       <nav className="public-nav">
-        <Link href="/" className="brand"><span className="brand-mark"/>StrategyOS</Link>
+        <Link href="/" className="brand"><span className="brand-mark"/>{brand}</Link>
         <div className="nav-actions">
+          <Link className="nav-link" href="/features">Features</Link>
+          <Link className="nav-link" href="/strategies">Strategies</Link>
+          <Link className="nav-link" href="/pricing">Pricing</Link>
+          <Link className="nav-link" href="/faq">FAQ</Link>
           <Link className="button" href="/demo">Explore demo</Link>
           <Link className="button" href="/login">Sign in</Link>
           <Link className="button primary" href="/register">Start free</Link>
@@ -94,7 +103,8 @@ export default async function HomePage() {
       </section>
 
       <footer className="footer">
-        StrategyOS is a strategy tracking and rule-calculation tool. It does not assess suitability or recommend which strategy you should choose. Jurisdiction-specific disclosures and regulatory controls must be configured before public launch.
+        <p><Link href="/features">Features</Link> · <Link href="/strategies">Strategies</Link> · <Link href="/pricing">Pricing</Link> · <Link href="/faq">FAQ</Link></p>
+        {brand} is a strategy tracking and rule-calculation tool. It does not assess suitability or recommend which strategy you should choose. Jurisdiction-specific disclosures and regulatory controls must be configured before public launch.
       </footer>
     </div>
   </main>;
