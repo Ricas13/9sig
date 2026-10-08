@@ -16,6 +16,9 @@ test("backdated funding → broker fill → immutable ledger → quarterly revie
     const hash=await bcrypt.hash("e2e-password-1234",4);
     await sql.begin(async tx=>{
       await tx.unsafe("DELETE FROM users WHERE email=$1",[email]);
+      // A previous attempt (or Playwright's retry) leaves its instrument and trading line behind;
+      // without this the retry fails on a duplicate key and hides the first, real failure.
+      await tx.unsafe("DELETE FROM instruments WHERE name=$1",["E2E instrument "+suffix]);
       const plan=await tx.unsafe("SELECT id FROM plans WHERE slug='free' LIMIT 1");
       if(!plan[0])throw new Error("FREE_PLAN_MISSING");
       const user=await tx.unsafe(
@@ -119,5 +122,9 @@ test("backdated funding → broker fill → immutable ledger → quarterly revie
       headers:requestHeaders,data:{fieldKey:"strategy_state.forceReview",manualValue:"1",reason:"Force a review without approval",confirmed:true}
     });
     expect(unsafe.status()).toBe(400);
-  }finally{await sql.end();}
+  }finally{
+    await sql.unsafe("DELETE FROM users WHERE email=$1",[email]).catch(()=>{});
+    await sql.unsafe("DELETE FROM instruments WHERE name=$1",["E2E instrument "+suffix]).catch(()=>{});
+    await sql.end();
+  }
 });
