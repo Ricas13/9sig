@@ -5,7 +5,7 @@ import "./globals.css";
 // SEO indexing is an operational release gate. Resolve runtime environment on Oracle Docker.
 export const dynamic="force-dynamic";
 
-const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"StrategyOS";
+const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune";
 const origin=siteOrigin(process.env.NEXT_PUBLIC_APP_URL);
 export const metadata: Metadata = {
   metadataBase:origin,
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 const themeScript = `
 (() => {
   try {
-    const saved = localStorage.getItem("strategyos-theme");
+    const saved = (localStorage.getItem("rebalune-theme") ?? localStorage.getItem("strategyos-theme"));
     const theme = saved === "light" || saved === "dark"
       ? saved
       : (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
