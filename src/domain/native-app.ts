@@ -1,10 +1,12 @@
 // The Android/iOS apps are a thin native shell around this website. The shell adds a marker to the
 // user agent (see mobile/capacitor.config.ts) so the server can adapt the few things app stores
 // care about without a separate code path for every page.
-export const NATIVE_APP_MARKER = "RebaluneApp";
+export const NATIVE_APP_MARKER = "WealtharrApp";
+// Older native shells must still be detected so web checkout remains blocked within them.
+const LEGACY_NATIVE_APP_MARKER = "RebaluneApp";
 
 export function isNativeApp(userAgent: string | null | undefined): boolean {
-  return Boolean(userAgent && userAgent.includes(NATIVE_APP_MARKER));
+  return Boolean(userAgent && (userAgent.includes(NATIVE_APP_MARKER) || userAgent.includes(LEGACY_NATIVE_APP_MARKER)));
 }
 
 /**

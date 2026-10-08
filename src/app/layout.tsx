@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 // Resolved per request: brand, public address and indexing come from the admin settings.
 export async function generateMetadata(): Promise<Metadata> {
   await ensureSettings();
-  const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune";
+  const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Wealtharr";
   const origin=siteOrigin(process.env.NEXT_PUBLIC_APP_URL);
   return {
   metadataBase:origin,
@@ -46,7 +46,7 @@ export async function generateMetadata(): Promise<Metadata> {
 const themeScript = `
 (() => {
   try {
-    const saved = (localStorage.getItem("rebalune-theme") ?? localStorage.getItem("strategyos-theme"));
+    const saved = (localStorage.getItem("wealtharr-theme") ?? localStorage.getItem("rebalune-theme") ?? localStorage.getItem("strategyos-theme"));
     const theme = saved === "light" || saved === "dark"
       ? saved
       : (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");

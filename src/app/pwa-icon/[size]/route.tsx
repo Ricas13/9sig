@@ -17,7 +17,7 @@ export async function GET(_request: Request, context: { params: Promise<{ size: 
   return new ImageResponse(
     <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#07111f", borderRadius: spec.maskable ? 0 : Math.round(spec.px * 0.22) }}>
       <div style={{ width: mark, height: mark, borderRadius: "50%", background: "linear-gradient(135deg,#78f3c6,#4aa8ff)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: Math.round(mark * 0.46), height: Math.round(mark * 0.46), borderRadius: "50%", background: "#07111f" }} />
+        <span style={{ fontSize: Math.round(mark * 0.73), fontWeight: 900, lineHeight: 1, color: "#07111f" }}>W</span>
       </div>
     </div>,
     { width: spec.px, height: spec.px, headers: { "cache-control": "public, max-age=86400" } }

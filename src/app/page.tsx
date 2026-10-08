@@ -19,7 +19,7 @@ export default async function HomePage() {
     // Public financial/community data fails closed instead of rendering cached or invented values.
   }
 
-  const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune";
+  const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Wealtharr";
   const origin=siteOrigin(process.env.NEXT_PUBLIC_APP_URL).toString();
   const offeredPlan=plans.find(p=>p.monthly_price_minor!=null&&Number.isFinite(Number(p.monthly_price_minor))&&Number(p.monthly_price_minor)>=0&&/^[A-Z]{3}$/.test(String(p.billing_currency)));
   const offer=offeredPlan?{offers:{"@type":"Offer",price:(Number(offeredPlan.monthly_price_minor)/100).toFixed(2),priceCurrency:String(offeredPlan.billing_currency)}}:{};
@@ -58,7 +58,7 @@ export default async function HomePage() {
         <div>
           <div className="eyebrow">Rules-based investing, operationalised</div>
           <h1>Know where you are. Know what comes next.</h1>
-          <p>Track the strategy you chose, reconcile it to reality, and turn complex rules into a transparent action queue. Rebalune does not choose a strategy for you—it operates the rules you selected.</p>
+          <p>Track the strategy you chose, reconcile it to reality, and turn complex rules into a transparent action queue. Wealtharr does not choose a strategy for you—it operates the rules you selected.</p>
           <div className="inline" style={{marginTop:24}}>
             <Link className="button primary" href="/register">Add your first strategy</Link>
             <Link className="button" href="/demo">See fictional example</Link>

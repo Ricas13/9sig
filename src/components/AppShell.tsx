@@ -6,7 +6,7 @@ export function AppShell({ children, isAdmin=false }: { children:React.ReactNode
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">Skip to main content</a>
     <aside className="sidebar">
-      <Link href="/app" className="brand"><span className="brand-mark" aria-hidden="true"/><span>Rebalune</span></Link>
+      <Link href="/app" className="brand"><span className="brand-mark" aria-hidden="true"/><span>{process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Wealtharr"}</span></Link>
       <nav className="nav-group" aria-label="Primary">
         <div className="nav-label">Your money</div>
         <Link className="nav-link" href="/app"><LayoutDashboard size={17}/>Home</Link>
