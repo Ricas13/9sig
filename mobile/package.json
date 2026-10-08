@@ -1,8 +1,8 @@
 {
-  "name": "rebalune-mobile",
+  "name": "wealtharr-mobile",
   "private": true,
   "version": "0.1.0",
-  "description": "Android and iOS shells for the Rebalune web app (Capacitor). Kept apart from the web app so its install and CI are unaffected.",
+  "description": "Android and iOS shells for the Wealtharr web app (Capacitor). Kept apart from the web app so its install and CI are unaffected.",
   "scripts": {
     "sync": "cap sync",
     "add:android": "cap add android",
