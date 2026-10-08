@@ -1,6 +1,6 @@
 # Architecture
 
-StrategyOS is a modular monolith. The web UI, API, strategy engines, billing, notifications and data-access layer live in one deployable application while external vendors remain behind interfaces.
+Rebalune is a modular monolith. The web UI, API, strategy engines, billing, notifications and data-access layer live in one deployable application while external vendors remain behind interfaces.
 
 Core domain flow:
 
