@@ -3,6 +3,7 @@ import { calculateAction } from "@/lib/action-service";
 import { createDeliveriesForNotification, processPendingDeliveries } from "@/lib/notification-service";
 import { rebuildAnonymousAggregates } from "@/lib/aggregate-service";
 import { refreshMarketData } from "@/lib/market-data-worker";
+import { enforceStrategyEntitlements } from "@/lib/entitlement-service";
 
 function authorized(request: Request) {
   return Boolean(process.env.CRON_SECRET) && request.headers.get("authorization") === "Bearer " + process.env.CRON_SECRET;
@@ -12,6 +13,19 @@ export async function GET(request: Request) {
   if (!authorized(request)) return new Response("Unauthorized", { status: 401 });
 
   const marketData = await refreshMarketData();
+  // Safety net: plan changes, missed webhooks or manual edits must never leave strategies
+  // running beyond what the owner's plan allows. Pausing happens before calculation.
+  const owners = await sql.unsafe("SELECT DISTINCT user_id FROM strategy_instances WHERE status='ACTIVE'");
+  let entitlementPaused = 0;
+  let entitlementFailures = 0;
+  for (const owner of owners) {
+    try {
+      entitlementPaused += (await enforceStrategyEntitlements(String(owner.user_id))).paused;
+    } catch {
+      entitlementFailures += 1;
+    }
+  }
+
   const instances = await sql.unsafe("SELECT id FROM strategy_instances WHERE status='ACTIVE' ORDER BY id");
   let calculated = 0;
   let calculationFailures = 0;
@@ -31,9 +45,9 @@ export async function GET(request: Request) {
 
   const delivered = await processPendingDeliveries(100);
   const aggregates = await rebuildAnonymousAggregates();
-  const ok=calculationFailures===0;
+  const ok=calculationFailures===0&&entitlementFailures===0;
   return Response.json(
-    {ok,status:ok?"healthy":"degraded",marketData,calculated,calculationFailures,delivered,aggregates},
+    {ok,status:ok?"healthy":"degraded",marketData,entitlementPaused,entitlementFailures,calculated,calculationFailures,delivered,aggregates},
     {status:ok?200:503,headers:{"cache-control":"no-store"}}
   );
 }
