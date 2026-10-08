@@ -15,6 +15,7 @@ export default async function AdminLayout({children}:{children:React.ReactNode})
         <Link className="nav-link" href="/admin/launch">Launch readiness</Link>
         <Link className="nav-link" href="/admin/plans">Plans</Link>
         <Link className="nav-link" href="/admin/strategies">Strategies</Link>
+        <Link className="nav-link" href="/admin/strategies/research">Research catalog</Link>
         <Link className="nav-link" href="/admin/instruments">Instruments</Link>
         <Link className="nav-link" href="/admin/users">Users</Link>
         <Link className="nav-link" href="/app">Customer app</Link>
