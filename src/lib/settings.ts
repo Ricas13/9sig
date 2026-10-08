@@ -29,7 +29,9 @@ async function loadRows() {
     const key = String(row.key);
     if (!SETTING_KEYS.has(key)) continue;
     try {
-      out.push({ key, value: decryptSecret(String(row.value_encrypted)) });
+      const value = decryptSecret(String(row.value_encrypted));
+      // Preserve custom product names, but migrate the old default stored by the previous brand.
+      out.push({ key, value: key === "NEXT_PUBLIC_BRAND_NAME" && value === "Rebalune" ? "Wealtharr" : value });
     } catch {
       // A value that cannot be decrypted (for example after the encryption key changed) is
       // skipped, so the environment fallback applies instead of the app failing to start.

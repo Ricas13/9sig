@@ -30,12 +30,12 @@ const bool = (key: string, label: string, group: string, help: string): SettingD
 
 export const SETTINGS: readonly SettingDefinition[] = [
   { key: "NEXT_PUBLIC_APP_URL", label: "Public web address", group: "General", kind: "url", help: "The full https address customers use, for example https://app.example.com. Used for links in emails, sign-in redirects and request checks." },
-  { key: "NEXT_PUBLIC_BRAND_NAME", label: "Product name", group: "General", kind: "text", help: "Shown across the site and in emails. Defaults to Rebalune." },
+  { key: "NEXT_PUBLIC_BRAND_NAME", label: "Product name", group: "General", kind: "text", help: "Shown across the site and in emails. Defaults to Wealtharr." },
   bool("PUBLIC_INDEXING_ENABLED", "Let search engines index public pages", "General", "Leave off on staging. Turn on only for the real public site."),
   { key: "GOOGLE_SITE_VERIFICATION", label: "Google Search Console token", group: "General", kind: "text", help: "The verification token from Search Console (optional)." },
   { key: "TRUSTED_PROXY_HOPS", label: "Proxies in front of the app", group: "General", kind: "number", min: 0, max: 5, integer: true, help: "How many reverse proxies sit in front of the app (for example 1 for Caddy or nginx). Rate limits use the address the nearest trusted proxy saw." },
 
-  bool("REBALUNE_PAID_LAUNCH_ENABLED", "Accept paid subscriptions", "Billing (Stripe)", "Off by default. With a live Stripe key, checkout also stays blocked until every launch check passes."),
+  bool("WEALTHARR_PAID_LAUNCH_ENABLED", "Accept paid subscriptions", "Billing (Stripe)", "Off by default. With a live Stripe key, checkout also stays blocked until every launch check passes."),
   { key: "STRIPE_SECRET_KEY", label: "Stripe secret key", group: "Billing (Stripe)", kind: "secret", help: "sk_live_… or rk_live_… for real payments; sk_test_… for staging." },
   { key: "STRIPE_WEBHOOK_SECRET", label: "Stripe webhook signing secret", group: "Billing (Stripe)", kind: "secret", help: "whsec_… from the Stripe webhook endpoint pointing at /api/stripe/webhook." },
 
@@ -58,10 +58,10 @@ export const SETTINGS: readonly SettingDefinition[] = [
   { key: "AUTH_APPLE_PRIVATE_KEY", label: "Apple private key", group: "Sign-in providers", kind: "multiline-secret", help: "Paste the full .p8 key including the BEGIN/END lines." },
   { key: "AUTH_APPLE_SECRET", label: "Apple client secret (advanced)", group: "Sign-in providers", kind: "secret", help: "Only if you generate Apple's JWT yourself; otherwise leave empty and fill the three fields above." },
 
-  { key: "ANDROID_PACKAGE_NAME", label: "Android package name", group: "Mobile apps", kind: "text", pattern: /^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/, patternMessage: "Use a reverse-domain name such as com.example.rebalune.", help: "The applicationId of the Android app. Together with the fingerprint below it lets Android open website links in the app." },
+  { key: "ANDROID_PACKAGE_NAME", label: "Android package name", group: "Mobile apps", kind: "text", pattern: /^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/, patternMessage: "Use a reverse-domain name such as com.example.wealtharr.", help: "The applicationId of the Android app. Together with the fingerprint below it lets Android open website links in the app." },
   { key: "ANDROID_SHA256_CERT_FINGERPRINTS", label: "Android signing certificate fingerprint(s)", group: "Mobile apps", kind: "text", pattern: /^([0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){31})(\s*,\s*[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){31})*$/, patternMessage: "SHA-256 fingerprints look like AB:CD:… (32 pairs). Separate several with commas.", help: "From Play Console › App integrity (use the Play App Signing key), plus your upload key while testing." },
   { key: "IOS_TEAM_ID", label: "Apple team ID", group: "Mobile apps", kind: "text", pattern: /^[A-Z0-9]{10}$/, patternMessage: "A team ID is 10 capital letters or digits.", help: "From your Apple Developer account membership page." },
-  { key: "IOS_BUNDLE_ID", label: "iOS bundle ID", group: "Mobile apps", kind: "text", pattern: /^[a-zA-Z][a-zA-Z0-9-]*(\.[a-zA-Z][a-zA-Z0-9-]*)+$/, patternMessage: "Use a reverse-domain name such as com.example.rebalune.", help: "Must match the bundle ID of the iOS app. Lets iOS open website links in the app." },
+  { key: "IOS_BUNDLE_ID", label: "iOS bundle ID", group: "Mobile apps", kind: "text", pattern: /^[a-zA-Z][a-zA-Z0-9-]*(\.[a-zA-Z][a-zA-Z0-9-]*)+$/, patternMessage: "Use a reverse-domain name such as com.example.wealtharr.", help: "Must match the bundle ID of the iOS app. Lets iOS open website links in the app." },
 
   bool("ADMIN_MFA_REQUIRED", "Require two-step sign-in for admins", "Security", "Turn on once every admin has enabled two-step sign-in under Settings. Admins without it are kept out of admin tools."),
   { key: "CRON_SECRET", label: "Background job secret", group: "Security", kind: "secret", help: "Bearer token your scheduler sends to /api/cron/actions. At least 32 characters." },

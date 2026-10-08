@@ -15,7 +15,7 @@ const questions=[
  ["Can I use a UK ISA?","Eligibility and availability depend on the actual investment instrument, broker and account wrapper. The system must not assume that a US-listed ETF is available to UK ISA investors."],
  ["Are returns guaranteed?","No. Historical performance and simulated strategy examples do not guarantee future outcomes. Leveraged exchange-traded products can lose substantial value."]
 ];
-export default function FaqPage(){return <main><div className="container"><nav className="public-nav"><Link href="/" className="brand">{process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune"}</Link><Link className="button primary" href="/register">Get started</Link></nav>
+export default function FaqPage(){return <main><div className="container"><nav className="public-nav"><Link href="/" className="brand">{process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Wealtharr"}</Link><Link className="button primary" href="/register">Get started</Link></nav>
  <section className="section"><div className="eyebrow">Help centre</div><h1>Frequently asked questions</h1><div style={{marginTop:24}}>{questions.map(([q,a])=><section className="card" key={q} style={{marginTop:12}}><h2 style={{fontSize:21}}>{q}</h2><p>{a}</p></section>)}</div></section>
  <section className="section"><p>These explanations describe the intended rules-based tracking product; particular functions depend on active configuration and verified strategy releases.</p><Link href="/features" className="button">Explore features</Link></section>
  <footer className="footer"><Link href="/">Home</Link> · <Link href="/pricing">Pricing</Link> · <Link href="/strategies">Strategies</Link></footer></div></main>}

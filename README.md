@@ -1,6 +1,6 @@
-# Rebalune — rules-based portfolio tracking
+# Wealtharr — rules-based portfolio tracking
 
-This repository is a modular-monolith SaaS for operating user-selected, rules-based investment strategies. The source repository remains `Ricas13/9sig`, but **Rebalune** is the customer-facing product brand. 9Sig is only one supported strategy family.
+This repository is a modular-monolith SaaS for operating user-selected, rules-based investment strategies. The source repository is `Ricas13/wealtharr` and **Wealtharr** is the customer-facing product brand; **9Sig** remains one supported strategy family.
 
 The product is built around three questions:
 

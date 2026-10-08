@@ -27,8 +27,8 @@ export async function POST(request: Request) {
     const input = schema.parse(await request.json());
     // Paid onboarding is off until the operator has completed external
     // commercial, infrastructure, regulatory and live-provider sign-offs.
-    if(process.env.REBALUNE_PAID_LAUNCH_ENABLED!=="true"){
-      return Response.json({error:"Paid subscriptions are not yet available. Rebalune is in staging."},{status:503});
+    if(process.env.WEALTHARR_PAID_LAUNCH_ENABLED!=="true"){
+      return Response.json({error:"Paid subscriptions are not yet available. Wealtharr is in staging."},{status:503});
     }
 
     // A live Stripe key charges real cards: refuse until every launch check passes. The failed

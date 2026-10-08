@@ -15,7 +15,7 @@ export default async function AdminLayout({children}:{children:React.ReactNode})
   return <div className="app-shell">
     <a className="skip-link" href="#admin-main-content">Skip to main content</a>
     <aside className="sidebar">
-      <Link href="/admin" className="brand"><span className="brand-mark" aria-hidden="true"/>Rebalune Admin</Link>
+      <Link href="/admin" className="brand"><span className="brand-mark" aria-hidden="true"/>{process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Wealtharr"} Admin</Link>
       <nav className="nav-group" aria-label="Admin">
         <div className="nav-label">Control plane</div>
         <Link className="nav-link" href="/admin">System</Link>

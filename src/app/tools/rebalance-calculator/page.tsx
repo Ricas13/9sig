@@ -8,7 +8,7 @@ export const metadata:Metadata={
  openGraph:{title:"Free Portfolio Rebalancing Calculator",description:"Understand a target-weight rebalance with transparent maths.",url:"/tools/rebalance-calculator"}
 };
 export default function RebalanceCalculatorPage(){return <main><div className="container">
- <nav className="public-nav"><Link href="/" className="brand">{process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune"}</Link><Link href="/register" className="button primary">Track your own portfolio</Link></nav>
+ <nav className="public-nav"><Link href="/" className="brand">{process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Wealtharr"}</Link><Link href="/register" className="button primary">Track your own portfolio</Link></nav>
  <section className="section"><div className="eyebrow">Free investing tool</div><h1>Portfolio rebalancing calculator</h1>
  <p>Calculate how far a holding is from a chosen target percentage. The result is an arithmetic illustration, not personal investment advice or a strategy recommendation.</p>
  <div style={{marginTop:24}}><PublicRebalanceCalculator/></div></section>

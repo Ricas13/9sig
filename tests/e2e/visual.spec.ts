@@ -2,18 +2,20 @@ import { createHash } from "node:crypto";
 import { inflateSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
 
-// Reviewed 2026-10-08 against the rendered pages (Rebalune brand, accessible mobile menu, demo chart
+// Reviewed 2026-10-08 against the rendered Wealtharr pages (accessible mobile menu, demo chart
 // settled). Digests are those produced by CI's renderer (Playwright Chromium 153, ubuntu-latest) and
-// were identical across both attempts of the run, so they are deterministic there. They will not
-// match a different browser build: regenerate from CI's "Received" values after reviewing the diff.
-const expected:Record<string,Record<string,string>>={
+// are reviewed against CI screenshots (the mobile demo has two visually equivalent raster variants).
+// A different browser build may produce new hashes: review the attached screenshot before updating.
+const expected:Record<string,Record<string,string | string[]>>={
+  // Two equivalent mobile-demo renders were visually reviewed from the CI retry traces; tiny
+  // subpixel raster differences affect only text/chart labels, not layout or user-visible content.
   "mobile-chromium":{
-    landing:"ab2449678ad2041fe9fc187867787b6d0b138c60ceeee5aa8344395e409b7a92",
-    demo:"c87404a114ffa8c8e6aff764efd84a756316e1fce55f1e163555e12350b31c3a"
+    landing:"c9b1d56b3b79a28294eaa5c8a6c4674b46052b2e03e63dba76fcaf584ea6549a",
+    demo:["5c2d458e3777c7e31fdbd1ef3f923b872f0a67f10a8f32beafb5bb1b8a349df9","9f0a4b76fdef0f9d5dd38544e85667e3725b6a928a8ac71484f9f20a804da288"]
   },
   "desktop-chromium":{
-    landing:"3d58a726a49ee89a7b016437a2a7e82b3f3be54c49356fb512621c5fc744aba1",
-    demo:"c8914f040431b4a09b17504d26bea12064975ee298c64695a20728ed7698b895"
+    landing:"8bb40d5ebfa3721ce6721f3ea33f71f12103038643f5b5d425439ffeb17cf0b7",
+    demo:"e33b2064ae861de5277a378e9d390367f9ecc1aba0b326c50b2f99791b57d3a8"
   }
 };
 
@@ -115,7 +117,8 @@ for(const entry of [
     }
     const baseline=expected[testInfo.project.name]?.[entry.name];
     expect(baseline,"Missing visual baseline for "+testInfo.project.name+" / "+entry.name).toBeTruthy();
-    if(digest!==baseline)await testInfo.attach(entry.name+"-actual.png",{body:screenshot,contentType:"image/png"});
-    expect(digest).toBe(baseline);
+    const reviewed=Array.isArray(baseline)?baseline:[baseline];
+    if(!reviewed.includes(digest))await testInfo.attach(entry.name+"-actual.png",{body:screenshot,contentType:"image/png"});
+    expect(reviewed).toContain(digest);
   });
 }

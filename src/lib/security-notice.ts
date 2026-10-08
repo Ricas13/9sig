@@ -8,7 +8,7 @@ export async function notifySecurityEvent(userId: string, kind: SecurityNoticeKi
   try {
     const rows = await sql.unsafe("SELECT email FROM users WHERE id=$1 AND deleted_at IS NULL", [userId]);
     if (!rows[0]) return false;
-    const brand = process.env.NEXT_PUBLIC_BRAND_NAME?.trim() || "Rebalune";
+    const brand = process.env.NEXT_PUBLIC_BRAND_NAME?.trim() || "Wealtharr";
     const message = buildSecurityNotice(kind, brand, detail);
     const sent = await getEmailProvider().send({ to: String(rows[0].email), ...message });
     await sql.unsafe(

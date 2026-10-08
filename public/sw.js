@@ -1,10 +1,10 @@
-/* Rebalune service worker.
+/* Wealtharr service worker.
  *
  * Deliberately tiny and privacy-first: it never stores a page, an API response or anything that
  * could contain account or portfolio data. It only (1) keeps the hashed, public build assets so the
  * app starts quickly and (2) shows a friendly offline screen when the network is unreachable.
  */
-const CACHE = "rebalune-shell-v1";
+const CACHE = "wealtharr-shell-v1";
 const OFFLINE_URL = "/offline";
 
 self.addEventListener("install", (event) => {

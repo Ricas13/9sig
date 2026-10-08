@@ -5,7 +5,7 @@ import { ensureSettings } from "@/lib/settings";
 // reads. Name comes from the admin settings.
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   await ensureSettings();
-  const brand = process.env.NEXT_PUBLIC_BRAND_NAME?.trim() || "Rebalune";
+  const brand = process.env.NEXT_PUBLIC_BRAND_NAME?.trim() || "Wealtharr";
   return {
     id: "/app",
     name: brand,

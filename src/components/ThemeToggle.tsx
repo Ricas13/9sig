@@ -13,7 +13,7 @@ export function ThemeToggle() {
     const next: Theme = currentTheme() === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = next;
     document.documentElement.style.colorScheme = next;
-    window.localStorage.setItem("rebalune-theme", next);
+    window.localStorage.setItem("wealtharr-theme", next);
   }
 
   return <button

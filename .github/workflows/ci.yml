@@ -67,7 +67,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: rebalune-browser-regressions
+          name: wealtharr-browser-regressions
           path: |
             test-results/
             playwright-report/
