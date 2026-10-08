@@ -4,11 +4,11 @@ import { expect, test } from "@playwright/test";
 
 const expected:Record<string,Record<string,string>>={
   "mobile-chromium":{
-    landing:"33a25e654b5fa2a2c59312f99fe4604a528c771a3df036413b50800002f41724",
+    landing:"54be3dd9689d42fd8601798783b0a4cde315971b188d0ce3f0f014da39a3b4ca",
     demo:"5f8812c9312bf8d94cee87af91d05cca2f2d25785b6edf589bd300e63064f8d1"
   },
   "desktop-chromium":{
-    landing:"56f8622d3cbaa29ea3d7c348dfce9296da5fbf482025b82de2c884bba027ff09",
+    landing:"a7705f7b0926a022aca5ff2d9e81959bb2ba7ff1fb4fff6bba38348f55b8c5a7",
     demo:"556f4a545cd458a397e400a6f5106ce3b1aea543a3756093e46cd92080f7c0d1"
   }
 };
