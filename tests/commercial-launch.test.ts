@@ -22,7 +22,7 @@ describe("commercial launch preflight",()=>{
  });
  it("blocks HTTP provider origin and local database",()=>{
   const r=checkCommercialLaunch({...baseline,MARKET_DATA_HTTP_BASE_URL:"http://quotes.example.org",DATABASE_URL:"postgresql://localhost/db"});
-  expect(r.find(x=>x.key==="licensed_market_data")?.passed).toBe(false);
+  expect(r.find(x=>x.key==="market_data_mode")?.passed).toBe(false);
   expect(r.find(x=>x.key==="database")?.passed).toBe(false);
  });
 });
