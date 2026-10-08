@@ -2,14 +2,18 @@ import { createHash } from "node:crypto";
 import { inflateSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
 
+// Reviewed 2026-10-08 against the rendered pages (Rebalune brand, accessible mobile menu, demo chart
+// settled). Digests are those produced by CI's renderer (Playwright Chromium 153, ubuntu-latest) and
+// were identical across both attempts of the run, so they are deterministic there. They will not
+// match a different browser build: regenerate from CI's "Received" values after reviewing the diff.
 const expected:Record<string,Record<string,string>>={
   "mobile-chromium":{
-    landing:"54be3dd9689d42fd8601798783b0a4cde315971b188d0ce3f0f014da39a3b4ca",
-    demo:"5f8812c9312bf8d94cee87af91d05cca2f2d25785b6edf589bd300e63064f8d1"
+    landing:"f6c5e27bd990a9e66392c135c0270e5f557d06168ce4cca2aa53de4d883faa4e",
+    demo:"98df88f7a9b407e830587114f5516d405098581ceabf7adcb7ab3f0a47ea9ced"
   },
   "desktop-chromium":{
-    landing:"a7705f7b0926a022aca5ff2d9e81959bb2ba7ff1fb4fff6bba38348f55b8c5a7",
-    demo:"556f4a545cd458a397e400a6f5106ce3b1aea543a3756093e46cd92080f7c0d1"
+    landing:"5a43da4367e98822b20fc1209af6cffe8282e4c2fe2a024f56bb540165bc40f9",
+    demo:"23e2e025d27445a9c2df9d7a510e2542fe9bba75862ddc7a46eddc491bad6267"
   }
 };
 
