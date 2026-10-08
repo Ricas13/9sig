@@ -1,6 +1,7 @@
 import "server-only";
 import { sql } from "@/lib/db";
 import { getMarketDataProvider } from "@/lib/market-data";
+import { classifyFreshness } from "@/domain/market-freshness";
 
 export async function refreshMarketData() {
   const provider = getMarketDataProvider();
@@ -36,6 +37,11 @@ export async function refreshMarketData() {
         if (!observation) {
           failed += 1;
           failures.push({ tradingLineId: String(line.id), code: "NO_QUOTE" });
+          continue;
+        }
+        if (classifyFreshness(observation.observedAt) !== "CURRENT") {
+          failed += 1;
+          failures.push({ tradingLineId: String(line.id), code: "STALE_OR_INVALID_QUOTE" });
           continue;
         }
         if (observation.currency !== String(line.currency).toUpperCase()) {
