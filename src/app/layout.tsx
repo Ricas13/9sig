@@ -1,9 +1,20 @@
 import type { Metadata } from "next";
+import {siteOrigin,publicIndexingEnabled} from "@/lib/public-seo";
 import "./globals.css";
 
+const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"StrategyOS";
+const origin=siteOrigin(process.env.NEXT_PUBLIC_APP_URL);
 export const metadata: Metadata = {
-  title: { default: "StrategyOS", template: "%s · StrategyOS" },
-  description: "Operate rules-based investment strategies with transparent calculations, action queues and reconciliation."
+  metadataBase:origin,
+  applicationName:brand,
+  title:{default:brand+" | Rules-Based Portfolio Tracker",template:"%s | "+brand},
+  description:"Track self-selected investment strategies, portfolio prices, scheduled reviews, and rules-based rebalancing. Transparent calculations and user-confirmed trades.",
+  alternates:{canonical:"/"},
+  openGraph:{type:"website",locale:"en_GB",siteName:brand,url:"/",title:brand+" | Rules-Based Portfolio Tracker",
+    description:"Track portfolio strategies, scheduled reviews and transparent rebalance calculations."},
+  twitter:{card:"summary",title:brand+" | Rules-Based Portfolio Tracker",description:"Keep track of your investment strategies and review dates."},
+  robots:publicIndexingEnabled(process.env)?{index:true,follow:true}:{index:false,follow:false,noarchive:true},
+  category:"finance"
 };
 
 const themeScript = `
