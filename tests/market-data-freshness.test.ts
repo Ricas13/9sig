@@ -1,5 +1,5 @@
 import {describe,it,expect} from "vitest";
-import {classifyFreshness} from "../src/lib/market-data";
+import {classifyFreshness} from "../src/domain/market-freshness";
 describe("market data freshness",()=>{
   const now=new Date("2026-10-08T10:00:00Z");
   it("accepts recent observed data",()=>expect(classifyFreshness(new Date("2026-10-08T09:00:00Z"),now)).toBe("CURRENT"));
