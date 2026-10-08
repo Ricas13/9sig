@@ -1393,7 +1393,7 @@ html[data-theme="light"] .resume-progress {
     justify-content:center;
     border:1px solid var(--line);
     border-radius:12px;
-    background:var(--surface,rgba(255,255,255,.96));
+    background:var(--panel-solid);
     color:var(--text);
     font-weight:800;
     font-size:14px;
@@ -1408,7 +1408,7 @@ html[data-theme="light"] .resume-progress {
     padding:12px;
     border:1px solid var(--line);
     border-radius:18px;
-    background:var(--surface,#fff);
+    background:var(--panel-solid);
     box-shadow:0 24px 65px rgba(14,35,60,.22);
     display:grid;
     gap:4px;
