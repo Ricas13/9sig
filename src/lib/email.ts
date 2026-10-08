@@ -18,7 +18,9 @@ class HttpEmailProvider implements EmailProvider {
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: "Bearer " + token },
-      body: JSON.stringify({ from: process.env.EMAIL_FROM, ...message })
+      body: JSON.stringify({ from: process.env.EMAIL_FROM, ...message }),
+      cache:"no-store",
+      signal:AbortSignal.timeout(10_000)
     });
     return response.ok;
   }
