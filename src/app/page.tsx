@@ -21,7 +21,9 @@ export default async function HomePage() {
 
   const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"StrategyOS";
   const origin=siteOrigin(process.env.NEXT_PUBLIC_APP_URL).toString();
-  const schema={"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":brand,"url":origin},{"@type":"SoftwareApplication","name":brand,"applicationCategory":"FinanceApplication","operatingSystem":"Web","url":origin,"description":"Rules-based portfolio tracker with holdings, user-selected strategies, market price references and scheduled investment review calculations."}]};
+  const offeredPlan=plans.find(p=>Number.isFinite(Number(p.monthly_price_minor))&&Number(p.monthly_price_minor)>=0&&/^[A-Z]{3}$/.test(String(p.billing_currency)));
+  const offer=offeredPlan?{offers:{"@type":"Offer",price:(Number(offeredPlan.monthly_price_minor)/100).toFixed(2),priceCurrency:String(offeredPlan.billing_currency)}}:{};
+  const schema={"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":brand,"url":origin},{"@type":"SoftwareApplication","name":brand,"applicationCategory":"FinanceApplication","operatingSystem":"Web","url":origin,"description":"Rules-based portfolio tracker with holdings, user-selected strategies, market price references and scheduled investment review calculations.",...offer}]};
   return <main>
     <script type="application/ld+json" dangerouslySetInnerHTML={{__html:safeJsonLd(schema)}}/>
     <div className="container">
