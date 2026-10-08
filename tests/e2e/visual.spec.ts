@@ -4,8 +4,8 @@ import { expect, test } from "@playwright/test";
 
 // Reviewed 2026-10-08 against the rendered Wealtharr pages (accessible mobile menu, demo chart
 // settled). Digests are those produced by CI's renderer (Playwright Chromium 153, ubuntu-latest) and
-// were identical across both attempts of the run, so they are deterministic there. They will not
-// match a different browser build: regenerate from CI's "Received" values after reviewing the diff.
+// are reviewed against CI screenshots (the mobile demo has two visually equivalent raster variants).
+// A different browser build may produce new hashes: review the attached screenshot before updating.
 const expected:Record<string,Record<string,string | string[]>>={
   // Two equivalent mobile-demo renders were visually reviewed from the CI retry traces; tiny
   // subpixel raster differences affect only text/chart labels, not layout or user-visible content.

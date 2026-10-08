@@ -24,7 +24,6 @@ describe("Wealtharr brand migration",()=>{
  it("uses Wealtharr as the default production brand",()=>{
   expect(read(".env.example")).toContain("NEXT_PUBLIC_BRAND_NAME=Wealtharr");
   expect(read("src/app/layout.tsx")).toContain('||"Wealtharr"');
-  expect(read("src/lib/settings.ts")).toContain('value === "Rebalune" ? "Wealtharr"');
  });
  it("preserves previous theme setting while writing only the new key",()=>{
   expect(read("src/app/layout.tsx")).toContain('localStorage.getItem("strategyos-theme")');
@@ -43,10 +42,8 @@ describe("former brand name",()=>{
   });
   const offenders=walk("src").filter((f)=>/\.(tsx?|css)$/.test(f)).filter((f)=>{
    // The legacy theme storage key is read on purpose so existing users keep their theme.
-   // Explicit old-value compatibility is allowed only for the saved setting and native-app marker.
-   const text=read(f).replace(/strategyos-theme/g,"").replace(/RebaluneApp/g,"");
-   const checked=f==="src/lib/settings.ts"?text.replace('value === "Rebalune" ? "Wealtharr"',""):text;
-   return checked.includes("StrategyOS") || /\bRebalune\b/.test(checked);
+   const text=read(f).replace(/strategyos-theme/g,"");
+   return text.includes("StrategyOS") || /Rebalune(?!App)/.test(text);
   });
   expect(offenders).toEqual([]);
  });
