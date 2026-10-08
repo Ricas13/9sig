@@ -28,4 +28,21 @@ describe("Stripe webhook financial safety",()=>{
     expect(block).not.toContain("pp.active=true");
     expect(block).toContain("AMBIGUOUS_STRIPE_PRICE");
   });
+
+  it("acts on Stripe's current subscription state, not the possibly stale event payload",()=>{
+    expect(source).toContain("stripe.subscriptions.retrieve(subscriptionId)");
+    expect(source).toContain("retrieveCurrentSubscription(stripe,eventSubscription.id)");
+    expect(source).toContain("isTerminalStripeStatus(subscription.status)");
+  });
+
+  it("lets a new subscription replace a dead stored one instead of cancelling it as a duplicate",()=>{
+    expect(source).toContain("SELECT stripe_subscription_id,status FROM subscriptions WHERE user_id=$1 FOR UPDATE");
+    expect(source).toContain("!isTerminalLocalStatus(rows[0].status)");
+  });
+
+  it("only trusts metadata plan ids that exist",()=>{
+    const resolveStart=source.indexOf("async function resolvePlanId");
+    const resolveEnd=source.indexOf("async function retrieveCurrentSubscription",resolveStart);
+    expect(source.slice(resolveStart,resolveEnd)).toContain("SELECT id FROM plans WHERE id::text=$1");
+  });
 });

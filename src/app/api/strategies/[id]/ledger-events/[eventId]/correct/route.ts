@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import { z } from "zod";
 import { requireUser } from "@/lib/session";
-import { calculateAction } from "@/lib/action-service";
+import { recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
 
@@ -14,9 +14,10 @@ export async function POST(request:Request,context:{params:Promise<{id:string;ev
     const {id,eventId}=await context.params;
     const input=schema.parse(await request.json());
 
-    const correctionId=await sql.begin(async(tx)=>{
+    const corrected=await sql.begin(async(tx)=>{
       const instances=await tx.unsafe("SELECT id,status FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE",[id,user.id]);
       if(!instances[0])throw new Error("STRATEGY_NOT_FOUND");
+      if(String(instances[0].status)==="CLOSED")throw new Error("STRATEGY_CLOSED");
       const rows=await tx.unsafe(
         "SELECT * FROM ledger_events WHERE id=$1 AND strategy_instance_id=$2 FOR UPDATE",
         [eventId,id]
@@ -45,17 +46,17 @@ export async function POST(request:Request,context:{params:Promise<{id:string;ev
         "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'ledger.event-corrected','ledger_event',$2,$3::jsonb)",
         [user.id,newId,JSON.stringify({strategyInstanceId:id,correctionOfEventId:eventId,reason:input.reason})]
       );
-      return newId;
+      return {correctionId:newId,status:String(instances[0].status)};
     });
 
-    let actionId:string|null=null;
-    try{actionId=(await calculateAction(id)).actionId;}catch{}
-    return Response.json({ok:true,correctionId,actionId});
+    const recalc=corrected.status==="ACTIVE"?await recalculateAfterMutation(id,user.id,"ledger-correction"):{actionId:null,recalculationPending:false,errorCode:null};
+    return Response.json({ok:true,correctionId:corrected.correctionId,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending});
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Enter a reason for the correction."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     const messages:Record<string,string>={
       STRATEGY_NOT_FOUND:"Strategy not found.",
+      STRATEGY_CLOSED:"Closed strategies are read-only.",
       LEDGER_EVENT_NOT_FOUND:"Ledger event not found.",
       CORRECTION_CANNOT_BE_REVERSED:"A correction entry cannot itself be reversed. Correct the original replacement entry instead.",
       LEDGER_EVENT_ALREADY_CORRECTED:"This ledger event has already been reversed."

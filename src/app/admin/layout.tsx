@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/session";
+import { requireAdmin, requirePageUser } from "@/lib/session";
 
 export const dynamic="force-dynamic";
 
 export default async function AdminLayout({children}:{children:React.ReactNode}){
+  await requirePageUser();
   await requireAdmin();
   return <div className="app-shell">
     <a className="skip-link" href="#admin-main-content">Skip to main content</a>

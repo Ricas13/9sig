@@ -5,6 +5,7 @@ import { getStrategyForUser } from "@/lib/strategy-service";
 import { recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
+import { assertLedgerEvent } from "@/domain/ledger";
 
 const amount=z.string().regex(/^\d+(?:\.\d{1,8})?$/);
 const schema=z.object({
@@ -32,6 +33,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     if(["DIVIDEND","DISTRIBUTION","INTEREST"].includes(input.eventType))cashAmount=value;
     if(["WITHDRAWAL","TAX"].includes(input.eventType))cashAmount=value.neg();
     if(input.eventType==="FEE")feeAmount=value;
+    assertLedgerEvent({eventType:input.eventType,cashAmount,feeAmount});
 
     if(String(strategy.status)==="CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
 

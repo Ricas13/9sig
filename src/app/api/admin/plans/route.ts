@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/session";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
+import { enforceStrategyEntitlements } from "@/lib/entitlement-service";
 
 const schema=z.object({
   slug:z.string().min(1).max(60),displayName:z.string().min(1),description:z.string().default(""),
@@ -21,7 +22,23 @@ export async function PUT(request:Request){
       " ON CONFLICT (slug) DO UPDATE SET display_name=EXCLUDED.display_name,description=EXCLUDED.description,monthly_price_minor=EXCLUDED.monthly_price_minor,annual_price_minor=EXCLUDED.annual_price_minor,annual_discount_bps=EXCLUDED.annual_discount_bps,billing_currency=EXCLUDED.billing_currency,supported_billing_currencies=EXCLUDED.supported_billing_currencies,max_active_strategies=EXCLUDED.max_active_strategies,available_strategy_keys=EXCLUDED.available_strategy_keys,stripe_monthly_price_id=EXCLUDED.stripe_monthly_price_id,stripe_annual_price_id=EXCLUDED.stripe_annual_price_id,entitlements=EXCLUDED.entitlements,trial_days=EXCLUDED.trial_days,visible=EXCLUDED.visible,archived=EXCLUDED.archived,sort_order=EXCLUDED.sort_order,updated_at=now()",
       [p.slug,p.displayName,p.description,p.monthlyPriceMinor,p.annualPriceMinor,p.annualDiscountBps,p.currency.toUpperCase(),JSON.stringify(p.supportedBillingCurrencies.map(x=>x.toUpperCase())),p.maxActiveStrategies,JSON.stringify(p.availableStrategyKeys),p.stripeMonthlyPriceId??null,p.stripeAnnualPriceId??null,JSON.stringify(p.entitlements),p.trialDays,p.visible,p.archived,p.sortOrder]
     );
+    // Record the change before enforcement so it is audited even if enforcement is slow or fails.
     await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id) VALUES ($1,'plan.upsert','plan',$2)",[admin.id,p.slug]);
-    return Response.json({ok:true});
+    // Limits changed under existing subscribers must apply to them too. Users whose
+    // subscription is not live fall back to the free plan, so they are covered by its slug.
+    const subscribers=await sql.unsafe(
+      "SELECT s.user_id FROM subscriptions s JOIN plans p ON p.id=s.plan_id "+
+      "WHERE (p.slug=$1 AND s.status IN ('FREE','ACTIVE','TRIALING','PAST_DUE')) "+
+      "OR ($1='free' AND s.status NOT IN ('FREE','ACTIVE','TRIALING','PAST_DUE'))",
+      [p.slug]
+    );
+    let paused=0;
+    let enforcementFailures=0;
+    for(const subscriber of subscribers){
+      try{paused+=(await enforceStrategyEntitlements(String(subscriber.user_id))).paused;}
+      catch{enforcementFailures+=1;}
+    }
+    await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'plan.enforced','plan',$2,$3::jsonb)",[admin.id,p.slug,JSON.stringify({subscribersChecked:subscribers.length,strategiesPaused:paused,enforcementFailures})]);
+    return Response.json({ok:true,subscribersChecked:subscribers.length,strategiesPaused:paused,enforcementFailures});
   }catch(error){if(error instanceof z.ZodError)return Response.json({error:"Invalid plan configuration."},{status:400});return Response.json({error:"Could not update plan."},{status:500});}
 }

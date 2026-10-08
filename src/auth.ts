@@ -22,14 +22,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
         const rows = await sql.unsafe(
-          "SELECT id,email,password_hash,email_verified_at,role FROM users WHERE lower(email)=lower($1) AND deleted_at IS NULL LIMIT 1",
+          "SELECT id,email,password_hash,email_verified_at,role,session_version FROM users WHERE lower(email)=lower($1) AND deleted_at IS NULL LIMIT 1",
           [parsed.data.email]
         );
         const user = rows[0];
         if (!user) return null;
         if (process.env.NODE_ENV === "production" && !user.email_verified_at) return null;
         if (!await bcrypt.compare(parsed.data.password, String(user.password_hash))) return null;
-        return { id: String(user.id), email: String(user.email), role: String(user.role) };
+        return { id: String(user.id), email: String(user.email), role: String(user.role), sessionVersion: Number(user.session_version ?? 0) };
       }
     })
   ],
@@ -37,12 +37,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     jwt({ token, user }) {
       if (user?.id) token.uid = user.id;
       if (user && "role" in user) token.role = String(user.role);
+      if (user) token.sv = Number(user.sessionVersion ?? 0);
       return token;
     },
     session({ session, token }) {
       if (session.user) {
         session.user.id = String(token.uid ?? token.sub ?? "");
         session.user.role = String(token.role ?? "USER");
+        // Tokens issued before session versions existed carry none and count as version 0.
+        session.user.sessionVersion = Number(token.sv ?? 0);
       }
       return session;
     }
