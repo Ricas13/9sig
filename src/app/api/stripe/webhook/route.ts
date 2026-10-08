@@ -42,27 +42,32 @@ async function resolvePlanId(subscription: Stripe.Subscription) {
     if(legacy.length>1)throw new Error("AMBIGUOUS_STRIPE_PRICE");
     if(legacy[0])return String(legacy[0].id);
   }
-  return subscription.metadata.planId||null;
+  // Never promote a subscription from mutable metadata when its Stripe Price
+  // is not mapped to a published local product.
+  return null;
 }
 
 async function resolveSubscriptionUserId(subscription:Stripe.Subscription){
-  if(subscription.metadata.userId)return subscription.metadata.userId;
-
+  const customerId=typeof subscription.customer==="string"?subscription.customer:subscription.customer?.id;
+  if(!customerId)throw new Error("STRIPE_CUSTOMER_MISSING");
   const bySubscription=await sql.unsafe(
-    "SELECT user_id FROM subscriptions WHERE stripe_subscription_id=$1 LIMIT 2",
+    "SELECT DISTINCT user_id FROM subscriptions WHERE stripe_subscription_id=$1 LIMIT 2",
     [subscription.id]
   );
-  if(bySubscription.length>1)throw new Error("AMBIGUOUS_SUBSCRIPTION_OWNER");
-  if(bySubscription[0])return String(bySubscription[0].user_id);
-
-  const customerId=typeof subscription.customer==="string"?subscription.customer:subscription.customer?.id;
-  if(!customerId)return null;
   const byCustomer=await sql.unsafe(
-    "SELECT user_id FROM subscriptions WHERE stripe_customer_id=$1 LIMIT 2",
+    "SELECT DISTINCT user_id FROM subscriptions WHERE stripe_customer_id=$1 LIMIT 2",
     [customerId]
   );
-  if(byCustomer.length>1)throw new Error("AMBIGUOUS_SUBSCRIPTION_OWNER");
-  return byCustomer[0]?String(byCustomer[0].user_id):null;
+  if(bySubscription.length>1||byCustomer.length>1)throw new Error("AMBIGUOUS_SUBSCRIPTION_OWNER");
+  const subscriptionUser=bySubscription[0]?String(bySubscription[0].user_id):null;
+  const customerUser=byCustomer[0]?String(byCustomer[0].user_id):null;
+  if(subscriptionUser&&customerUser&&subscriptionUser!==customerUser)
+    throw new Error("SUBSCRIPTION_CUSTOMER_OWNERSHIP_CONFLICT");
+  const canonical=subscriptionUser??customerUser;
+  if(!canonical)throw new Error("SUBSCRIPTION_OWNER_NOT_VERIFIED");
+  if(subscription.metadata.userId&&subscription.metadata.userId!==canonical)
+    throw new Error("STRIPE_METADATA_OWNER_MISMATCH");
+  return canonical;
 }
 
 export async function POST(request:Request){
@@ -84,36 +89,53 @@ export async function POST(request:Request){
     let duplicateSubscriptionId:string|null=null;
 
     if(event.type.startsWith("customer.subscription.")){
-      const subscription=event.data.object as Stripe.Subscription;
-      const userId=await resolveSubscriptionUserId(subscription);
-      if(userId){
-        if(event.type==="customer.subscription.deleted"){
-          const updated=await sql.unsafe(
-            "UPDATE subscriptions SET status='FREE',cadence='FREE',stripe_subscription_id=NULL,current_period_end=NULL,cancel_at_period_end=false,plan_id=(SELECT id FROM plans WHERE slug='free' LIMIT 1),updated_at=now() WHERE user_id=$1 AND stripe_subscription_id=$2 RETURNING user_id",
-            [userId,subscription.id]
-          );
-          if(updated[0])affectedUserId=userId;
-        }else{
-          const planId=await resolvePlanId(subscription);
-          if(!planId)throw new Error("PLAN_NOT_RESOLVED");
-          const decision=await sql.begin(async(tx)=>{
-            const rows=await tx.unsafe("SELECT stripe_subscription_id FROM subscriptions WHERE user_id=$1 FOR UPDATE",[userId]);
-            if(!rows[0])return {duplicate:true,orphan:true};
-            const canonical=rows[0].stripe_subscription_id?String(rows[0].stripe_subscription_id):null;
-            if(canonical&&canonical!==subscription.id)return {duplicate:true};
-            const status=subscription.status==="active"?"ACTIVE":subscription.status==="trialing"?"TRIALING":subscription.status.toUpperCase();
-            const item=subscription.items.data[0];
+      const incoming=event.data.object as Stripe.Subscription;
+      // Serialize each subscription before fetching canonical Stripe state.
+      // Replayed or out-of-order events can only ever apply the current state.
+      const outcome=await sql.begin(async(tx)=>{
+        await tx.unsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,1))",[incoming.id]);
+        const canonical=await stripe.subscriptions.retrieve(incoming.id);
+        const userId=await resolveSubscriptionUserId(canonical);
+        const rows=await tx.unsafe(
+          "SELECT stripe_subscription_id,stripe_customer_id FROM subscriptions WHERE user_id=$1 FOR UPDATE",
+          [userId]
+        );
+        if(!rows[0])throw new Error("LOCAL_BILLING_OWNER_MISSING");
+        const customerId=typeof canonical.customer==="string"?canonical.customer:canonical.customer?.id;
+        if(rows[0].stripe_customer_id!==customerId)
+          throw new Error("SUBSCRIPTION_CUSTOMER_OWNERSHIP_CONFLICT");
+        const current=rows[0].stripe_subscription_id?String(rows[0].stripe_subscription_id):null;
+        if(current&&current!==canonical.id)
+          return {userId:null as string|null,duplicate:event.type==="customer.subscription.created"?canonical.id:null};
+        if(canonical.status==="canceled"||canonical.status==="incomplete_expired"){
+          if(current===canonical.id){
             await tx.unsafe(
-              "UPDATE subscriptions SET plan_id=$1,status=$2,cadence=$3,stripe_subscription_id=$4,current_period_end=$5,cancel_at_period_end=$6,updated_at=now() WHERE user_id=$7",
-              [planId,status,item?.price.recurring?.interval==="year"?"ANNUAL":"MONTHLY",subscription.id,item?.current_period_end?new Date(item.current_period_end*1000):null,subscription.cancel_at_period_end,userId]
+              "UPDATE subscriptions SET status='FREE',cadence='FREE',stripe_subscription_id=NULL,"+
+              "current_period_end=NULL,cancel_at_period_end=false,plan_id=(SELECT id FROM plans WHERE slug='free' LIMIT 1),updated_at=now() "+
+              "WHERE user_id=$1 AND stripe_subscription_id=$2",
+              [userId,canonical.id]
             );
-            return {duplicate:false};
-          });
-          if(decision.duplicate){
-            if(event.type==="customer.subscription.created"||("orphan" in decision&&decision.orphan))duplicateSubscriptionId=subscription.id;
-          }else affectedUserId=userId;
+            return {userId,duplicate:null};
+          }
+          return {userId:null as string|null,duplicate:null};
         }
-      }
+        // Only permit grants for a mapped Stripe Price, not planId metadata.
+        const planId=await resolvePlanId(canonical);
+        if(!planId)throw new Error("PLAN_NOT_RESOLVED");
+        const item=canonical.items.data[0];
+        if(!item?.price?.recurring)throw new Error("STRIPE_RECURRING_PRICE_MISSING");
+        const status=canonical.status==="active"?"ACTIVE":canonical.status==="trialing"?"TRIALING":canonical.status.toUpperCase();
+        await tx.unsafe(
+          "UPDATE subscriptions SET plan_id=$1,status=$2,cadence=$3,stripe_subscription_id=$4,"+
+          "current_period_end=$5,cancel_at_period_end=$6,updated_at=now() WHERE user_id=$7",
+          [planId,status,item.price.recurring.interval==="year"?"ANNUAL":"MONTHLY",
+            canonical.id,item.current_period_end?new Date(item.current_period_end*1000):null,
+            canonical.cancel_at_period_end,userId]
+        );
+        return {userId,duplicate:null};
+      });
+      affectedUserId=outcome.userId;
+      duplicateSubscriptionId=outcome.duplicate;
     }
 
     if(duplicateSubscriptionId){
