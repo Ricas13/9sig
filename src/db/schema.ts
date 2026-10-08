@@ -19,6 +19,7 @@ export const users = pgTable("users", {
   timezone: text("timezone").notNull().default("Europe/London"),
   role: text("role").notNull().default("USER"),
   anonymousAggregateOptIn: boolean("anonymous_aggregate_opt_in").notNull().default(true),
+  sessionVersion: integer("session_version").notNull().default(0),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   ...timestamps
 });

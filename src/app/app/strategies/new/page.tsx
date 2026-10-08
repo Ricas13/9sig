@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Crown } from "lucide-react";
-import { requireUser } from "@/lib/session";
+import { requirePageUser } from "@/lib/session";
 import { listAvailableStrategies, listUserStrategies } from "@/lib/strategy-service";
 import { loadEntitlements } from "@/lib/entitlement-service";
 import { CreateStrategyForm } from "@/components/CreateStrategyForm";
 
 export default async function NewStrategyPage(){
-  const user=await requireUser();
+  const user=await requirePageUser();
   const [rows,existing,entitlements]=await Promise.all([
     listAvailableStrategies(),
     listUserStrategies(user.id),

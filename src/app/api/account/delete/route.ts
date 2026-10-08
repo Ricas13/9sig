@@ -19,11 +19,18 @@ export async function DELETE(request: Request) {
         return Response.json({ error: "Billing must be disconnected before this account can be deleted." }, { status: 503 });
       }
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-      if (billing.stripe_customer_id) {
-        await stripe.customers.del(String(billing.stripe_customer_id));
-      } else if (billing.stripe_subscription_id) {
-        const subscription = await stripe.subscriptions.retrieve(String(billing.stripe_subscription_id));
-        if (subscription.status !== "canceled") await stripe.subscriptions.cancel(subscription.id);
+      // Stripe must be cleaned up first so a deleted user is never billed again, but the
+      // call has to be retry-safe: if the local delete failed after Stripe succeeded, the
+      // customer is already gone and a retry must carry on to the local delete.
+      try {
+        if (billing.stripe_customer_id) {
+          await stripe.customers.del(String(billing.stripe_customer_id));
+        } else if (billing.stripe_subscription_id) {
+          const subscription = await stripe.subscriptions.retrieve(String(billing.stripe_subscription_id));
+          if (subscription.status !== "canceled") await stripe.subscriptions.cancel(subscription.id);
+        }
+      } catch (stripeError) {
+        if ((stripeError as { code?: string })?.code !== "resource_missing") throw stripeError;
       }
     }
 

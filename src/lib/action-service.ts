@@ -2,7 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import Decimal from "decimal.js";
 import { sql } from "@/lib/db";
-import { foldLedger } from "@/domain/ledger";
+import { assertLedgerEvent, foldLedger } from "@/domain/ledger";
 import { getStrategyEngine } from "@/domain/strategy/registry";
 import { exposureLeverage, resolveMapping, type MappingCandidate } from "@/domain/instruments";
 import { assertExecutionCurrencyMatch, normalizeExecutionConstraints, planPracticalTrade, validateExecution } from "@/domain/execution";
@@ -699,6 +699,8 @@ export async function executeAction(
       if(!constraints.fractionalShares&&!validated.quantity.isInteger())throw new Error("FRACTIONAL_SHARES_DISABLED");
       if(validated.grossNotional.lt(constraints.minimumTradeAmount))throw new Error("BELOW_MINIMUM_TRADE");
 
+      // Backstop: the signs and fee rules of a trade row are enforced right at the write.
+      assertLedgerEvent({eventType:actionType,cashAmount:validated.cashAmount,feeAmount:validated.fee,instrumentId:String(action.instrument_id),quantity:validated.ledgerQuantity});
       const inserted=await tx.unsafe(
         "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,$2,now(),$3,$4,$5,$6,$7,$8,$9,'USER_ENTERED','VERIFIED',$10::jsonb) RETURNING id",
         [

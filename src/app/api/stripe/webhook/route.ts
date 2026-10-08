@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { sql } from "@/lib/db";
 import { enforceStrategyEntitlements } from "@/lib/entitlement-service";
+import { isTerminalLocalStatus, isTerminalStripeStatus } from "@/domain/subscription-status";
 
 async function claimWebhookEvent(event: Stripe.Event) {
   const inserted=await sql.unsafe(
@@ -45,6 +46,17 @@ async function resolvePlanId(subscription: Stripe.Subscription) {
   // Never promote a subscription from mutable metadata when its Stripe Price
   // is not mapped to a published local product.
   return null;
+}
+
+async function retrieveCurrentSubscription(stripe:Stripe,subscriptionId:string){
+  try{
+    return await stripe.subscriptions.retrieve(subscriptionId);
+  }catch(retrieveError){
+    // A subscription Stripe no longer knows about (for example after its customer was
+    // deleted) has ended; callers treat null as "ended" rather than retrying forever.
+    if((retrieveError as {code?:string})?.code==="resource_missing")return null;
+    throw retrieveError;
+  }
 }
 
 async function resolveSubscriptionUserId(subscription:Stripe.Subscription){
@@ -94,42 +106,53 @@ export async function POST(request:Request){
       // Replayed or out-of-order events can only ever apply the current state.
       const outcome=await sql.begin(async(tx)=>{
         await tx.unsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,1))",[incoming.id]);
-        const canonical=await stripe.subscriptions.retrieve(incoming.id);
-        const userId=await resolveSubscriptionUserId(canonical);
+        const canonical=await retrieveCurrentSubscription(stripe,incoming.id);
+        const subject=canonical??incoming;
+        const userId=await resolveSubscriptionUserId(subject);
         const rows=await tx.unsafe(
-          "SELECT stripe_subscription_id,stripe_customer_id FROM subscriptions WHERE user_id=$1 FOR UPDATE",
+          "SELECT stripe_subscription_id,stripe_customer_id,status FROM subscriptions WHERE user_id=$1 FOR UPDATE",
           [userId]
         );
         if(!rows[0])throw new Error("LOCAL_BILLING_OWNER_MISSING");
-        const customerId=typeof canonical.customer==="string"?canonical.customer:canonical.customer?.id;
+        const customerId=typeof subject.customer==="string"?subject.customer:subject.customer?.id;
         if(rows[0].stripe_customer_id!==customerId)
           throw new Error("SUBSCRIPTION_CUSTOMER_OWNERSHIP_CONFLICT");
         const current=rows[0].stripe_subscription_id?String(rows[0].stripe_subscription_id):null;
-        if(current&&current!==canonical.id)
-          return {userId:null as string|null,duplicate:event.type==="customer.subscription.created"?canonical.id:null};
-        if(canonical.status==="canceled"||canonical.status==="incomplete_expired"){
-          if(current===canonical.id){
+
+        // Ended subscriptions are handled before duplicate detection: they must never be
+        // "cancelled as a duplicate" again, and a late event must never revive them.
+        if(!canonical||isTerminalStripeStatus(canonical.status)){
+          if(current===incoming.id){
             await tx.unsafe(
               "UPDATE subscriptions SET status='FREE',cadence='FREE',stripe_subscription_id=NULL,"+
               "current_period_end=NULL,cancel_at_period_end=false,plan_id=(SELECT id FROM plans WHERE slug='free' LIMIT 1),updated_at=now() "+
               "WHERE user_id=$1 AND stripe_subscription_id=$2",
-              [userId,canonical.id]
+              [userId,incoming.id]
             );
             return {userId,duplicate:null};
           }
           return {userId:null as string|null,duplicate:null};
         }
+
+        // A stored subscription that is already dead (re-subscribing after a cancellation)
+        // must not block its replacement, otherwise the new paid subscription is cancelled.
+        if(current&&current!==canonical.id&&!isTerminalLocalStatus(rows[0].status))
+          return {userId:null as string|null,duplicate:event.type==="customer.subscription.created"?canonical.id:null};
+
         // Only permit grants for a mapped Stripe Price, not planId metadata.
         const planId=await resolvePlanId(canonical);
         if(!planId)throw new Error("PLAN_NOT_RESOLVED");
         const item=canonical.items.data[0];
         if(!item?.price?.recurring)throw new Error("STRIPE_RECURRING_PRICE_MISSING");
         const status=canonical.status==="active"?"ACTIVE":canonical.status==="trialing"?"TRIALING":canonical.status.toUpperCase();
+        // Newer Stripe API versions report the billing period per item, older ones on the
+        // subscription. Renewals must keep moving the period end whichever the payload uses.
+        const periodEnd=item.current_period_end??(canonical as unknown as {current_period_end?:number}).current_period_end??null;
         await tx.unsafe(
           "UPDATE subscriptions SET plan_id=$1,status=$2,cadence=$3,stripe_subscription_id=$4,"+
           "current_period_end=$5,cancel_at_period_end=$6,updated_at=now() WHERE user_id=$7",
           [planId,status,item.price.recurring.interval==="year"?"ANNUAL":"MONTHLY",
-            canonical.id,item.current_period_end?new Date(item.current_period_end*1000):null,
+            canonical.id,periodEnd?new Date(periodEnd*1000):null,
             canonical.cancel_at_period_end,userId]
         );
         return {userId,duplicate:null};

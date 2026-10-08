@@ -1,4 +1,5 @@
 import "server-only";
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { sql } from "@/lib/db";
 
@@ -6,10 +7,12 @@ export async function requireUser() {
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
   const rows = await sql.unsafe(
-    "SELECT id,email,country,base_currency,timezone,role,anonymous_aggregate_opt_in FROM users WHERE id=$1 AND deleted_at IS NULL LIMIT 1",
+    "SELECT id,email,country,base_currency,timezone,role,anonymous_aggregate_opt_in,session_version FROM users WHERE id=$1 AND deleted_at IS NULL LIMIT 1",
     [session.user.id]
   );
   if (!rows[0]) throw new Error("UNAUTHENTICATED");
+  // A password reset bumps the stored version, which invalidates every older session.
+  if (Number(rows[0].session_version ?? 0) !== session.user.sessionVersion) throw new Error("UNAUTHENTICATED");
   return {
     id: String(rows[0].id),
     email: String(rows[0].email),
@@ -25,4 +28,15 @@ export async function requireAdmin() {
   const user = await requireUser();
   if (user.role !== "ADMIN") throw new Error("FORBIDDEN");
   return user;
+}
+
+// For server-rendered pages and layouts: a missing, deleted or revoked session (for example
+// after a password reset on another device) sends the user to sign in instead of an error page.
+export async function requirePageUser() {
+  try {
+    return await requireUser();
+  } catch (error) {
+    if (error instanceof Error && error.message === "UNAUTHENTICATED") redirect("/login");
+    throw error;
+  }
 }
