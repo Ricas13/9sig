@@ -15,6 +15,11 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const user = await requireUser();
     const input = schema.parse(await request.json());
+    // Paid onboarding is off until the operator has completed external
+    // commercial, infrastructure, regulatory and live-provider sign-offs.
+    if(process.env.REBALUNE_PAID_LAUNCH_ENABLED!=="true"){
+      return Response.json({error:"Paid subscriptions are not yet available. Rebalune is in staging."},{status:503});
+    }
 
     if (!process.env.STRIPE_SECRET_KEY || !process.env.NEXT_PUBLIC_APP_URL) {
       return Response.json({ error: "Billing is not configured." }, { status: 503 });
