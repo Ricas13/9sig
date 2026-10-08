@@ -1,5 +1,5 @@
 /** Safe, explicitly opt-in public indexing for a self-hosted investment SaaS. */
-export const publicSeoRoutes=["/","/features","/strategies","/pricing","/faq"] as const;
+export const publicSeoRoutes=["/","/features","/strategies","/pricing","/faq","/tools/rebalance-calculator"] as const;
 export const privateRoutePrefixes=["/admin","/app","/api","/login","/register","/reset-password","/verify-email","/demo"];
 export function siteOrigin(input?:string){
   try{
