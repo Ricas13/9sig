@@ -15,12 +15,15 @@ export type SettingDefinition = {
   min?: number;
   max?: number;
   integer?: boolean;
+  /** Extra format check for text settings, with the message to show when it fails. */
+  pattern?: RegExp;
+  patternMessage?: string;
   /** Takes effect without a restart? Everything does except where noted. */
   note?: string;
 };
 
 export const SETTING_GROUPS = [
-  "General", "Billing (Stripe)", "Email", "Market data", "Sign-in providers", "Security", "Launch sign-offs", "Background worker"
+  "General", "Billing (Stripe)", "Email", "Market data", "Sign-in providers", "Mobile apps", "Security", "Launch sign-offs", "Background worker"
 ] as const;
 
 const bool = (key: string, label: string, group: string, help: string): SettingDefinition => ({ key, label, group, kind: "boolean", help });
@@ -54,6 +57,11 @@ export const SETTINGS: readonly SettingDefinition[] = [
   { key: "AUTH_APPLE_KEY_ID", label: "Apple key ID", group: "Sign-in providers", kind: "text", help: "The key ID of the Sign in with Apple private key." },
   { key: "AUTH_APPLE_PRIVATE_KEY", label: "Apple private key", group: "Sign-in providers", kind: "multiline-secret", help: "Paste the full .p8 key including the BEGIN/END lines." },
   { key: "AUTH_APPLE_SECRET", label: "Apple client secret (advanced)", group: "Sign-in providers", kind: "secret", help: "Only if you generate Apple's JWT yourself; otherwise leave empty and fill the three fields above." },
+
+  { key: "ANDROID_PACKAGE_NAME", label: "Android package name", group: "Mobile apps", kind: "text", pattern: /^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/, patternMessage: "Use a reverse-domain name such as com.example.rebalune.", help: "The applicationId of the Android app. Together with the fingerprint below it lets Android open website links in the app." },
+  { key: "ANDROID_SHA256_CERT_FINGERPRINTS", label: "Android signing certificate fingerprint(s)", group: "Mobile apps", kind: "text", pattern: /^([0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){31})(\s*,\s*[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){31})*$/, patternMessage: "SHA-256 fingerprints look like AB:CD:… (32 pairs). Separate several with commas.", help: "From Play Console › App integrity (use the Play App Signing key), plus your upload key while testing." },
+  { key: "IOS_TEAM_ID", label: "Apple team ID", group: "Mobile apps", kind: "text", pattern: /^[A-Z0-9]{10}$/, patternMessage: "A team ID is 10 capital letters or digits.", help: "From your Apple Developer account membership page." },
+  { key: "IOS_BUNDLE_ID", label: "iOS bundle ID", group: "Mobile apps", kind: "text", pattern: /^[a-zA-Z][a-zA-Z0-9-]*(\.[a-zA-Z][a-zA-Z0-9-]*)+$/, patternMessage: "Use a reverse-domain name such as com.example.rebalune.", help: "Must match the bundle ID of the iOS app. Lets iOS open website links in the app." },
 
   bool("ADMIN_MFA_REQUIRED", "Require two-step sign-in for admins", "Security", "Turn on once every admin has enabled two-step sign-in under Settings. Admins without it are kept out of admin tools."),
   { key: "CRON_SECRET", label: "Background job secret", group: "Security", kind: "secret", help: "Bearer token your scheduler sends to /api/cron/actions. At least 32 characters." },
@@ -108,6 +116,7 @@ export function validateSetting(def: SettingDefinition, raw: unknown): Validatio
       return { ok: true, value };
     default:
       if (/[\r\n]/.test(value)) return { ok: false, error: "Must be a single line." };
+      if (def.pattern && !def.pattern.test(value)) return { ok: false, error: def.patternMessage ?? "Not in the expected format." };
       return { ok: true, value };
   }
 }
