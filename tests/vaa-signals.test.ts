@@ -8,7 +8,7 @@ function build(down:string[]=[]):TrustedHistoricalSeries[]{
   exposure,currency:"USD",source:"licensed",
   points:Array.from({length:13},(_,i)=>({
    at:new Date(Date.UTC(2025+Math.floor((9+i)/12),(9+i)%12,25)),
-   adjustedClose:new Decimal(down.includes(exposure)?130-i:100+i*(exposure==="SPY"?3:1))
+   adjustedClose:new Decimal(down.includes(exposure)?130-i:100+i*(exposure==="SPY"?3:exposure==="LQD"?2:1))
   }))
  }));
 }
