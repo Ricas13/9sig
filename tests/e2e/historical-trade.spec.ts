@@ -11,6 +11,7 @@ test("backdated funding → broker fill → immutable ledger → quarterly revie
   const ticker=("E2E"+suffix).toUpperCase().slice(0,20);
   const executedAt="2026-09-02T14:00:00+01:00";
   const fundedAt="2026-09-02T13:00:00+01:00";
+  const requestHeaders={origin:process.env.NEXT_PUBLIC_APP_URL??"http://127.0.0.1:3000"};
   try{
     const hash=await bcrypt.hash("e2e-password-1234",4);
     await sql.begin(async tx=>{
@@ -56,7 +57,7 @@ test("backdated funding → broker fill → immutable ledger → quarterly revie
     );
 
     const contribution=await page.request.post("/api/strategies/"+strategyId+"/contributions",{
-      data:{amount:"1000",occurredAt:fundedAt,accountId,requestKey:crypto.randomUUID()}
+      headers:requestHeaders,data:{amount:"1000",occurredAt:fundedAt,accountId,requestKey:crypto.randomUUID()}
     });
     expect(contribution.status(),await contribution.text()).toBe(200);
 
@@ -66,17 +67,17 @@ test("backdated funding → broker fill → immutable ledger → quarterly revie
       unitPrice:"100.12",fee:"1.50",requestKey,brokerFillConfirmed:true,
       note:"Broker-confirmed test fill"
     };
-    const purchase=await page.request.post("/api/strategies/"+strategyId+"/trades",{data:input});
+    const purchase=await page.request.post("/api/strategies/"+strategyId+"/trades",{headers:requestHeaders,data:input});
     expect(purchase.status(),await purchase.text()).toBe(200);
     const purchaseBody=await purchase.json();
     expect(purchaseBody.ok).toBe(true);
     expect(purchaseBody.duplicate).toBe(false);
 
-    const duplicate=await page.request.post("/api/strategies/"+strategyId+"/trades",{data:input});
+    const duplicate=await page.request.post("/api/strategies/"+strategyId+"/trades",{headers:requestHeaders,data:input});
     expect(duplicate.status(),await duplicate.text()).toBe(200);
     expect((await duplicate.json()).duplicate).toBe(true);
     const conflict=await page.request.post("/api/strategies/"+strategyId+"/trades",{
-      data:{...input,quantity:"6"}
+      headers:requestHeaders,data:{...input,quantity:"6"}
     });
     expect(conflict.status()).toBe(409);
 
@@ -97,12 +98,12 @@ test("backdated funding → broker fill → immutable ledger → quarterly revie
     expect(state[0]?.state.forceReview).toBe(false);
 
     const impossibleSale=await page.request.post("/api/strategies/"+strategyId+"/trades",{
-      data:{...input,side:"SELL",quantity:"100",requestKey:crypto.randomUUID()}
+      headers:requestHeaders,data:{...input,side:"SELL",quantity:"100",requestKey:crypto.randomUUID()}
     });
     expect(impossibleSale.status()).toBe(409);
 
     const override=await page.request.post("/api/strategies/"+strategyId+"/overrides",{
-      data:{fieldKey:"market_price:"+instrumentId,manualValue:"110",reason:"Verified broker current quote",
+      headers:requestHeaders,data:{fieldKey:"market_price:"+instrumentId,manualValue:"110",reason:"Verified broker current quote",
         observedAt:new Date().toISOString(),confirmed:true}
     });
     expect(override.status(),await override.text()).toBe(200);
@@ -115,7 +116,7 @@ test("backdated funding → broker fill → immutable ledger → quarterly revie
     expect(new Date(evidence[0].expires_at).getTime()).toBeGreaterThan(Date.now());
 
     const unsafe=await page.request.post("/api/strategies/"+strategyId+"/overrides",{
-      data:{fieldKey:"strategy_state.forceReview",manualValue:"1",reason:"Force a review without approval",confirmed:true}
+      headers:requestHeaders,data:{fieldKey:"strategy_state.forceReview",manualValue:"1",reason:"Force a review without approval",confirmed:true}
     });
     expect(unsafe.status()).toBe(400);
   }finally{await sql.end();}
