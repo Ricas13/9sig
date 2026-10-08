@@ -6,10 +6,12 @@ export async function requireUser() {
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
   const rows = await sql.unsafe(
-    "SELECT id,email,country,base_currency,timezone,role,anonymous_aggregate_opt_in FROM users WHERE id=$1 AND deleted_at IS NULL LIMIT 1",
+    "SELECT id,email,country,base_currency,timezone,role,anonymous_aggregate_opt_in,session_version FROM users WHERE id=$1 AND deleted_at IS NULL LIMIT 1",
     [session.user.id]
   );
   if (!rows[0]) throw new Error("UNAUTHENTICATED");
+  // A password reset bumps the stored version, which invalidates every older session.
+  if (Number(rows[0].session_version ?? 0) !== session.user.sessionVersion) throw new Error("UNAUTHENTICATED");
   return {
     id: String(rows[0].id),
     email: String(rows[0].email),

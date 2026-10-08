@@ -62,4 +62,10 @@ describe.skipIf(!url)("database schema",()=>{
     const rows=await sql!.unsafe("SELECT indexdef FROM pg_indexes WHERE tablename='notification_deliveries'");
     expect(rows.some((r)=>String(r.indexdef).includes("(dedupe_key)"))).toBe(true);
   });
+  it("versions user sessions so a password reset can invalidate them",async()=>{
+    const rows=await sql!.unsafe("SELECT data_type,is_nullable,column_default FROM information_schema.columns WHERE table_name='users' AND column_name='session_version'");
+    expect(rows[0]?.data_type).toBe("integer");
+    expect(rows[0]?.is_nullable).toBe("NO");
+    expect(String(rows[0]?.column_default)).toBe("0");
+  });
 });
