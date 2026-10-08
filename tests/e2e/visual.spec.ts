@@ -79,7 +79,21 @@ for(const entry of [
     });
     if(entry.name==="demo"){
       await expect(page.locator(".chart-wrap svg")).toBeVisible();
-      await page.waitForTimeout(750);
+      // Capture only once the chart geometry has stopped changing (500 ms unchanged, up to 8 s).
+      // A fixed sleep photographed whichever animation frame the runner happened to reach, which
+      // made the mobile demo hash differ between attempts of the same commit.
+      await page.evaluate(async()=>{
+        const signature=()=>Array.from(document.querySelectorAll(".chart-wrap svg path,.chart-wrap svg circle,.chart-wrap svg rect"))
+          .map((node)=>node.tagName+":"+(node.getAttribute("d")??node.getAttribute("cx")??node.getAttribute("width")??"")).join("|");
+        let previous=signature();
+        let unchangedFor=0;
+        for(let waited=0;waited<8000&&unchangedFor<500;waited+=100){
+          await new Promise<void>((resolve)=>setTimeout(resolve,100));
+          const current=signature();
+          unchangedFor=current===previous?unchangedFor+100:0;
+          previous=current;
+        }
+      });
     }
     const screenshot=await page.screenshot({fullPage:true,animations:"disabled",caret:"hide",scale:"css"});
     const digest=createHash("sha256").update(rgbPixels(screenshot)).digest("hex");
