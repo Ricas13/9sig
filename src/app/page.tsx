@@ -39,6 +39,19 @@ export default async function HomePage() {
           <Link className="button" href="/login">Sign in</Link>
           <Link className="button primary" href="/register">Start free</Link>
         </div>
+        <details className="public-mobile-menu">
+          <summary>Menu</summary>
+          <div className="public-mobile-menu-panel">
+            <Link href="/features">Features</Link>
+            <Link href="/strategies">Strategies</Link>
+            <Link href="/pricing">Pricing</Link>
+            <Link href="/faq">FAQ</Link>
+            <Link href="/tools/rebalance-calculator">Calculator</Link>
+            <Link href="/demo">Explore demo</Link>
+            <Link href="/login">Sign in</Link>
+            <Link className="mobile-menu-primary" href="/register">Start free</Link>
+          </div>
+        </details>
       </nav>
 
       <section className="hero">
