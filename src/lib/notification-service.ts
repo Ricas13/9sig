@@ -30,7 +30,7 @@ export async function processPendingDeliveries(limit=50){
     "), claimed AS ("+
     " UPDATE notification_deliveries d SET status='SENDING',attempt_count=d.attempt_count+1,next_attempt_at=now()+interval '10 minutes',updated_at=now()"+
     " FROM picked p WHERE d.id=p.id RETURNING d.*"+
-    ") SELECT c.id,c.notification_id,c.channel,c.attempt_count,n.title,n.body,n.user_id,n.action_id,u.email,a.status AS action_status,"+
+    ") SELECT c.id,c.notification_id,c.channel,c.attempt_count,n.title,n.body,n.user_id,n.action_id,u.email,u.deleted_at AS user_deleted_at,a.status AS action_status,"+
     " CASE WHEN n.action_id IS NULL THEN true ELSE n.id=("+
     "   SELECT newer.id FROM notifications newer WHERE newer.action_id=n.action_id ORDER BY newer.created_at DESC,newer.id DESC LIMIT 1"+
     " ) END AS latest_action_notification"+
@@ -40,6 +40,13 @@ export async function processPendingDeliveries(limit=50){
   let sent=0;
   const entitlementCache=new Map<string,Set<string>>();
   for(const d of deliveries){
+    if(d.user_deleted_at){
+      await sql.unsafe(
+        "UPDATE notification_deliveries SET status='CANCELLED',last_error_code='ACCOUNT_DELETED',updated_at=now() WHERE id=$1 AND status='SENDING'",
+        [d.id]
+      );
+      continue;
+    }
     if(d.action_id&&!Boolean(d.latest_action_notification)){
       await sql.unsafe(
         "UPDATE notification_deliveries SET status='CANCELLED',last_error_code='SUPERSEDED_ACTION_NOTIFICATION',updated_at=now() WHERE id=$1 AND status='SENDING'",
