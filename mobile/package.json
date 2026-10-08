@@ -1,0 +1,28 @@
+{
+  "name": "rebalune-mobile",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Android and iOS shells for the Rebalune web app (Capacitor). Kept apart from the web app so its install and CI are unaffected.",
+  "scripts": {
+    "sync": "cap sync",
+    "add:android": "cap add android",
+    "add:ios": "cap add ios",
+    "open:android": "cap open android",
+    "open:ios": "cap open ios",
+    "assets": "capacitor-assets generate --iconBackgroundColor '#07111f' --splashBackgroundColor '#07111f'"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/browser": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/ios": "^7.0.0",
+    "@capacitor/splash-screen": "^7.0.0",
+    "@capacitor/status-bar": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.0.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -7,6 +7,7 @@ import { assertSameOrigin } from "@/lib/security";
 import { hasLiveStripeSubscription, isTerminalLocalStatus } from "@/domain/subscription-status";
 import { authFailure } from "@/lib/api-auth";
 import { paidCheckoutBlockers } from "@/domain/commercial-launch";
+import { purchasesAllowedFor } from "@/domain/native-app";
 
 const schema = z.object({
   planSlug: z.enum(["investor", "pro"]),
@@ -19,6 +20,10 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const user = await requireUser();
+    // App-store rules: subscriptions are not sold from inside the Android/iOS apps.
+    if (!purchasesAllowedFor(request.headers.get("user-agent"))) {
+      return Response.json({ error: "Manage your plan on the website." }, { status: 403 });
+    }
     const input = schema.parse(await request.json());
     // Paid onboarding is off until the operator has completed external
     // commercial, infrastructure, regulatory and live-provider sign-offs.

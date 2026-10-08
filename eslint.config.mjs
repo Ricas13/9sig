@@ -11,5 +11,5 @@ export default defineConfig([
       "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }]
     }
   },
-  globalIgnores([".next/**","node_modules/**","coverage/**"])
+  globalIgnores([".next/**","node_modules/**","coverage/**","mobile/**"])
 ]);

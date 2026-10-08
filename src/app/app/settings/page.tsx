@@ -2,10 +2,13 @@ import { requirePageUser } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { BillingButtons,DiscordForm,PrivacyControls,SecurityControls } from "@/components/SettingsForms";
 import { isMfaEnabled } from "@/lib/mfa";
+import { purchasesAllowedFor } from "@/domain/native-app";
+import { headers } from "next/headers";
 
 export default async function SettingsPage(){
   const user=await requirePageUser();
   const mfaEnabled=await isMfaEnabled(user.id);
+  const canPurchase=purchasesAllowedFor((await headers()).get("user-agent"));
   const rows=await sql.unsafe(
     "SELECT p.display_name,p.slug,p.max_active_strategies,s.status,s.cadence,s.current_period_end,s.stripe_subscription_id FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.user_id=$1 LIMIT 1",
     [user.id]
@@ -35,7 +38,7 @@ export default async function SettingsPage(){
       <section id="plan" className="glass form-card settings-plan-card">
         <div className="settings-card-heading"><div><div className="eyebrow">Plan</div><h3>{plan?.display_name??"Free"}</h3></div><span className="pill good">{currentStatus.replaceAll("_"," ")}</span></div>
         {plan?.current_period_end&&paidSubscription&&<p className="help">Current billing period runs to {new Date(plan.current_period_end).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}.</p>}
-        <BillingButtons prices={prices} defaultCurrency={user.baseCurrency} currentPlanSlug={currentPlanSlug} paidSubscription={paidSubscription} activeStrategyCount={activeStrategyCount} currentMaxActiveStrategies={plan?.max_active_strategies==null?null:Number(plan.max_active_strategies)}/>
+        {canPurchase?<BillingButtons prices={prices} defaultCurrency={user.baseCurrency} currentPlanSlug={currentPlanSlug} paidSubscription={paidSubscription} activeStrategyCount={activeStrategyCount} currentMaxActiveStrategies={plan?.max_active_strategies==null?null:Number(plan.max_active_strategies)}/>:<p className="help">Plans are managed on the website. Sign in there to change or cancel your subscription.</p>}
       </section>
       <section className="glass form-card">
         <div className="eyebrow">Notifications</div><h3>Discord</h3>

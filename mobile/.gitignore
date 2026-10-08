@@ -1,0 +1,14 @@
+node_modules/
+# Native projects are generated on a developer machine (Android Studio / Xcode) with `npm run add:*`
+# and then committed deliberately; keep build output out of git.
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+*.keystore
+*.jks
+*.p8
+*.mobileprovision

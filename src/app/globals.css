@@ -1429,3 +1429,51 @@ html[data-theme="light"] .resume-progress {
     color:#06131b;
   }
 }
+
+/* ---------- Phones and the installed / native app ----------
+ * Everything here is scoped to the signed-in app and the auth screens so the public landing and demo
+ * pages keep their reviewed appearance. */
+
+/* Never let the browser zoom the page when a field is focused (iOS does so below 16px). */
+.app-shell input, .app-shell select, .app-shell textarea,
+.auth-card input, .auth-card select, .auth-card textarea { font-size:16px; }
+
+/* Comfortable thumb targets (44px is the iOS/Android guideline). */
+.app-shell .button, .auth-card .button { min-height:44px; }
+.app-shell .nav-link { min-height:44px; }
+.app-shell input:not([type="checkbox"]):not([type="radio"]), .app-shell select,
+.auth-card input:not([type="checkbox"]):not([type="radio"]), .auth-card select { min-height:44px; }
+
+/* Stop the tap flash and double-tap zoom delay on interactive elements. */
+a, button, [role="button"], summary, label { -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+
+/* Keep content clear of notches and the home indicator when the page runs full screen. */
+.auth-page { padding-top:max(24px, env(safe-area-inset-top)); padding-bottom:max(24px, env(safe-area-inset-bottom)); padding-left:max(24px, env(safe-area-inset-left)); padding-right:max(24px, env(safe-area-inset-right)); }
+.app-topbar { padding-top:env(safe-area-inset-top); }
+
+@media (max-width: 680px) {
+  /* Navigation becomes a bottom tab bar, the way phone apps are used with one thumb. */
+  .app-shell { padding-bottom:calc(68px + env(safe-area-inset-bottom)); }
+  .app-shell > .sidebar {
+    position:fixed; left:0; right:0; bottom:0; top:auto; z-index:40; height:auto;
+    border-right:0; border-bottom:0; border-top:1px solid var(--line);
+    padding:6px max(8px, env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-right));
+    display:block; overflow:visible; background:rgba(5,15,28,.94); backdrop-filter:blur(20px);
+  }
+  .app-shell > .sidebar .brand { display:none; }
+  .app-shell > .sidebar .nav-group { display:flex; justify-content:space-around; gap:2px; overflow-x:auto; scrollbar-width:none; }
+  .app-shell > .sidebar .nav-group::-webkit-scrollbar { display:none; }
+  .app-shell > .sidebar .nav-link { flex:1 1 0; min-width:60px; flex-direction:column; justify-content:center; gap:3px; margin:0; padding:6px 4px; font-size:11px; text-align:center; transform:none; }
+  .app-shell > .sidebar .nav-link:hover { transform:none; }
+  .app-topbar .topbar-status { display:none; }
+  .app-content { padding-bottom:24px; }
+  /* Wide tables scroll inside their own box instead of widening the page. */
+  .table-wrap { -webkit-overflow-scrolling:touch; }
+}
+html[data-theme="light"] .app-shell > .sidebar { background:rgba(255,255,255,.94); }
+
+/* Installed as an app: no browser chrome, so avoid pull-to-refresh bounce and text selection on chrome. */
+@media (display-mode: standalone) {
+  body { overscroll-behavior-y:none; }
+  .sidebar, .app-topbar { -webkit-user-select:none; user-select:none; }
+}
