@@ -6,6 +6,7 @@ import { sql } from "@/lib/db";
 import { recalculateAfterMutation } from "@/lib/action-service";
 import { advanceContributionPlan, normalizeContributionPlan } from "@/domain/contribution-plan";
 import { assertSameOrigin } from "@/lib/security";
+import { assertLedgerEvent } from "@/domain/ledger";
 
 const schema = z.object({
   amount: z.string().regex(/^\d+(?:\.\d{1,8})?$/),
@@ -47,6 +48,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         if(existing[0])return {eventId:String(existing[0].id),status:String(locked[0].status),duplicate:true};
       }
 
+      assertLedgerEvent({eventType:"CONTRIBUTION",cashAmount:amount});
       const rows=await tx.unsafe(
         "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,provenance,confidence,request_key) VALUES ($1,$2,$3,'CONTRIBUTION',$4,$5,'USER_ENTERED','VERIFIED',$6) RETURNING id",
         [id, locked[0].account_id, occurredAt, String(locked[0].currency), amount.toString(),input.requestKey??null]

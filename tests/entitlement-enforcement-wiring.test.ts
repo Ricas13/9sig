@@ -25,3 +25,20 @@ describe("entitlement enforcement wiring",()=>{
     expect(source.indexOf("stripe.customers.del")).toBeLessThan(source.indexOf("DELETE FROM users"));
   });
 });
+
+describe("ledger write paths",()=>{
+  it("validates every trade, cash and contribution row at the write",()=>{
+    for(const path of ["src/lib/action-service.ts","src/app/api/strategies/[id]/ledger-events/route.ts","src/app/api/strategies/[id]/contributions/route.ts"]){
+      const source=read(path);
+      expect(source).toContain("assertLedgerEvent(");
+      expect(source.indexOf("assertLedgerEvent(")).toBeLessThan(source.indexOf("INSERT INTO ledger_events"));
+    }
+  });
+
+  it("treats corrections like other mutations: closed strategies are read-only and recalculation failures are surfaced",()=>{
+    const source=read("src/app/api/strategies/[id]/ledger-events/[eventId]/correct/route.ts");
+    expect(source).toContain('throw new Error("STRATEGY_CLOSED")');
+    expect(source).toContain("recalculateAfterMutation(");
+    expect(source).not.toMatch(/try\{[^}]*calculateAction/);
+  });
+});
