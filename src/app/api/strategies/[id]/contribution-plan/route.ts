@@ -22,7 +22,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     if(!strategy)return Response.json({error:"Not found."},{status:404});
     if(String(strategy.status)==="CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
     const input=schema.parse(await request.json());
-    const plan=normalizeContributionPlan(input);
+    const plan=normalizeContributionPlan(input,new Date(),user.timezone);
     await sql.begin(async(tx)=>{
       const locked=await tx.unsafe("SELECT id,status FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE",[id,user.id]);
       if(!locked[0])throw new Error("STRATEGY_NOT_FOUND");

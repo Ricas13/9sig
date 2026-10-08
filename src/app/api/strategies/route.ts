@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const user = await requireUser();
     const input = schema.parse(await request.json());
-    const id = await createStrategy(user.id,user.country,input);
+    const id = await createStrategy(user.id,user.country,input,user.timezone);
     try { await calculateAction(id); } catch { }
     return Response.json({ok:true,id},{status:201});
   } catch(error){const denied=authFailure(error);if(denied)return denied;

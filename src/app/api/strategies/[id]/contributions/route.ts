@@ -5,6 +5,7 @@ import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { recalculateAfterMutation } from "@/lib/action-service";
 import { advanceContributionPlan, normalizeContributionPlan } from "@/domain/contribution-plan";
+import { localDateInZone } from "@/domain/schedule";
 import { assertSameOrigin } from "@/lib/security";
 import { assertLedgerEvent } from "@/domain/ledger";
 import { authFailure } from "@/lib/api-auth";
@@ -58,7 +59,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const currentPlan=normalizeContributionPlan(locked[0].contribution_plan);
       let nextPlan=currentPlan;
       if(currentPlan.enabled){
-        nextPlan=advanceContributionPlan(currentPlan,occurredAt.toISOString().slice(0,10));
+        nextPlan=advanceContributionPlan(currentPlan,localDateInZone(occurredAt,user.timezone));
         if(nextPlan.nextDate!==currentPlan.nextDate){
           await tx.unsafe("UPDATE strategy_instances SET contribution_plan=$1::jsonb,updated_at=now() WHERE id=$2",[JSON.stringify(nextPlan),id]);
         }

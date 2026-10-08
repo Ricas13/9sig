@@ -9,8 +9,13 @@ export async function createDeliveriesForNotification(notificationId: string) {
   const rows=await sql.unsafe("SELECT n.id,n.user_id,n.action_id FROM notifications n WHERE n.id=$1 LIMIT 1",[notificationId]);
   const n=rows[0];if(!n)return;
   const entitlements=await loadEntitlements(String(n.user_id));
+  // A plan entitles a channel; delivery also needs somewhere to send it. Queueing Discord for a
+  // user who never connected a webhook would only retry to exhaustion and dead-letter.
+  const endpoints=await sql.unsafe("SELECT channel FROM notification_endpoints WHERE user_id=$1 AND enabled=true",[n.user_id]);
+  const connected=new Set(endpoints.map((row)=>String(row.channel)));
   for(const channel of entitlements.notificationChannels){
     if(channel==="IN_APP")continue;
+    if(channel==="DISCORD"&&!connected.has("DISCORD"))continue;
     const dedupe=String(notificationId)+":"+channel;
     await sql.unsafe("INSERT INTO notification_deliveries (notification_id,channel,dedupe_key) VALUES ($1,$2,$3) ON CONFLICT (dedupe_key) DO NOTHING",[notificationId,channel,dedupe]);
   }
@@ -70,8 +75,17 @@ export async function processPendingDeliveries(limit=50){
         ok=await getEmailProvider().send({to:String(d.email),subject:String(d.title),text:String(d.body)});
       }else if(d.channel==="DISCORD"){
         const endpoints=await sql.unsafe("SELECT encrypted_destination FROM notification_endpoints WHERE user_id=$1 AND channel='DISCORD' AND enabled=true LIMIT 1",[d.user_id]);
-        if(endpoints[0]){
-          const response=await fetch(decryptSecret(String(endpoints[0].encrypted_destination)),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({content:"**"+String(d.title)+"**\n"+String(d.body)}),signal:AbortSignal.timeout(10_000),cache:"no-store"});
+        if(!endpoints[0]){
+          // The webhook was removed or disabled after this was queued: nothing to retry.
+          await sql.unsafe(
+            "UPDATE notification_deliveries SET status='CANCELLED',last_error_code='NO_ENDPOINT',updated_at=now() WHERE id=$1 AND status='SENDING'",
+            [d.id]
+          );
+          continue;
+        }
+        {
+          // allowed_mentions stops message text from ever pinging @everyone/@here or roles.
+          const response=await fetch(decryptSecret(String(endpoints[0].encrypted_destination)),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({content:"**"+String(d.title)+"**\n"+String(d.body),allowed_mentions:{parse:[]}}),signal:AbortSignal.timeout(10_000),cache:"no-store"});
           ok=response.ok;
           if(response.status===429){
             const raw=response.headers.get("retry-after");
