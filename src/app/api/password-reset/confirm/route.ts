@@ -1,4 +1,5 @@
 import { requestIp } from "@/domain/client-ip";
+import { notifySecurityEvent } from "@/lib/security-notice";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { sql } from "@/lib/db";
@@ -19,12 +20,13 @@ export async function POST(request: Request) {
         "UPDATE auth_tokens SET used_at=now() WHERE token_hash=$1 AND type='RESET_PASSWORD' AND used_at IS NULL AND expires_at>now() RETURNING user_id",
         [hashToken(input.token)]
       );
-      if (!consumed[0]) return false;
+      if (!consumed[0]) return null;
       await tx.unsafe("UPDATE users SET password_hash=$1,session_version=session_version+1,updated_at=now() WHERE id=$2 AND deleted_at IS NULL", [hash, consumed[0].user_id]);
       await tx.unsafe("UPDATE auth_tokens SET used_at=now() WHERE user_id=$1 AND type='RESET_PASSWORD' AND used_at IS NULL", [consumed[0].user_id]);
-      return true;
+      return String(consumed[0].user_id);
     });
     if (!reset) return Response.json({ error: "Token is invalid or expired." }, { status: 400 });
+    await notifySecurityEvent(reset, "PASSWORD_CHANGED");
     return Response.json({ ok: true });
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ error: "Choose a password of at least 12 characters." }, { status: 400 });

@@ -35,6 +35,7 @@ describe.skipIf(!url)("two-step sign-in",()=>{
 
   beforeAll(async()=>{
     process.env.NEXT_PUBLIC_APP_URL=ORIGIN;
+    process.env.EMAIL_PROVIDER="mock";
     process.env.APP_ENCRYPTION_KEY??="MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=";
     const hash=await bcrypt.hash(password,4);
     const rows=await sql!.unsafe("INSERT INTO users (email,password_hash) VALUES ($1,$2) RETURNING id",[`mfa-${run}@example.test`,hash]);
@@ -112,6 +113,9 @@ describe.skipIf(!url)("two-step sign-in",()=>{
 
   it("records enabling, recovery use and disabling in the audit log",async()=>{
     const actions=(await sql!.unsafe("SELECT action FROM audit_events WHERE actor_user_id=$1",[userId])).map((r)=>String(r.action));
-    expect(actions).toEqual(expect.arrayContaining(["auth.mfa-enabled","auth.recovery-code-used","auth.mfa-disabled"]));
+    expect(actions).toEqual(expect.arrayContaining(["auth.mfa-enabled","auth.recovery-code-used","auth.mfa-disabled","security.notice"]));
+    const notices=(await sql!.unsafe("SELECT metadata FROM audit_events WHERE actor_user_id=$1 AND action='security.notice'",[userId])).map((r)=>r.metadata as {kind:string;sent:boolean});
+    expect(notices.map((n)=>n.kind).sort()).toEqual(["MFA_DISABLED","MFA_ENABLED"]);
+    expect(notices.every((n)=>n.sent)).toBe(true);
   });
 });

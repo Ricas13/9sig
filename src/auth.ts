@@ -8,6 +8,7 @@ import { verifySecondFactor } from "@/lib/mfa";
 import Google from "next-auth/providers/google";
 import Apple from "next-auth/providers/apple";
 import { resolveOAuthSignIn } from "@/lib/oauth";
+import { notifySecurityEvent } from "@/lib/security-notice";
 import { appleConfigured, profileEmailVerified } from "@/domain/oauth-providers";
 import { createAppleClientSecret } from "@/lib/apple-client-secret";
 
@@ -75,6 +76,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         user.email = result.user.email;
         user.role = result.user.role;
         user.sessionVersion = result.user.sessionVersion;
+        if (result.newlyLinked) await notifySecurityEvent(result.user.id, "SIGN_IN_METHOD_ADDED", account.provider);
         return true;
       } catch {
         return "/login?error=oauth_FAILED";

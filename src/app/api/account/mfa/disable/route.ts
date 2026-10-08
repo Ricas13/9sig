@@ -5,6 +5,7 @@ import { sql } from "@/lib/db";
 import { assertSameOrigin, consumeRateLimit } from "@/lib/security";
 import { authFailure } from "@/lib/api-auth";
 import { disableMfa, verifySecondFactor } from "@/lib/mfa";
+import { notifySecurityEvent } from "@/lib/security-notice";
 
 // Turning protection off needs both the password and a current second factor, so a stolen session
 // alone cannot remove it.
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "Password or code is incorrect." }, { status: 400 });
     }
     await disableMfa(user.id);
+    await notifySecurityEvent(user.id, "MFA_DISABLED");
     return Response.json({ ok: true }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     const denied = authFailure(error);
