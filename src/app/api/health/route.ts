@@ -32,7 +32,7 @@ export async function GET(){
       billing:Boolean(process.env.STRIPE_SECRET_KEY&&process.env.STRIPE_WEBHOOK_SECRET),
       email:Boolean(process.env.EMAIL_HTTP_ENDPOINT&&process.env.EMAIL_HTTP_TOKEN&&process.env.EMAIL_FROM),
       marketData:Boolean(
-        process.env.MARKET_DATA_MODE==="MANUAL" || (
+        (
         process.env.MARKET_DATA_PROVIDER==="http"&&
         process.env.MARKET_DATA_HTTP_BASE_URL&&
         process.env.MARKET_DATA_HTTP_TOKEN)
