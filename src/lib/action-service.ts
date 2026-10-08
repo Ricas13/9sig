@@ -7,6 +7,7 @@ import { getStrategyEngine } from "@/domain/strategy/registry";
 import { exposureLeverage, resolveMapping, type MappingCandidate } from "@/domain/instruments";
 import { assertExecutionCurrencyMatch, normalizeExecutionConstraints, planPracticalTrade, validateExecution } from "@/domain/execution";
 import { nextReviewDueAt } from "@/domain/schedule";
+import { classifyFreshness } from "@/domain/market-freshness";
 import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/config";
 import { actionRecalculationDisposition, type ActionStatus } from "@/domain/actions";
 import { actionFingerprintMaterial } from "@/domain/action-fingerprint";
@@ -119,7 +120,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
       }
       if(!m?.price){dataStatus="MISSING";dataMessage="A held instrument has no current market price in "+accountName+".";continue;}
       const observedAt=new Date(m.observed_at);
-      if((Date.now()-observedAt.getTime())/3600000>36&&dataStatus!=="MISSING"){dataStatus="STALE";dataMessage="Market data is stale; financial actions are suppressed until data is current or confirmed.";}
+      if(classifyFreshness(observedAt)!=="CURRENT"&&dataStatus!=="MISSING"){dataStatus="STALE";dataMessage="Market data is stale or invalid; financial actions are suppressed until data is current and verified.";}
       exposurePositions.push({economicExposure:String(m.economic_exposure),value:quantity.mul(new Decimal(String(m.price))),tradingLineId:m.trading_line_id?String(m.trading_line_id):undefined,accountId,accountName});
     }
   }
