@@ -10,9 +10,12 @@ Reference strategy records are in `src/domain/strategy/research-catalog.ts`. Sou
 - [x] Distinguish canonical HFEA 55/45 UPRO/TMF from TQQQ/TMF modifications
 - [x] Record strict research-only status for 3Sig, 6Sig, dual momentum, GTAA/Ivy, PAA and VAA
 - [x] Cross-check Faber monthly/10-month SMA convention and Kelly's public 3/6/9 growth/leverage definitions against author-published material
+- [x] Research reference VAA-G4/G12 13612W momentum and breadth fractions from published/co-author material
 - [ ] Independently verify remaining primary-source rules and trading/calendar conventions
 - [x] Add a research-stage fail-closed relative/absolute momentum rotation engine and unit test fixtures (not wired to live data)
 - [x] Implement pure fail-closed research Ivy 10-month closing-price decision helper with signal tests
+- [x] Implement research-only VAA weighted-momentum/breadth allocation calculator with regression tests (not enabled)
+- [ ] Verify full VAA variants against independent golden cases, wire trusted monthly series and execution/rebalance lifecycle
 - [ ] Integrate licensed historical prices into EngineContext, handle corporate actions and calendars, and independently backtest momentum signal engines with no look-ahead
 - [x] Confirm author-published basic 3Sig/6Sig quarterly growth targets and leverage levels
 - [ ] Verify full source-specific 3Sig/6Sig trade adjustment, reserve and reset procedures; do not guess
