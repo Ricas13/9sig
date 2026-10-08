@@ -31,7 +31,9 @@ export async function GET(request: Request) {
 
   const delivered = await processPendingDeliveries(100);
   const aggregates = await rebuildAnonymousAggregates();
-  const ok=calculationFailures===0;
+  const marketDataRequired=(process.env.MARKET_DATA_MODE??"PROVIDER").toUpperCase()!=="MANUAL";
+  const marketDegraded=marketDataRequired&&(!marketData.configured||marketData.failed>0);
+  const ok=calculationFailures===0&&!marketDegraded;
   return Response.json(
     {ok,status:ok?"healthy":"degraded",marketData,calculated,calculationFailures,delivered,aggregates},
     {status:ok?200:503,headers:{"cache-control":"no-store"}}
