@@ -2,8 +2,11 @@ import "server-only";
 import { sql } from "@/lib/db";
 import { getMarketDataProvider } from "@/lib/market-data";
 import { classifyFreshness } from "@/domain/market-freshness";
+import { runBounded } from "@/lib/work-pool";
 
-export async function refreshMarketData() {
+// `deadline` (epoch ms) stops new lookups once reached; lines not refreshed are reported as skipped
+// so a slow provider shows up as a degraded run instead of silently eating the whole worker.
+export async function refreshMarketData(options: { deadline?: number; concurrency?: number } = {}) {
   const provider = getMarketDataProvider();
   const runRows = await sql.unsafe(
     "INSERT INTO worker_runs (worker_key,status,details) VALUES ('market-data-refresh','RUNNING',$1::jsonb) RETURNING id",
@@ -16,11 +19,12 @@ export async function refreshMarketData() {
       "UPDATE worker_runs SET status='SKIPPED',finished_at=now(),details=$1::jsonb WHERE id=$2",
       [JSON.stringify({ provider: provider.name, configured: false }), runId]
     );
-    return { provider: provider.name, configured: false, refreshed: 0, failed: 0 };
+    return { provider: provider.name, configured: false, refreshed: 0, failed: 0, skipped: 0 };
   }
 
   let refreshed = 0;
   let failed = 0;
+  let skipped = 0;
   const failures: Array<{ tradingLineId: string; code: string }> = [];
 
   try {
@@ -31,43 +35,48 @@ export async function refreshMarketData() {
       "OR EXISTS (SELECT 1 FROM regional_instrument_mappings m WHERE m.trading_line_id=tl.id AND m.enabled=true AND m.effective_from<=current_date AND (m.effective_to IS NULL OR m.effective_to>=current_date)))"
     );
 
-    for (const line of lines) {
-      try {
-        const observation = await provider.currentPrice(String(line.provider_symbol));
-        if (!observation) {
+    const pool = await runBounded(
+      lines,
+      { concurrency: options.concurrency ?? 5, shouldStop: () => options.deadline != null && Date.now() >= options.deadline },
+      async (line) => {
+        try {
+          const observation = await provider.currentPrice(String(line.provider_symbol));
+          if (!observation) {
+            failed += 1;
+            failures.push({ tradingLineId: String(line.id), code: "NO_QUOTE" });
+            return;
+          }
+          if (classifyFreshness(observation.observedAt) !== "CURRENT") {
+            failed += 1;
+            failures.push({ tradingLineId: String(line.id), code: "STALE_OR_INVALID_QUOTE" });
+            return;
+          }
+          if (observation.currency !== String(line.currency).toUpperCase()) {
+            failed += 1;
+            failures.push({ tradingLineId: String(line.id), code: "CURRENCY_MISMATCH" });
+            return;
+          }
+          await sql.unsafe(
+            "INSERT INTO market_data_observations (trading_line_id,observed_at,price,currency,provider,freshness) VALUES ($1,$2,$3,$4,$5,'CURRENT') ON CONFLICT (trading_line_id,observed_at,provider) DO NOTHING",
+            [line.id, observation.observedAt, observation.price, observation.currency, observation.provider]
+          );
+          refreshed += 1;
+        } catch (error) {
           failed += 1;
-          failures.push({ tradingLineId: String(line.id), code: "NO_QUOTE" });
-          continue;
+          failures.push({
+            tradingLineId: String(line.id),
+            code: error instanceof Error ? error.message.slice(0, 80) : "UNKNOWN"
+          });
         }
-        if (classifyFreshness(observation.observedAt) !== "CURRENT") {
-          failed += 1;
-          failures.push({ tradingLineId: String(line.id), code: "STALE_OR_INVALID_QUOTE" });
-          continue;
-        }
-        if (observation.currency !== String(line.currency).toUpperCase()) {
-          failed += 1;
-          failures.push({ tradingLineId: String(line.id), code: "CURRENCY_MISMATCH" });
-          continue;
-        }
-        await sql.unsafe(
-          "INSERT INTO market_data_observations (trading_line_id,observed_at,price,currency,provider,freshness) VALUES ($1,$2,$3,$4,$5,'CURRENT') ON CONFLICT (trading_line_id,observed_at,provider) DO NOTHING",
-          [line.id, observation.observedAt, observation.price, observation.currency, observation.provider]
-        );
-        refreshed += 1;
-      } catch (error) {
-        failed += 1;
-        failures.push({
-          tradingLineId: String(line.id),
-          code: error instanceof Error ? error.message.slice(0, 80) : "UNKNOWN"
-        });
       }
-    }
+    );
+    skipped = pool.deferred;
 
     await sql.unsafe(
       "UPDATE worker_runs SET status=$1,finished_at=now(),details=$2::jsonb WHERE id=$3",
-      [failed ? "PARTIAL" : "SUCCESS", JSON.stringify({ provider: provider.name, configured: true, refreshed, failed, failures: failures.slice(0, 50) }), runId]
+      [failed || skipped ? "PARTIAL" : "SUCCESS", JSON.stringify({ provider: provider.name, configured: true, refreshed, failed, skipped, failures: failures.slice(0, 50) }), runId]
     );
-    return { provider: provider.name, configured: true, refreshed, failed };
+    return { provider: provider.name, configured: true, refreshed, failed, skipped };
   } catch (error) {
     await sql.unsafe(
       "UPDATE worker_runs SET status='FAILED',finished_at=now(),details=$1::jsonb WHERE id=$2",

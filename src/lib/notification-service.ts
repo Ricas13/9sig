@@ -19,9 +19,37 @@ export async function createDeliveriesForNotification(notificationId: string) {
     const dedupe=String(notificationId)+":"+channel;
     await sql.unsafe("INSERT INTO notification_deliveries (notification_id,channel,dedupe_key) VALUES ($1,$2,$3) ON CONFLICT (dedupe_key) DO NOTHING",[notificationId,channel,dedupe]);
   }
+  // Processed, even when no channel applied (in-app only): it must never be selected again.
+  await sql.unsafe("UPDATE notifications SET deliveries_created_at=now() WHERE id=$1 AND deliveries_created_at IS NULL",[notificationId]);
+}
+
+// Creates deliveries for notifications that have not been through the worker yet, oldest first.
+export async function createPendingDeliveries(limit=200){
+  const rows=await sql.unsafe("SELECT id FROM notifications WHERE deliveries_created_at IS NULL ORDER BY created_at LIMIT $1",[limit]);
+  for(const row of rows)await createDeliveriesForNotification(String(row.id));
+  return rows.length;
 }
 
 export async function processPendingDeliveries(limit=50){
+  return (await processDeliveryBatch(limit)).sent;
+}
+
+// Sends everything that is due, in batches, until nothing is left or the time budget is spent.
+export async function processDeliveryBacklog(options:{budgetMs:number;batch?:number}){
+  const deadline=Date.now()+options.budgetMs;
+  const batch=options.batch??100;
+  let sent=0;
+  let claimed=0;
+  while(Date.now()<deadline){
+    const result=await processDeliveryBatch(batch);
+    sent+=result.sent;
+    claimed+=result.claimed;
+    if(result.claimed<batch)return {sent,claimed,exhausted:true};
+  }
+  return {sent,claimed,exhausted:false};
+}
+
+async function processDeliveryBatch(limit:number){
   const deliveries=await sql.unsafe(
     "WITH picked AS ("+
     " SELECT id FROM notification_deliveries"+
@@ -38,6 +66,7 @@ export async function processPendingDeliveries(limit=50){
     [limit]
   );
   let sent=0;
+  const claimed=deliveries.length;
   const entitlementCache=new Map<string,Set<string>>();
   for(const d of deliveries){
     if(d.user_deleted_at){
@@ -124,5 +153,5 @@ export async function processPendingDeliveries(limit=50){
       }
     }
   }
-  return sent;
+  return {sent,claimed};
 }
