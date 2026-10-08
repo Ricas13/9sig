@@ -34,6 +34,7 @@ export default async function HomePage() {
           <Link className="nav-link" href="/strategies">Strategies</Link>
           <Link className="nav-link" href="/pricing">Pricing</Link>
           <Link className="nav-link" href="/faq">FAQ</Link>
+          <Link className="nav-link" href="/tools/rebalance-calculator">Calculator</Link>
           <Link className="button" href="/demo">Explore demo</Link>
           <Link className="button" href="/login">Sign in</Link>
           <Link className="button primary" href="/register">Start free</Link>
