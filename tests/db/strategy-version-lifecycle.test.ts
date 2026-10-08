@@ -54,8 +54,9 @@ describe.skipIf(!url)("strategy version lifecycle",()=>{
   afterAll(async()=>{
     if(!sql)return;
     await sql.unsafe("SET app.allow_published_edit = 'on'");
-    await sql.unsafe("DELETE FROM strategy_versions WHERE strategy_definition_id=$1",[definitionId]);
-    await sql.unsafe("DELETE FROM strategy_definitions WHERE id=$1",[definitionId]);
+    // Every definition this run created (including the "-enabled" one), even if a test failed midway.
+    await sql.unsafe("DELETE FROM strategy_versions WHERE strategy_definition_id IN (SELECT id FROM strategy_definitions WHERE key LIKE $1)",[key+"%"]);
+    await sql.unsafe("DELETE FROM strategy_definitions WHERE key LIKE $1",[key+"%"]);
     await sql.unsafe("DELETE FROM audit_events WHERE actor_user_id=$1",[adminId]);
     await sql.unsafe("DELETE FROM users WHERE id=$1",[adminId]);
     await sql.end();
@@ -135,9 +136,6 @@ describe.skipIf(!url)("strategy version lifecycle",()=>{
     const attempt=await patch({action:"RETIRE",versionId:id});
     expect(attempt.status).toBe(409);
     expect(attempt.json.error).toMatch(/only published version/i);
-    await sql!.unsafe("SET app.allow_published_edit = 'on'");
-    await sql!.unsafe("DELETE FROM strategy_versions WHERE strategy_definition_id=$1",[enabled[0].id]);
-    await sql!.unsafe("DELETE FROM strategy_definitions WHERE id=$1",[enabled[0].id]);
   });
 
   it("answers an unknown version with 404",async()=>{
