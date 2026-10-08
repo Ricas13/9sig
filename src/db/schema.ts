@@ -353,12 +353,13 @@ export const notifications = pgTable("notifications", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   actionId: uuid("action_id").references(() => actions.id, { onDelete: "cascade" }),
+  reviewKey: text("review_key"),
   type: text("type").notNull(),
   title: text("title").notNull(),
   body: text("body").notNull(),
   readAt: timestamp("read_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [index("notification_user_idx").on(t.userId, t.readAt, t.createdAt), uniqueIndex("notification_action_unique").on(t.actionId)]);
+}, (t) => [index("notification_user_idx").on(t.userId, t.readAt, t.createdAt), uniqueIndex("notification_action_unique").on(t.actionId), uniqueIndex("notification_review_key_unique").on(t.reviewKey).where(sql`${t.reviewKey} IS NOT NULL`)]);
 
 export const notificationEndpoints = pgTable("notification_endpoints", {
   id: uuid("id").primaryKey().defaultRandom(),
