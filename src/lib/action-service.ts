@@ -331,6 +331,11 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
     materialRevision:JSON.stringify({amount:proposal.amount?.toDecimalPlaces(2,Decimal.ROUND_HALF_EVEN).toString()??null,instruction:proposal.instruction,explanation:proposal.actionType==="NO_ACTION"?null:proposal.explanation})
   });
   const fingerprint=crypto.createHash("sha256").update(material).digest("hex");
+  // Deliver one generic reminder per strategy review cycle and alert class,
+  // while the newest calculated action and its precise quantities can change.
+  const notificationClass=proposal.actionType==="DATA_REQUIRED"?"DATA_REQUIRED":"REVIEW";
+  const reviewKey=crypto.createHash("sha256")
+    .update(strategyInstanceId+"|"+lastReview.toISOString()+"|"+notificationClass).digest("hex");
   const reviewAction=["BUY","SELL","REBALANCE","HOLD"].includes(proposal.actionType);
   const nextState=reviewAction
     ? proposal.completesReview===false
@@ -338,7 +343,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
       : {...proposal.nextState,lastReviewAt:new Date().toISOString(),forceReview:false}
     : proposal.nextState;
   const totalValue=exposurePositions.reduce((sum,p)=>sum.plus(p.value),effectiveCash);
-  return {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId,executionAccountId};
+  return {instance,proposal,totalValue,dataStatus,fingerprint,reviewKey,nextState,tradingLineId,executionAccountId};
 }
 
 export async function previewCashScenario(
@@ -546,7 +551,7 @@ export async function calculateAction(strategyInstanceId:string){
     await tx.unsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[strategyInstanceId]);
 
     const calculation=await buildActionCalculation(strategyInstanceId);
-    const {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId,executionAccountId}=calculation;
+    const {instance,proposal,totalValue,dataStatus,fingerprint,reviewKey,nextState,tradingLineId,executionAccountId}=calculation;
     if(dataStatus==="CURRENT")await tx.unsafe("INSERT INTO performance_series (strategy_instance_id,series_type,date,value,metadata) VALUES ($1,'USER_VALUE',current_date,$2,$3::jsonb) ON CONFLICT (strategy_instance_id,series_type,date) DO UPDATE SET value=EXCLUDED.value,metadata=EXCLUDED.metadata",[strategyInstanceId,totalValue.toString(),JSON.stringify({source:"ledger+market"})]);
     const existing=await tx.unsafe(
       "SELECT id,status FROM actions WHERE strategy_instance_id=$1 AND fingerprint=$2 FOR UPDATE",
@@ -578,7 +583,17 @@ export async function calculateAction(strategyInstanceId:string){
     const healthy=dataStatus==="CURRENT"&&proposal.actionType!=="DATA_REQUIRED";
     await tx.unsafe("UPDATE strategy_instances SET health_status=$1,updated_at=now() WHERE id=$2",[healthy?"HEALTHY":"NEEDS_ATTENTION",strategyInstanceId]);
     if(shouldNotify&&proposal.actionType!=="NO_ACTION"){
-      await tx.unsafe("INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION',$3,$4) ON CONFLICT (action_id) WHERE action_id IS NOT NULL DO NOTHING",[instance.user_id,actionId,proposal.title,proposal.instruction]);
+      // Keep the *alert* stable, not an obsolete execution quantity. An
+      // in-flight or delivered alert always points to the latest revision.
+      const noticeTitle=proposal.actionType==="DATA_REQUIRED"?"Strategy data needs attention":"Strategy review ready";
+      const noticeBody="Open your Rebalune dashboard for the latest calculated amounts and current data. Do not trade from an old notification.";
+      await tx.unsafe(
+        "INSERT INTO notifications (user_id,action_id,type,title,body,review_key) "+
+        "VALUES ($1,$2,'ACTION',$3,$4,$5) "+
+        "ON CONFLICT (review_key) WHERE review_key IS NOT NULL "+
+        "DO UPDATE SET action_id=EXCLUDED.action_id,title=EXCLUDED.title,body=EXCLUDED.body",
+        [instance.user_id,actionId,noticeTitle,noticeBody,reviewKey]
+      );
     }
     return {actionId,proposal,totalValue:totalValue.toString()};
   });
