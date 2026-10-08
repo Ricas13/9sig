@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, text, timestamp, boolean, integer, numeric, jsonb,
+  pgTable, uuid, text, timestamp, boolean, integer, bigint, numeric, jsonb,
   uniqueIndex, index, date, primaryKey
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -19,6 +19,10 @@ export const users = pgTable("users", {
   timezone: text("timezone").notNull().default("Europe/London"),
   role: text("role").notNull().default("USER"),
   anonymousAggregateOptIn: boolean("anonymous_aggregate_opt_in").notNull().default(false),
+  mfaSecretEncrypted: text("mfa_secret_encrypted"),
+  mfaEnabledAt: timestamp("mfa_enabled_at",{withTimezone:true}),
+  mfaLastStep: bigint("mfa_last_step",{mode:"number"}).notNull().default(-1),
+  mfaRecoveryHashes: text("mfa_recovery_hashes").array().notNull().default(sql`'{}'::text[]`),
   sessionVersion: integer("session_version").notNull().default(0),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   ...timestamps

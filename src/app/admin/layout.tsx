@@ -1,11 +1,17 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireAdmin, requirePageUser } from "@/lib/session";
 
 export const dynamic="force-dynamic";
 
 export default async function AdminLayout({children}:{children:React.ReactNode}){
   await requirePageUser();
-  await requireAdmin();
+  try {
+    await requireAdmin();
+  } catch (error) {
+    if (error instanceof Error && error.message === "MFA_REQUIRED") redirect("/app/settings#security");
+    throw error;
+  }
   return <div className="app-shell">
     <a className="skip-link" href="#admin-main-content">Skip to main content</a>
     <aside className="sidebar">

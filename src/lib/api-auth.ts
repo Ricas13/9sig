@@ -9,5 +9,8 @@ export function authFailure(error: unknown): Response | null {
   if (code === "FORBIDDEN") {
     return Response.json({ error: "You do not have access to this." }, { status: 403, headers: { "cache-control": "no-store" } });
   }
+  if (code === "MFA_REQUIRED") {
+    return Response.json({ error: "Turn on two-step sign-in in your account settings to use admin tools." }, { status: 403, headers: { "cache-control": "no-store" } });
+  }
   return null;
 }

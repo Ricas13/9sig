@@ -90,6 +90,7 @@
 
 - `src/auth.ts` has password/JWT login and account DB role checking. Strong admin MFA, login anomaly alerts, session revocation and security-incident procedures are not evident in the reviewed paths.
 - Fix: require passkey/TOTP for admins; rate limits by account and trusted proxy IP; session invalidation, audit and permission-focused tests; security review before enabling commercial data access.
+- **Status (code):** TOTP two-step sign-in is built and tested (RFC 6238 vectors, replay protection, one-time recovery codes, audit events, password + code needed to turn it off). It is opt-in per account; set `ADMIN_MFA_REQUIRED=true` once every admin has enrolled and admin tools then refuse admins without it (they can still reach their own settings to enrol, so nobody is locked out). Rate limits key on the proxy-appended address (`TRUSTED_PROXY_HOPS`). Still open: passkeys, login-anomaly alerts and an independent security review.
 
 ## P2 — UX, SEO, validation and product breadth
 

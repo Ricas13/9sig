@@ -7,7 +7,7 @@ const baseline={
  CRON_SECRET:"c".repeat(40),STRIPE_SECRET_KEY:"sk_live_"+"d".repeat(30),STRIPE_WEBHOOK_SECRET:"whsec_"+"e".repeat(30),
  EMAIL_PROVIDER:"http",EMAIL_HTTP_ENDPOINT:"https://email.example.org",EMAIL_HTTP_TOKEN:"f".repeat(20),EMAIL_FROM:"support@invest.example.org",
  MARKET_DATA_PROVIDER:"http",MARKET_DATA_HTTP_BASE_URL:"https://quotes.example.org",MARKET_DATA_HTTP_TOKEN:"g".repeat(20),
- BACKUPS_RESTORE_VERIFIED:"true",UK_REGULATORY_SIGNOFF_VERIFIED:"true",REGIONAL_INSTRUMENTS_VERIFIED:"true"
+ BACKUPS_RESTORE_VERIFIED:"true",UK_REGULATORY_SIGNOFF_VERIFIED:"true",REGIONAL_INSTRUMENTS_VERIFIED:"true",ADMIN_MFA_REQUIRED:"true"
 };
 describe("commercial launch preflight",()=>{
  it("rejects development defaults and empty environment",()=>expect(checkCommercialLaunch({}).every(x=>!x.passed)).toBe(true));

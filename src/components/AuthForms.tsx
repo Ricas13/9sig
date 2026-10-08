@@ -7,11 +7,12 @@ export function LoginForm({next="/app"}:{next?:string}) {
   const router=useRouter(); const [error,setError]=useState(""); const [busy,setBusy]=useState(false);
   return <form className="stack" onSubmit={async(e)=>{
     e.preventDefault();setBusy(true);setError("");const f=new FormData(e.currentTarget);
-    const result=await signIn("credentials",{email:String(f.get("email")),password:String(f.get("password")),redirect:false});
-    setBusy(false); if(result?.error) setError("Email or password is incorrect, or the email is not verified."); else router.push(next);
+    const result=await signIn("credentials",{email:String(f.get("email")),password:String(f.get("password")),totp:String(f.get("totp")??""),redirect:false});
+    setBusy(false); if(result?.error) setError("Email, password or authentication code is incorrect, or the email is not verified."); else router.push(next);
   }}>
     <div className="field"><label htmlFor="login-email">Email</label><input id="login-email" name="email" type="email" autoComplete="email" required/></div>
     <div className="field"><label htmlFor="login-password">Password</label><input id="login-password" name="password" type="password" autoComplete="current-password" required/></div>
+    <div className="field"><label htmlFor="login-totp">Authentication code</label><input id="login-totp" name="totp" inputMode="text" autoComplete="one-time-code" maxLength={16}/><div className="help">Only if you turned on two-step sign-in. A recovery code also works.</div></div>
     {error&&<div className="error">{error}</div>}<button className="button primary" disabled={busy}>Sign in</button>
   </form>;
 }

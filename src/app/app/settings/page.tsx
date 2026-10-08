@@ -1,9 +1,11 @@
 import { requirePageUser } from "@/lib/session";
 import { sql } from "@/lib/db";
-import { BillingButtons,DiscordForm,PrivacyControls } from "@/components/SettingsForms";
+import { BillingButtons,DiscordForm,PrivacyControls,SecurityControls } from "@/components/SettingsForms";
+import { isMfaEnabled } from "@/lib/mfa";
 
 export default async function SettingsPage(){
   const user=await requirePageUser();
+  const mfaEnabled=await isMfaEnabled(user.id);
   const rows=await sql.unsafe(
     "SELECT p.display_name,p.slug,p.max_active_strategies,s.status,s.cadence,s.current_period_end,s.stripe_subscription_id FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.user_id=$1 LIMIT 1",
     [user.id]
@@ -41,6 +43,7 @@ export default async function SettingsPage(){
         <DiscordForm/>
       </section>
     </div>
+    <section id="security" className="card privacy-card"><div className="eyebrow">Security</div><h3>Two-step sign-in</h3><SecurityControls enabled={mfaEnabled}/></section>
     <section className="card privacy-card"><div className="eyebrow">Privacy</div><h3>Your data, your choice.</h3><p className="help">Anonymous community aggregates use privacy-thresholded derived data only. You can opt out, export your data, or close the account.</p><PrivacyControls optIn={user.anonymousAggregateOptIn}/></section>
   </>;
 }

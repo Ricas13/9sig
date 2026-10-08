@@ -27,6 +27,12 @@ export async function requireUser() {
 export async function requireAdmin() {
   const user = await requireUser();
   if (user.role !== "ADMIN") throw new Error("FORBIDDEN");
+  // When the operator requires it, an admin without two-step sign-in is kept out of the control
+  // plane (but not out of their own account, where they can turn it on, so nobody is locked out).
+  if (process.env.ADMIN_MFA_REQUIRED === "true") {
+    const rows = await sql.unsafe("SELECT mfa_enabled_at FROM users WHERE id=$1", [user.id]);
+    if (!rows[0]?.mfa_enabled_at) throw new Error("MFA_REQUIRED");
+  }
   return user;
 }
 
