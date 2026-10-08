@@ -51,3 +51,12 @@ Set `NEXT_PUBLIC_BRAND_NAME=Rebalune`; the GitHub source repository may remain `
 ## Still required before commercial launch
 
 Provider contracts and tested rights to redistribute/use market quotes in a paid product; actual intraday history and split/FX coverage; all offered strategy engines independently validated; audit-corrected broker fills and scheduled notifications tested end-to-end; service legal/privacy/terms and UK product perimeter review; production billing, refunds and support; security and restore drills. Docker health, green CI and SEO readiness do not replace these checks.
+
+## Sign in with Google / Apple
+
+Buttons appear on the sign-in and register pages only for providers whose variables are set (see `.env.example`). Not exercised against the live providers yet: do that on staging before enabling in production.
+
+1. Register the redirect URIs `https://<domain>/api/auth/callback/google` and `/apple` with each provider, and set `AUTH_URL=https://<domain>`.
+2. Apple needs HTTPS, a Services ID (`AUTH_APPLE_ID`), and either a ready client secret or the team ID, key ID and private key (a secret is generated at start-up and lasts 150 days, so restart at least that often).
+3. Account rules (tested in `tests/db/oauth-sign-in.test.ts`): a provider is matched by its own subject id; an existing account is linked by email only if the provider says the email is verified; an account that was never email-verified loses its password when claimed this way; administrators and accounts with two-step sign-in cannot use a provider and must use password + code; deleted accounts are never revived.
+4. Providers deliberately not added: Microsoft, GitHub and Facebook do not reliably vouch for the email address they return, and linking on an unverified email would allow account takeover.

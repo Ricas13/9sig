@@ -45,3 +45,23 @@ export function ResetPasswordForm({token}:{token?:string}) {
   if(!token) return <form className="stack" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);try{await fetch("/api/password-reset/request",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:f.get("email")})});setMessage("If that account exists, a reset link has been sent.");}catch{setMessage("Could not reach the server. Please check your connection and try again.");}}}><div className="field"><label>Email</label><input name="email" type="email" required/></div><button className="button primary">Send reset link</button>{message&&<div className="success">{message}</div>}</form>;
   return <form className="stack" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);try{const r=await fetch("/api/password-reset/confirm",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token,password:f.get("password")})});const b=await r.json().catch(()=>({} as {error?:string}));setMessage(r.ok?"Password updated. You can sign in.":(b.error??"Could not update your password. Please try again."));}catch{setMessage("Could not reach the server. Please try again.");}}}><div className="field"><label>New password</label><input name="password" type="password" minLength={12} required/></div><button className="button primary">Update password</button>{message&&<div className={message.startsWith("Password updated")?"success":"error"}>{message}</div>}</form>;
 }
+
+
+const OAUTH_ERRORS:Record<string,string>={
+  oauth_EMAIL_NOT_VERIFIED:"That provider did not confirm your email address, so we could not sign you in with it. Use your email and password instead.",
+  oauth_ACCOUNT_UNAVAILABLE:"This account is not available.",
+  oauth_USE_PASSWORD_SIGN_IN:"This account has extra protection turned on. Sign in with your email, password and authentication code.",
+  oauth_INVALID_IDENTITY:"The provider did not return enough information to sign you in.",
+  oauth_FAILED:"We could not complete sign-in with that provider. Please try again or use your email and password."
+};
+
+export function OAuthButtons({providers,next="/app",error}:{providers:Array<{id:string;label:string}>;next?:string;error?:string}){
+  const[busy,setBusy]=useState("");
+  const message=error?(OAUTH_ERRORS[error]??(error.startsWith("oauth_")||error==="AccessDenied"||error==="OAuthCallbackError"?OAUTH_ERRORS.oauth_FAILED:"")):"";
+  if(!providers.length&&!message)return null;
+  return <div className="stack" aria-label="Continue with">
+    {message&&<div className="error" role="alert">{message}</div>}
+    {providers.map((p)=><button key={p.id} type="button" className="button" disabled={Boolean(busy)} onClick={async()=>{setBusy(p.id);await signIn(p.id,{callbackUrl:next});}}>Continue with {p.label}</button>)}
+    {providers.length>0&&<div className="help" style={{textAlign:"center"}}>or use your email</div>}
+  </div>;
+}

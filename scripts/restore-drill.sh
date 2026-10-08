@@ -17,15 +17,24 @@ set -eu
 started=$(date +%s)
 scratch="${DRILL_SCRATCH_DB:-restore_drill_${started}}"
 report="${DRILL_REPORT:-./restore-drill-report.json}"
-workdir=$(mktemp -d)
-cleanup() { psql -d postgres -qAt -c "DROP DATABASE IF EXISTS \"$scratch\"" >/dev/null 2>&1 || true; rm -rf "$workdir"; }
-trap cleanup EXIT
-
 if [ "$scratch" = "$PGDATABASE" ]; then
   echo "Refusing: the scratch database must not be the live database." >&2
   exit 2
 fi
 case "$scratch" in *[!A-Za-z0-9_]*) echo "Refusing: scratch database name must be letters, digits and underscores." >&2; exit 2 ;; esac
+# Never replace an existing database: only a database this script created itself may be dropped.
+if [ "$(psql -d postgres -qAt -c "SELECT 1 FROM pg_database WHERE datname='$scratch'")" = "1" ]; then
+  echo "Refusing: database $scratch already exists." >&2
+  exit 2
+fi
+
+workdir=$(mktemp -d)
+created=0
+cleanup() {
+  if [ "$created" = "1" ]; then psql -d postgres -qAt -c "DROP DATABASE IF EXISTS \"$scratch\"" >/dev/null 2>&1 || true; fi
+  rm -rf "$workdir"
+}
+trap cleanup EXIT
 
 snapshot_id="local-file"
 snapshot_time=""
@@ -45,6 +54,7 @@ fi
 [ -s "$dump" ] || { echo "Backup file is empty." >&2; exit 3; }
 
 psql -d postgres -qAt -c "CREATE DATABASE \"$scratch\""
+created=1
 pg_restore --no-owner --no-acl --exit-on-error -d "$scratch" "$dump"
 
 # Evidence that the restore is usable, not merely that pg_restore exited 0.

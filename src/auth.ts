@@ -5,13 +5,33 @@ import { z } from "zod";
 import { sql } from "@/lib/db";
 import { consumeRateLimit } from "@/lib/security";
 import { verifySecondFactor } from "@/lib/mfa";
+import Google from "next-auth/providers/google";
+import Apple from "next-auth/providers/apple";
+import { resolveOAuthSignIn } from "@/lib/oauth";
+import { appleConfigured, profileEmailVerified } from "@/domain/oauth-providers";
+import { createAppleClientSecret } from "@/lib/apple-client-secret";
 
 const credentials = z.object({ email: z.string().email(), password: z.string().min(8).max(128), totp: z.string().max(32).optional() });
+
+const env = process.env;
+const oauthProviders = [];
+if (env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET) {
+  oauthProviders.push(Google({ clientId: env.AUTH_GOOGLE_ID, clientSecret: env.AUTH_GOOGLE_SECRET }));
+}
+if (appleConfigured(env)) {
+  oauthProviders.push(Apple({
+    clientId: env.AUTH_APPLE_ID,
+    clientSecret: env.AUTH_APPLE_SECRET ?? (await createAppleClientSecret({
+      teamId: env.AUTH_APPLE_TEAM_ID!, clientId: env.AUTH_APPLE_ID!, keyId: env.AUTH_APPLE_KEY_ID!, privateKey: env.AUTH_APPLE_PRIVATE_KEY!
+    }))
+  }));
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt", maxAge: 12 * 60 * 60 },
   pages: { signIn: "/login" },
   providers: [
+    ...oauthProviders,
     Credentials({
       credentials: { email: {}, password: {}, totp: {} },
       async authorize(raw) {
@@ -29,7 +49,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const user = rows[0];
         if (!user) return null;
         if (process.env.NODE_ENV === "production" && !user.email_verified_at) return null;
-        if (!await bcrypt.compare(parsed.data.password, String(user.password_hash))) return null;
+        // Accounts created through a provider have no password until they set one by reset.
+        if (!user.password_hash || !await bcrypt.compare(parsed.data.password, String(user.password_hash))) return null;
         // Two-step sign-in, when the account has it on. The shared per-email attempt limit above
         // also bounds guesses at the six-digit code.
         if (user.mfa_enabled_at && !(await verifySecondFactor(String(user.id), parsed.data.totp))) return null;
@@ -38,6 +59,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     })
   ],
   callbacks: {
+    async signIn({ user, account, profile }) {
+      if (!account || account.type === "credentials") return true;
+      // Provider sign-ins are mapped onto application users here (see resolveOAuthSignIn for the
+      // rules). The resolved user replaces the provider's, so the session carries our id and role.
+      try {
+        const result = await resolveOAuthSignIn({
+          provider: account.provider,
+          providerAccountId: account.providerAccountId,
+          email: user.email ?? (typeof profile?.email === "string" ? profile.email : null),
+          emailVerified: profileEmailVerified(account.provider, profile as Record<string, unknown> | undefined)
+        });
+        if (!result.ok) return "/login?error=" + encodeURIComponent("oauth_" + result.reason);
+        user.id = result.user.id;
+        user.email = result.user.email;
+        user.role = result.user.role;
+        user.sessionVersion = result.user.sessionVersion;
+        return true;
+      } catch {
+        return "/login?error=oauth_FAILED";
+      }
+    },
     jwt({ token, user }) {
       if (user?.id) token.uid = user.id;
       if (user && "role" in user) token.role = String(user.role);

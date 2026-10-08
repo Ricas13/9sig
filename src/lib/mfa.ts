@@ -39,6 +39,10 @@ export async function verifySecondFactor(userId: string, submitted: string | und
 
 /** Starts (or restarts) enrolment. Nothing is enforced until confirmEnrollment succeeds. */
 export async function beginEnrollment(userId: string) {
+  // Provider sign-in is refused for accounts with two-step sign-in on, so an account with no
+  // password would lock itself out. It must set a password first (forgot password).
+  const owner = await sql.unsafe("SELECT password_hash FROM users WHERE id=$1", [userId]);
+  if (!owner[0]?.password_hash) throw new Error("MFA_PASSWORD_REQUIRED");
   const secret = generateTotpSecret();
   const updated = await sql.unsafe(
     "UPDATE users SET mfa_secret_encrypted=$2,updated_at=now() WHERE id=$1 AND mfa_enabled_at IS NULL RETURNING id",

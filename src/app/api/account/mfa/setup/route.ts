@@ -15,6 +15,7 @@ export async function POST(request: Request) {
     const denied = authFailure(error);
     if (denied) return denied;
     if (error instanceof Error && error.message === "MFA_ALREADY_ENABLED") return Response.json({ error: "Two-step sign-in is already on." }, { status: 409 });
+    if (error instanceof Error && error.message === "MFA_PASSWORD_REQUIRED") return Response.json({ error: "Set a password first (use Forgot password on the sign-in page), then turn on two-step sign-in." }, { status: 409 });
     return Response.json({ error: "Could not start two-step sign-in setup." }, { status: 500 });
   }
 }

@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const input = schema.parse(await request.json());
     const rows = await sql.unsafe("SELECT password_hash,mfa_enabled_at FROM users WHERE id=$1", [user.id]);
     if (!rows[0]?.mfa_enabled_at) return Response.json({ error: "Two-step sign-in is not on." }, { status: 409 });
-    const passwordOk = await bcrypt.compare(input.password, String(rows[0].password_hash));
+    const passwordOk = Boolean(rows[0].password_hash) && await bcrypt.compare(input.password, String(rows[0].password_hash));
     if (!passwordOk || !(await verifySecondFactor(user.id, input.code))) {
       return Response.json({ error: "Password or code is incorrect." }, { status: 400 });
     }

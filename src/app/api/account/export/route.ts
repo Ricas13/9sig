@@ -22,11 +22,12 @@ export async function GET() {
     const accounts = await sql.unsafe("SELECT * FROM accounts WHERE user_id=$1 ORDER BY created_at", [user.id]);
     const notifications = await sql.unsafe("SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at", [user.id]);
     const notificationEndpoints = await sql.unsafe("SELECT id,channel,enabled,created_at,updated_at FROM notification_endpoints WHERE user_id=$1 ORDER BY created_at", [user.id]);
+    const signInMethods = await sql.unsafe("SELECT provider,email,created_at FROM oauth_accounts WHERE user_id=$1 ORDER BY created_at", [user.id]);
     return Response.json({
       exportedAt: new Date().toISOString(),
       user: { email: user.email, country: user.country, baseCurrency: user.baseCurrency, timezone: user.timezone, anonymousAggregateOptIn: user.anonymousAggregateOptIn },
       accounts, strategyInstances: instances, strategyAccounts, strategyStates: states,
-      ledger, actions, reconciliations, overrides, notifications, notificationEndpoints
+      ledger, actions, reconciliations, overrides, notifications, notificationEndpoints, signInMethods
     });
   } catch (error) {
     const denied = authFailure(error);
