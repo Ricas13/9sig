@@ -45,4 +45,8 @@ Reference strategy records are in `src/domain/strategy/research-catalog.ts`. Sou
 - [ ] Independent UK review of FCA perimeter, financial promotions, consumer protection, subscription terms, GDPR/privacy, data licensing and tax-related presentation before charging customers
 - [ ] Confirm company ownership, support mailbox, refund/contact/privacy policies and business continuity
 
+### Automated commercial preflight
+
+Run `npm run launch:preflight` with genuine production configuration before enabling paid onboarding. It rejects development defaults, test Stripe keys, non-HTTPS external endpoints, missing secrets, and missing operator attestations for backups, UK regulatory sign-off, and verified instruments. It does not prove those attestations are genuine or confirm third-party service connectivity: keep signed evidence, run real Stripe/email/data integration tests and perform a backup restore drill. Do not set attestation environment flags until the actual work has been completed.
+
 **Operating rule:** Green CI proves software checks passed, not market-data accuracy, regional product eligibility, investment methodology authenticity, legal approval or production readiness. No automatic broker trades are authorised by these research definitions.
