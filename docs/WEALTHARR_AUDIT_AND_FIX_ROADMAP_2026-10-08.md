@@ -1,10 +1,10 @@
-# Rebalune — production-readiness code audit and fix roadmap
+# Wealtharr — production-readiness code audit and fix roadmap
 
 **Audit date:** 2026-10-08. **Scope:** targeted static review of PR #4 head `89edd01b287d30cbbf6caab9bd416e64e0f2fa59`, critical finance, auth, billing, admin, market data, scheduling, notification, Docker and SEO paths; GitHub Actions CI run #833. This is **not** a penetration test, validated market-data integration, live Stripe exercise or a claim that the full repository is defect-free.
 
 ## CI finding
 
-**CI-01 (confirmed, release blocking):** #833 failed in `npm run test:e2e`: **mobile and desktop landing and demo visual regression checks** compare the new Rebalune images with pre-rebrand SHA-256 reference pixels in `tests/e2e/visual.spec.ts`. Remaining functional e2e tests shown by the run passed. Fix by inspecting attached screenshots against approved design, updating reviewed baseline snapshots, running both browser projects again and preserving visual regression enforcement. Do not simply disable the checks.
+**CI-01 (confirmed, release blocking):** #833 failed in `npm run test:e2e`: **mobile and desktop landing and demo visual regression checks** compare the new Wealtharr images with pre-rebrand SHA-256 reference pixels in `tests/e2e/visual.spec.ts`. Remaining functional e2e tests shown by the run passed. Fix by inspecting attached screenshots against approved design, updating reviewed baseline snapshots, running both browser projects again and preserving visual regression enforcement. Do not simply disable the checks.
 
 ## P0 — financial correctness and central product promise
 
@@ -96,7 +96,7 @@
 
 - Review market-price data licence/adjustment semantics, FX/dividend/split handling and UK ISA broker availability; strategy research labels cannot be treated as verified execution capability.
 - Complete independent golden-case testing for each actually offered strategy (9Sig, fixed allocation, momentum etc.), including drift/cash/fees and contribution timing.
-- Confirm `NEXT_PUBLIC_BRAND_NAME=Rebalune` on Oracle and clear brand/domain use; audit remaining hard-coded legacy internal labels only as operational convenience.
+- Confirm `NEXT_PUBLIC_BRAND_NAME=Wealtharr` on Oracle and clear brand/domain use; audit remaining hard-coded legacy internal labels only as operational convenience.
 - Validate search sitemap/canonicals, structured data pricing, Google Search Console, legal/privacy pages and accessibility on final domain.
 - Expand e2e tests to provider price ingestion, quote override → action revision → notification, Stripe payment state and off-site restore. The existing tests heavily exercise pure domain functions and onboarding but not the whole external-service user journey.
 
