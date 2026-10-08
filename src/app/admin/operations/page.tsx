@@ -1,5 +1,6 @@
 import { sql } from "@/lib/db";
 import { RetryDeliveries } from "@/components/RetryDeliveries";
+import { IntegrationTests } from "@/components/IntegrationTests";
 import { checkCommercialLaunch } from "@/domain/commercial-launch";
 export const dynamic="force-dynamic";
 const explanations:Record<string,string>={
@@ -30,6 +31,7 @@ export default async function OperationsPage(){
  <section className="card"><h3>Stripe webhook processing</h3>{webhooks.length?webhooks.map((w:any)=><div className="why-row" key={w.status}><span>{w.status}</span><strong>{w.n}</strong></div>):<p className="help">No webhook events recorded.</p>}<p><a href="/admin/plans">Manage plans and prices</a></p></section>
  <section className="card"><h3>Notification deliveries</h3>{delivery.length?delivery.map((d:any)=><div className="why-row" key={d.channel+":"+d.status}><span>{d.channel} · {d.status}</span><strong>{d.n}</strong></div>):<p className="help">No delivery attempts recorded.</p>}</section>
  </div>
+ <div style={{marginTop:18}}><IntegrationTests/></div>
  <div style={{marginTop:18}}><RetryDeliveries/></div>
  <section className="card" style={{marginTop:18}}><h3>Latest worker executions</h3>{jobs.length?jobs.map((job:any)=><div className="why-row" key={job.worker_key}><span>{job.worker_key}<small> · {new Date(job.started_at).toLocaleString("en-GB")}</small></span><strong>{job.status}</strong></div>):<p className="help">No runs recorded. Verify the scheduler service is running.</p>}</section>
  <section className="card" style={{marginTop:18}}><h3>Security boundary</h3><p className="help">The dashboard is intentionally read-only for live secrets. Connection tests and secret updates require a dedicated encrypted secret-management adapter, audit records, CSRF protection and server-side provider validation. Do not turn an arbitrary URL or token field into unrestricted server-side network access.</p></section></>;
