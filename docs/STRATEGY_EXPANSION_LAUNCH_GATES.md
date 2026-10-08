@@ -10,7 +10,8 @@ Reference strategy records are in `src/domain/strategy/research-catalog.ts`. Sou
 - [x] Distinguish canonical HFEA 55/45 UPRO/TMF from TQQQ/TMF modifications
 - [x] Record strict research-only status for 3Sig, 6Sig, dual momentum, GTAA/Ivy, PAA and VAA
 - [ ] Independently verify every primary-source rule and trading/calendar convention
-- [ ] Implement and backtest actual momentum signal engines with historical adjusted price series, no look-ahead, tie rules and missing-data failsafes
+- [x] Add a research-stage fail-closed relative/absolute momentum rotation engine and unit test fixtures (not wired to live data)
+- [ ] Integrate licensed historical prices into EngineContext, handle corporate actions and calendars, and independently backtest momentum signal engines with no look-ahead
 - [ ] Verify source-specific 3Sig and 6Sig formulas; do not guess
 - [ ] Add safe advanced custom strategy editor with JSON schema validation, permissions, version diffs, immutable publication and restricted operator sandbox
 - [ ] Run independent golden-case regression tests against primary source examples
