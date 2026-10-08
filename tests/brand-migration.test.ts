@@ -43,7 +43,7 @@ describe("former brand name",()=>{
   const offenders=walk("src").filter((f)=>/\.(tsx?|css)$/.test(f)).filter((f)=>{
    // The legacy theme storage key is read on purpose so existing users keep their theme.
    const text=read(f).replace(/strategyos-theme/g,"");
-   return text.includes("StrategyOS");
+   return text.includes("StrategyOS") || /Rebalune(?!App)/.test(text);
   });
   expect(offenders).toEqual([]);
  });
