@@ -9,6 +9,7 @@ import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { HistoricalQuoteLookup } from "@/components/HistoricalQuoteLookup";
 import { BrokerTradeForm } from "@/components/BrokerTradeForm";
+import { ManualPriceForm } from "@/components/ManualPriceForm";
 import { actionRecoveryGuidance, plainEnglishActionReason } from "@/domain/action-copy";
 import { AddLinkedAccountForm, CashEventForm, ContributionForm, ContributionPlanForm, ExecuteAction, ExecutionConstraintsForm, OpeningSnapshotForm, RecalculateButton, ReconcileForm, ReverseLedgerEventButton, StrategyLifecycleControls, StrategySwitchControl, StrategyVersionUpgrade, WhatIfPreview } from "@/components/StrategyActions";
 
@@ -93,6 +94,19 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
 
   const actionRows=await sql.unsafe("SELECT a.id,a.action_type,a.status,a.title,a.instruction,a.amount,a.currency,a.explanation,a.confidence,a.due_at,a.created_at,acc.name AS account_name,acc.wrapper AS account_wrapper FROM actions a LEFT JOIN accounts acc ON acc.id=a.account_id WHERE a.strategy_instance_id=$1 AND a.status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED') ORDER BY a.created_at DESC LIMIT 1",[id]);
   const action=actionRows[0];
+  const priceOptions=await sql.unsafe(
+    "SELECT DISTINCT ON (i.id) i.id,tl.ticker,tl.exchange,tl.currency "+
+    "FROM strategy_accounts sa JOIN accounts a ON a.id=sa.account_id "+
+    "JOIN trading_lines tl ON upper(tl.currency)=upper(a.currency) "+
+    "JOIN instruments i ON i.id=tl.instrument_id "+
+    "WHERE sa.strategy_instance_id=$1 AND tl.effective_from<=current_date "+
+    "AND (tl.effective_to IS NULL OR tl.effective_to>=current_date) AND ("+
+    " EXISTS(SELECT 1 FROM ledger_events le WHERE le.strategy_instance_id=$1 AND le.instrument_id=i.id) "+
+    " OR EXISTS(SELECT 1 FROM regional_instrument_mappings m WHERE m.trading_line_id=tl.id AND m.enabled=true AND m.country=a.country "+
+    " AND m.wrapper=a.wrapper AND (m.broker IS NULL OR upper(m.broker)=upper(COALESCE(a.broker_name,''))))) "+
+    "ORDER BY i.id,tl.ticker,tl.id LIMIT 40",[id]
+  );
+
 
   const performance=await sql.unsafe("SELECT date,series_type,value FROM performance_series WHERE strategy_instance_id=$1 ORDER BY date",[id]);
   const actualPoints=performance
@@ -300,7 +314,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
             <section><h3>Other cash movement</h3><p className="help">Withdrawals, dividends, interest, fees and tax belong here.</p><CashEventForm id={id} accounts={accountOptions}/></section>
           </div>
           <section className="drawer-section contribution-plan-settings"><h3>Regular contribution</h3><p className="help">Optional reminder only. Planned money never appears in your portfolio until you record the real deposit.</p><ContributionPlanForm id={id} plan={(s.contribution_plan??{}) as Record<string,unknown>}/></section>
-          <section className="drawer-section"><HistoricalQuoteLookup accounts={accountOptions}/><BrokerTradeForm strategyId={id} accounts={accountOptions}/></section>
+          <section className="drawer-section"><HistoricalQuoteLookup accounts={accountOptions}/><BrokerTradeForm strategyId={id} accounts={accountOptions}/><ManualPriceForm strategyId={id} instruments={priceOptions.map((o:any)=>({id:String(o.id),ticker:String(o.ticker),exchange:String(o.exchange),currency:String(o.currency)}))}/></section>
           <section className="drawer-section"><h3>Match your broker</h3><p className="help">If the app and broker differ, reconcile them here. Unexplained differences block financial actions instead of being guessed.</p><ReconcileForm id={id} expected={accountOptions.length===1&&latestValue?Number(latestValue.value):null} accounts={accountOptions}/></section>
         </div>
       </details>
