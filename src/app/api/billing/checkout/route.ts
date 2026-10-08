@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/security";
+import { hasLiveStripeSubscription, isTerminalLocalStatus } from "@/domain/subscription-status";
 
 const schema = z.object({
   planSlug: z.enum(["investor", "pro"]),
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
       [user.id]
     );
     const local = subRows[0];
-    if (local?.stripe_subscription_id && !["FREE", "CANCELED"].includes(String(local.status))) {
+    if (local?.stripe_subscription_id && !isTerminalLocalStatus(local.status)) {
       return Response.json({ error: "You already have a Stripe subscription. Use Manage billing to change the plan or billing cycle." }, { status: 409 });
     }
 
@@ -60,6 +61,15 @@ export async function POST(request: Request) {
         [user.id]
       );
       customerId = canonical[0]?.stripe_customer_id ? String(canonical[0].stripe_customer_id) : customerId;
+    }
+
+    // Local state can lag behind Stripe if a webhook was missed, so confirm with Stripe
+    // that this customer is not still billed before taking a second payment.
+    if (local?.stripe_customer_id) {
+      const existing = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 20 });
+      if (hasLiveStripeSubscription(existing.data.map((subscription) => subscription.status))) {
+        return Response.json({ error: "You already have a Stripe subscription. Use Manage billing to change the plan or billing cycle." }, { status: 409 });
+      }
     }
 
     const hourBucket = Math.floor(Date.now() / 3_600_000);

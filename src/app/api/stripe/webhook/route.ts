@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { sql } from "@/lib/db";
 import { enforceStrategyEntitlements } from "@/lib/entitlement-service";
+import { isTerminalLocalStatus, isTerminalStripeStatus } from "@/domain/subscription-status";
 
 async function claimWebhookEvent(event: Stripe.Event) {
   const inserted=await sql.unsafe(
@@ -42,7 +43,31 @@ async function resolvePlanId(subscription: Stripe.Subscription) {
     if(legacy.length>1)throw new Error("AMBIGUOUS_STRIPE_PRICE");
     if(legacy[0])return String(legacy[0].id);
   }
-  return subscription.metadata.planId||null;
+  // The metadata fallback is only trusted when it names a real plan; an unknown id
+  // would otherwise fail a foreign key and make Stripe retry the event forever.
+  const metadataPlanId=subscription.metadata.planId;
+  if(metadataPlanId){
+    const known=await sql.unsafe("SELECT id FROM plans WHERE id::text=$1 LIMIT 1",[metadataPlanId]);
+    if(known[0])return String(known[0].id);
+  }
+  return null;
+}
+
+async function retrieveCurrentSubscription(stripe:Stripe,subscriptionId:string){
+  try{
+    return await stripe.subscriptions.retrieve(subscriptionId);
+  }catch(retrieveError){
+    if((retrieveError as {code?:string})?.code==="resource_missing")return null;
+    throw retrieveError;
+  }
+}
+
+async function resetToFree(userId:string,subscriptionId:string){
+  const updated=await sql.unsafe(
+    "UPDATE subscriptions SET status='FREE',cadence='FREE',stripe_subscription_id=NULL,current_period_end=NULL,cancel_at_period_end=false,plan_id=(SELECT id FROM plans WHERE slug='free' LIMIT 1),updated_at=now() WHERE user_id=$1 AND stripe_subscription_id=$2 RETURNING user_id",
+    [userId,subscriptionId]
+  );
+  return Boolean(updated[0]);
 }
 
 async function resolveSubscriptionUserId(subscription:Stripe.Subscription){
@@ -84,23 +109,27 @@ export async function POST(request:Request){
     let duplicateSubscriptionId:string|null=null;
 
     if(event.type.startsWith("customer.subscription.")){
-      const subscription=event.data.object as Stripe.Subscription;
-      const userId=await resolveSubscriptionUserId(subscription);
+      const eventSubscription=event.data.object as Stripe.Subscription;
+      const userId=await resolveSubscriptionUserId(eventSubscription);
       if(userId){
-        if(event.type==="customer.subscription.deleted"){
-          const updated=await sql.unsafe(
-            "UPDATE subscriptions SET status='FREE',cadence='FREE',stripe_subscription_id=NULL,current_period_end=NULL,cancel_at_period_end=false,plan_id=(SELECT id FROM plans WHERE slug='free' LIMIT 1),updated_at=now() WHERE user_id=$1 AND stripe_subscription_id=$2 RETURNING user_id",
-            [userId,subscription.id]
-          );
-          if(updated[0])affectedUserId=userId;
+        // Events can arrive late or out of order, so the payload may describe a state the
+        // subscription has already left (for example "active" after it was deleted).
+        // Entitlements are only ever granted from Stripe's current view of it.
+        const subscription=event.type==="customer.subscription.deleted"
+          ?null
+          :await retrieveCurrentSubscription(stripe,eventSubscription.id);
+        if(!subscription||isTerminalStripeStatus(subscription.status)){
+          if(await resetToFree(userId,eventSubscription.id))affectedUserId=userId;
         }else{
           const planId=await resolvePlanId(subscription);
           if(!planId)throw new Error("PLAN_NOT_RESOLVED");
           const decision=await sql.begin(async(tx)=>{
-            const rows=await tx.unsafe("SELECT stripe_subscription_id FROM subscriptions WHERE user_id=$1 FOR UPDATE",[userId]);
+            const rows=await tx.unsafe("SELECT stripe_subscription_id,status FROM subscriptions WHERE user_id=$1 FOR UPDATE",[userId]);
             if(!rows[0])return {duplicate:true,orphan:true};
             const canonical=rows[0].stripe_subscription_id?String(rows[0].stripe_subscription_id):null;
-            if(canonical&&canonical!==subscription.id)return {duplicate:true};
+            // A stored subscription that is already dead (re-subscribing after a cancellation)
+            // must not block its replacement, otherwise the new paid subscription is cancelled.
+            if(canonical&&canonical!==subscription.id&&!isTerminalLocalStatus(rows[0].status))return {duplicate:true};
             const status=subscription.status==="active"?"ACTIVE":subscription.status==="trialing"?"TRIALING":subscription.status.toUpperCase();
             const item=subscription.items.data[0];
             await tx.unsafe(
