@@ -35,6 +35,15 @@ export async function POST(request: Request) {
     }
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    // Published price, currency and cadence must match the actual remote
+    // charge. A mismatched admin Stripe ID must never silently bill a user.
+    const stripePrice=await stripe.prices.retrieve(String(price.stripe_price_id));
+    const interval=input.cadence==="annual"?"year":"month";
+    if(!stripePrice.active||stripePrice.currency.toUpperCase()!==currency||
+       stripePrice.unit_amount!==Number(price.amount_minor)||
+       stripePrice.recurring?.interval!==interval||stripePrice.type!=="recurring"){
+      return Response.json({error:"Billing configuration mismatch. Checkout is disabled until an administrator corrects this price."},{status:503});
+    }
     const subRows = await sql.unsafe(
       "SELECT stripe_customer_id,stripe_subscription_id,status FROM subscriptions WHERE user_id=$1 LIMIT 1",
       [user.id]
