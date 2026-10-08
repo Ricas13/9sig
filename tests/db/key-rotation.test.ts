@@ -32,7 +32,6 @@ describe.skipIf(!url)("encryption key rotation",()=>{
     const user=await sql!.unsafe("INSERT INTO users (email,password_hash,mfa_secret_encrypted) VALUES ($1,'x',$2) RETURNING id",[`rot-user-${run}@example.test`,encryptSecret("MFASECRET"+run)]);
     userId=String(user[0].id);
     await sql!.unsafe("INSERT INTO notification_endpoints (user_id,channel,encrypted_destination,enabled) VALUES ($1,'DISCORD',$2,true)",[userId,encryptSecret("https://discord.com/api/webhooks/1/abc"+run)]);
-    await sql!.unsafe("INSERT INTO app_settings (key,value_encrypted) VALUES ('EMAIL_FROM',$1) ON CONFLICT (key) DO UPDATE SET value_encrypted=EXCLUDED.value_encrypted",[encryptSecret("ops@example.test")]);
     session.user={id:adminId,email:`rot-admin-${run}@example.test`,country:"GB",baseCurrency:"GBP",timezone:"Europe/London",role:"ADMIN",anonymousAggregateOptIn:false};
   });
   afterAll(async()=>{
@@ -64,6 +63,9 @@ describe.skipIf(!url)("encryption key rotation",()=>{
   });
 
   it("after the key changes, values are unreadable until the old key is supplied as the previous key",async()=>{
+    // A saved setting under the old key (written just before use: other files clear this table).
+    const {encryptSecret:enc}=await import("@/lib/crypto");
+    await sql!.unsafe("INSERT INTO app_settings (key,value_encrypted) VALUES ('EMAIL_FROM',$1) ON CONFLICT (key) DO UPDATE SET value_encrypted=EXCLUDED.value_encrypted",[enc("ops@example.test")]);
     process.env.APP_ENCRYPTION_KEY=freshKey;
     const {decryptSecretDetailed}=await import("@/lib/crypto");
     const {keyStatus}=await import("@/lib/key-rotation");
@@ -72,7 +74,8 @@ describe.skipIf(!url)("encryption key rotation",()=>{
     process.env.APP_ENCRYPTION_KEY_PREVIOUS=oldKey;
     // Reading keeps working during the rotation, and the status counts them as still on the old key.
     expect(decryptSecretDetailed(mfa)).toEqual({plaintext:"MFASECRET"+run,usedPreviousKey:true});
-    expect((await keyStatus()).onOldKey).toBeGreaterThanOrEqual(3);
+    // Other test files clear the settings table at will, so count only the two rows this file owns.
+    expect((await keyStatus()).onOldKey).toBeGreaterThanOrEqual(2);
   });
 
   it("refuses ordinary users",async()=>{
@@ -84,7 +87,7 @@ describe.skipIf(!url)("encryption key rotation",()=>{
   it("re-encrypts everything with the new key and is audited",async()=>{
     const result=await post();
     expect(result.status).toBe(200);
-    expect(result.json.reencrypted).toBeGreaterThanOrEqual(3);
+    expect(result.json.reencrypted).toBeGreaterThanOrEqual(2);
     expect(result.json.status!.onOldKey).toBe(0);
     const audit=await sql!.unsafe("SELECT metadata FROM audit_events WHERE actor_user_id=$1 AND action='security.keys-reencrypted'",[adminId]);
     expect(audit.length).toBe(1);
@@ -96,7 +99,10 @@ describe.skipIf(!url)("encryption key rotation",()=>{
     const {mfa,hook}=await mine();
     expect(decryptSecretDetailed(mfa)).toEqual({plaintext:"MFASECRET"+run,usedPreviousKey:false});
     expect(decryptSecretDetailed(hook).plaintext).toContain("discord.com");
+    // A saved setting written with the new key is read back correctly.
+    const {encryptSecret}=await import("@/lib/crypto");
     const {ensureSettings}=await import("@/lib/settings");
+    await sql!.unsafe("INSERT INTO app_settings (key,value_encrypted) VALUES ('EMAIL_FROM',$1) ON CONFLICT (key) DO UPDATE SET value_encrypted=EXCLUDED.value_encrypted",[encryptSecret("ops@example.test")]);
     delete process.env.EMAIL_FROM;
     await ensureSettings(true);
     expect(process.env.EMAIL_FROM).toBe("ops@example.test");
