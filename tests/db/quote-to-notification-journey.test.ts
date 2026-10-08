@@ -48,6 +48,9 @@ describe.skipIf(!url)("quote -> action -> notification",()=>{
     await sql.unsafe("DELETE FROM users WHERE id=$1",[userId]);
     await sql.unsafe("DELETE FROM regional_instrument_mappings WHERE trading_line_id=$1",[lineId]);
     await sql.unsafe("DELETE FROM market_data_observations WHERE trading_line_id=$1",[lineId]);
+    // Shared fixture mapping can be selected by parallel tests. Preserve their action records,
+    // but remove references to this test-only trading line before deleting the line.
+    await sql.unsafe("UPDATE actions SET trading_line_id=NULL WHERE trading_line_id=$1",[lineId]);
     await sql.unsafe("DELETE FROM trading_lines WHERE id=$1",[lineId]);
     await sql.unsafe("DELETE FROM instruments WHERE id=$1",[instrumentId]);
     await sql.end();
