@@ -18,6 +18,21 @@ const base={
 };
 
 describe("regional instrument resolver",()=>{
+  it("fails closed when equally ranked mappings point at different trading lines",()=>{
+    const request={economicExposure:base.economicExposure,leverage:base.leverage,direction:"LONG",country:"GB",wrapper:"ISA",broker:null,preferredCurrency:"GBP",asOf:"2026-10-01"};
+    expect(resolveMapping([
+      {id:"x",tradingLineId:"a",...base},
+      {id:"y",tradingLineId:"b",...base}
+    ],request)).toBeNull();
+  });
+  it("permits duplicate records only if they identify the same exact trading line",()=>{
+    const request={economicExposure:base.economicExposure,leverage:base.leverage,direction:"LONG",country:"GB",wrapper:"ISA",broker:null,preferredCurrency:"GBP",asOf:"2026-10-01"};
+    expect(resolveMapping([
+      {id:"x",tradingLineId:"a",...base},
+      {id:"y",tradingLineId:"a",...base}
+    ],request)?.tradingLineId).toBe("a");
+  });
+
   it("supports arbitrary leverage rather than only 1X and 3X",()=>{
     expect(exposureLeverage("NASDAQ_100_2X_LONG")).toBe("2");
     expect(exposureLeverage("CUSTOM_EXPOSURE","1.5")).toBe("1.5");
