@@ -7,7 +7,7 @@ import {recalculateAfterMutation} from "@/lib/action-service";
 import {exchangeTradingDate,historicalBrokerFill} from "@/domain/historical-trade";
 import {sql} from "@/lib/db";
 
-const decimal=z.string().regex(/^\\d+(?:\\.\\d{1,12})?$/);
+const decimal=z.string().regex(/^\d+(?:\.\d{1,12})?$/);
 const inputSchema=z.object({
   accountId:z.string().uuid(),
   ticker:z.string().regex(/^[A-Za-z0-9.^_-]{1,24}$/),
