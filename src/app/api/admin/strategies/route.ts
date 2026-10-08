@@ -2,7 +2,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/session";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
-import { supportedEngineKeys, validateEngineConfig } from "@/domain/strategy/registry";
+import { supportedEngineKeys, validateEngineConfig, assertCustomerPublishableEngine } from "@/domain/strategy/registry";
 import { parseInputSchema } from "@/domain/strategy/config";
 
 const definitionSchema=z.object({
@@ -82,7 +82,7 @@ export async function POST(request:Request){
   }catch(error){
     if(error instanceof z.ZodError)return Response.json({error:"Invalid strategy version."},{status:400});
     const message=error instanceof Error?error.message:"FAILED";
-    return Response.json({error:message.startsWith("INVALID_")||message.includes("REQUIRES")||message.includes("WEIGHTS")?"Strategy configuration failed validation.":"Could not create strategy version."},{status:400});
+    return Response.json({error:message.startsWith("INVALID_")||message.includes("REQUIRES")||message.includes("WEIGHTS")||message==="ENGINE_NOT_CUSTOMER_VERIFIED"?"Strategy configuration failed validation.":"Could not create strategy version."},{status:400});
   }
 }
 
@@ -115,6 +115,7 @@ export async function PATCH(request:Request){
     if(p.action==="PUBLISH"){
       if(String(current.lifecycle_status)!=="DRAFT")return Response.json({error:"Only a draft version can be published."},{status:409});
       assertEngine(String(current.engine_key));
+      assertCustomerPublishableEngine(String(current.engine_key));
       validateEngineConfig(String(current.engine_key),(current.config??{}) as Record<string,unknown>);
       parseInputSchema(current.input_schema);
       const duplicate=await sql.unsafe(
