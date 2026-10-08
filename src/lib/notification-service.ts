@@ -3,6 +3,7 @@ import { sql } from "@/lib/db";
 import { decryptSecret } from "@/lib/crypto";
 import { getEmailProvider } from "@/lib/email";
 import { loadEntitlements } from "@/lib/entitlement-service";
+import { DELIVERY_MAX_ATTEMPTS,retryDelaySeconds } from "@/domain/delivery-retry";
 
 export async function createDeliveriesForNotification(notificationId: string) {
   const rows=await sql.unsafe("SELECT n.id,n.user_id,n.action_id FROM notifications n WHERE n.id=$1 LIMIT 1",[notificationId]);
@@ -63,6 +64,7 @@ export async function processPendingDeliveries(limit=50){
     }
 
     let ok=false;
+    let retryAfterSeconds:number|null=null;
     try{
       if(d.channel==="EMAIL"){
         ok=await getEmailProvider().send({to:String(d.email),subject:String(d.title),text:String(d.body)});
@@ -71,13 +73,34 @@ export async function processPendingDeliveries(limit=50){
         if(endpoints[0]){
           const response=await fetch(decryptSecret(String(endpoints[0].encrypted_destination)),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({content:"**"+String(d.title)+"**\n"+String(d.body)}),signal:AbortSignal.timeout(10_000),cache:"no-store"});
           ok=response.ok;
+          if(response.status===429){
+            const raw=response.headers.get("retry-after");
+            if(raw){
+              const seconds=Number(raw);
+              const date=Date.parse(raw);
+              retryAfterSeconds=Number.isFinite(seconds)?seconds:Number.isFinite(date)
+                ?Math.ceil((date-Date.now())/1000):null;
+            }
+          }
         }
       }
     }catch{ok=false;}
     if(ok){
       await sql.unsafe("UPDATE notification_deliveries SET status='SENT',sent_at=now(),updated_at=now(),last_error_code=NULL WHERE id=$1 AND status='SENDING'",[d.id]);sent+=1;
     }else{
-      await sql.unsafe("UPDATE notification_deliveries SET status='PENDING',next_attempt_at=now()+interval '15 minutes',last_error_code='DELIVERY_FAILED',updated_at=now() WHERE id=$1 AND status='SENDING'",[d.id]);
+      if(Number(d.attempt_count)>=DELIVERY_MAX_ATTEMPTS){
+        await sql.unsafe(
+          "UPDATE notification_deliveries SET status='DEAD_LETTER',last_error_code='MAX_ATTEMPTS_REACHED',updated_at=now() "+
+          "WHERE id=$1 AND status='SENDING'",[d.id]
+        );
+      }else{
+        const delay=retryDelaySeconds(Number(d.attempt_count),String(d.id),retryAfterSeconds);
+        await sql.unsafe(
+          "UPDATE notification_deliveries SET status='PENDING',next_attempt_at=now()+($2::int*interval '1 second'),"+
+          "last_error_code='DELIVERY_FAILED',updated_at=now() WHERE id=$1 AND status='SENDING'",
+          [d.id,delay]
+        );
+      }
     }
   }
   return sent;
