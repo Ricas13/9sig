@@ -12,6 +12,11 @@ const baseline={
 describe("commercial launch preflight",()=>{
  it("rejects development defaults and empty environment",()=>expect(checkCommercialLaunch({}).every(x=>!x.passed)).toBe(true));
  it("validates explicitly supplied launch prerequisites",()=>expect(checkCommercialLaunch(baseline).every(x=>x.passed)).toBe(true));
+ it("supports explicit user-entered market prices without an external feed",()=>{
+  const result=checkCommercialLaunch({...baseline,MARKET_DATA_MODE:"MANUAL",MARKET_DATA_PROVIDER:"",MARKET_DATA_HTTP_BASE_URL:"",MARKET_DATA_HTTP_TOKEN:"",DATABASE_URL:"postgresql://strategyos:secret@db:5432/strategyos"});
+  expect(result.find(x=>x.key==="market_data_mode")?.passed).toBe(true);
+  expect(result.find(x=>x.key==="database")?.passed).toBe(true);
+ });
  it("blocks Stripe test credentials",()=>{
   const r=checkCommercialLaunch({...baseline,STRIPE_SECRET_KEY:"sk_test_"+"a".repeat(30)});
   expect(r.find(x=>x.key==="stripe_live")?.passed).toBe(false);
