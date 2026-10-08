@@ -120,7 +120,7 @@ export default async function HomePage() {
 
       <footer className="footer">
         <p><Link href="/features">Features</Link> · <Link href="/strategies">Strategies</Link> · <Link href="/pricing">Pricing</Link> · <Link href="/faq">FAQ</Link></p>
-        {brand} is a strategy tracking and rule-calculation tool. It does not assess suitability or recommend which strategy you should choose. Jurisdiction-specific disclosures and regulatory controls must be configured before public launch.
+        {brand} is a strategy tracking and rule-calculation tool. It does not place trades, assess suitability or recommend which strategy you should choose. Investments can fall as well as rise, and past performance is not a guide to future results.
       </footer>
     </div>
   </main>;

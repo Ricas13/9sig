@@ -1,3 +1,4 @@
+import { requestIp } from "@/domain/client-ip";
 import { z } from "zod";
 import { sql } from "@/lib/db";
 import { assertSameOrigin, consumeRateLimit, hashToken, newToken } from "@/lib/security";
@@ -9,7 +10,7 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const input = schema.parse(await request.json());
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ip = requestIp(request);
     await consumeRateLimit("reset:" + ip, 6, 3600);
     const rows = await sql.unsafe("SELECT id,email FROM users WHERE lower(email)=lower($1) AND deleted_at IS NULL LIMIT 1",[input.email]);
     if (rows[0]) {

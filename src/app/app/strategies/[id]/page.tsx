@@ -122,7 +122,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     [s.strategy_version_id]
   );
   const externalFlows=await sql.unsafe(
-    "SELECT occurred_at::date AS date,event_type,cash_amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('CONTRIBUTION','WITHDRAWAL') ORDER BY occurred_at,created_at",
+    "SELECT l.occurred_at::date AS date,l.event_type,l.cash_amount FROM ledger_events l WHERE l.strategy_instance_id=$1 AND l.event_type IN ('CONTRIBUTION','WITHDRAWAL') AND NOT EXISTS (SELECT 1 FROM ledger_events c WHERE c.correction_of_event_id=l.id) ORDER BY l.occurred_at,l.created_at",
     [id]
   );
   const reviewEvents=await sql.unsafe(
@@ -211,9 +211,9 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     if(!byDate.has(marker.date))byDate.set(marker.date,{date:marker.date});
   }
   const chartData=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
-  const contributions=await sql.unsafe("SELECT id,occurred_at,cash_amount,provenance,confidence FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' ORDER BY occurred_at DESC LIMIT 8",[id]);
+  const contributions=await sql.unsafe("SELECT l.id,l.occurred_at,l.cash_amount,l.provenance,l.confidence FROM ledger_events l WHERE l.strategy_instance_id=$1 AND l.event_type='CONTRIBUTION' AND NOT EXISTS (SELECT 1 FROM ledger_events c WHERE c.correction_of_event_id=l.id) ORDER BY l.occurred_at DESC LIMIT 8",[id]);
   const reconciliations=await sql.unsafe("SELECT occurred_at,expected_value,broker_reported_value,difference,reason FROM reconciliations WHERE strategy_instance_id=$1 ORDER BY occurred_at DESC LIMIT 5",[id]);
-  const cashEvents=await sql.unsafe("SELECT id,occurred_at,event_type,cash_amount,fee_amount,metadata FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('WITHDRAWAL','DIVIDEND','DISTRIBUTION','INTEREST','FEE','TAX') ORDER BY occurred_at DESC,created_at DESC LIMIT 12",[id]);
+  const cashEvents=await sql.unsafe("SELECT l.id,l.occurred_at,l.event_type,l.cash_amount,l.fee_amount,l.metadata FROM ledger_events l WHERE l.strategy_instance_id=$1 AND l.event_type IN ('WITHDRAWAL','DIVIDEND','DISTRIBUTION','INTEREST','FEE','TAX') AND NOT EXISTS (SELECT 1 FROM ledger_events c WHERE c.correction_of_event_id=l.id) ORDER BY l.occurred_at DESC,l.created_at DESC LIMIT 12",[id]);
   const latestValue=actualPoints.at(-1);
   const explanation=Array.isArray(action?.explanation)?action.explanation:[];
   const needsOpeningSnapshot=Boolean(s.state?.resumeNeedsReconciliation);
@@ -327,7 +327,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
             <PerformanceChart data={chartData} markers={chartMarkers} comparisons={comparisonSeries.map(({key,label,defaultVisible})=>({key,label,defaultVisible}))}/>
             <p className="help">Contributions and withdrawals are applied across comparison series so adding money is not mistaken for investment performance.</p>
             {comparisonWarnings.map((warning)=><p className="help comparison-warning" key={warning}>{warning}</p>)}
-            <div className="tracking-boundary"><span>Tracked by StrategyOS since {new Date(s.started_at).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}.</span>{s.onboarding_mode==="RESUME"&&<span>Performance before that date is not reconstructed from incomplete history.</span>}</div>
+            <div className="tracking-boundary"><span>Tracked by {process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune"} since {new Date(s.started_at).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}.</span>{s.onboarding_mode==="RESUME"&&<span>Performance before that date is not reconstructed from incomplete history.</span>}</div>
           </section>
 
           <div className="detail-grid history-grid">

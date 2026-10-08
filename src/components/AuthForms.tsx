@@ -3,12 +3,12 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-export function LoginForm() {
+export function LoginForm({next="/app"}:{next?:string}) {
   const router=useRouter(); const [error,setError]=useState(""); const [busy,setBusy]=useState(false);
   return <form className="stack" onSubmit={async(e)=>{
     e.preventDefault();setBusy(true);setError("");const f=new FormData(e.currentTarget);
     const result=await signIn("credentials",{email:String(f.get("email")),password:String(f.get("password")),redirect:false});
-    setBusy(false); if(result?.error) setError("Email or password is incorrect, or the email is not verified."); else router.push("/app");
+    setBusy(false); if(result?.error) setError("Email or password is incorrect, or the email is not verified."); else router.push(next);
   }}>
     <div className="field"><label htmlFor="login-email">Email</label><input id="login-email" name="email" type="email" autoComplete="email" required/></div>
     <div className="field"><label htmlFor="login-password">Password</label><input id="login-password" name="password" type="password" autoComplete="current-password" required/></div>

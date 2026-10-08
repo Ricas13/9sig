@@ -36,3 +36,17 @@ describe("commercial launch preflight",()=>{
   expect(r.find(x=>x.key==="database")?.passed).toBe(false);
  });
 });
+
+import {paidCheckoutBlockers} from "@/domain/commercial-launch";
+describe("paidCheckoutBlockers",()=>{
+ it("lets a Stripe test key through so staging can exercise checkout",()=>{
+  expect(paidCheckoutBlockers({STRIPE_SECRET_KEY:"sk_test_"+"a".repeat(30)})).toEqual([]);
+  expect(paidCheckoutBlockers({})).toEqual([]);
+ });
+ it("blocks a live key until every launch check passes",()=>{
+  const blockers=paidCheckoutBlockers({STRIPE_SECRET_KEY:"sk_live_"+"a".repeat(30)});
+  expect(blockers.length).toBeGreaterThan(0);
+  expect(blockers.map((b)=>b.key)).toContain("regulatory_signoff");
+  expect(paidCheckoutBlockers({STRIPE_SECRET_KEY:"rk_live_"+"a".repeat(30)}).length).toBeGreaterThan(0);
+ });
+});

@@ -22,3 +22,14 @@ export function checkCommercialLaunch(env:Environment):LaunchCheck[]{
  {key:"instrument_review",passed:env.REGIONAL_INSTRUMENTS_VERIFIED==="true",reason:"Operator must approve eligible regional trading lines."}
  ];
 }
+
+/**
+ * Checks that must hold before a checkout session may be created. Stripe test-mode keys are
+ * allowed through so staging acceptance can exercise the real flow; a LIVE key moves real money,
+ * so every launch check must pass first, whatever the paid-launch flag says.
+ */
+export function paidCheckoutBlockers(env:Environment):LaunchCheck[]{
+ const key=env.STRIPE_SECRET_KEY;
+ if(!key||!/^(sk|rk)_live_/.test(key))return [];
+ return checkCommercialLaunch(env).filter((check)=>!check.passed);
+}

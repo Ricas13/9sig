@@ -1,3 +1,4 @@
+import { requestIp } from "@/domain/client-ip";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { sql } from "@/lib/db";
@@ -8,7 +9,7 @@ const schema = z.object({ token: z.string().min(20), password: z.string().min(12
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ip = requestIp(request);
     await consumeRateLimit("reset-confirm:" + ip, 10, 3600);
     const input = schema.parse(await request.json());
     const hash = await bcrypt.hash(input.password, 12);

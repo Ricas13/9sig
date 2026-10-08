@@ -5,6 +5,7 @@ import { sql } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/security";
 import { hasLiveStripeSubscription, isTerminalLocalStatus } from "@/domain/subscription-status";
 import { authFailure } from "@/lib/api-auth";
+import { paidCheckoutBlockers } from "@/domain/commercial-launch";
 
 const schema = z.object({
   planSlug: z.enum(["investor", "pro"]),
@@ -21,6 +22,14 @@ export async function POST(request: Request) {
     // commercial, infrastructure, regulatory and live-provider sign-offs.
     if(process.env.REBALUNE_PAID_LAUNCH_ENABLED!=="true"){
       return Response.json({error:"Paid subscriptions are not yet available. Rebalune is in staging."},{status:503});
+    }
+
+    // A live Stripe key charges real cards: refuse until every launch check passes. The failed
+    // check names are logged for the operator; the customer only learns billing is unavailable.
+    const blockers = paidCheckoutBlockers(process.env);
+    if (blockers.length) {
+      console.error("Checkout refused: launch checks failing: " + blockers.map((b) => b.key).join(", "));
+      return Response.json({ error: "Billing is not available yet." }, { status: 503 });
     }
 
     if (!process.env.STRIPE_SECRET_KEY || !process.env.NEXT_PUBLIC_APP_URL) {

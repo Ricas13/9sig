@@ -3,6 +3,7 @@ import { sql } from "@/lib/db";
 import { getMarketDataProvider } from "@/lib/market-data";
 import { classifyFreshness } from "@/domain/market-freshness";
 import { runBounded } from "@/lib/work-pool";
+import { assessQuote } from "@/domain/quote-plausibility";
 
 // `deadline` (epoch ms) stops new lookups once reached; lines not refreshed are reported as skipped
 // so a slow provider shows up as a degraded run instead of silently eating the whole worker.
@@ -54,6 +55,22 @@ export async function refreshMarketData(options: { deadline?: number; concurrenc
           if (observation.currency !== String(line.currency).toUpperCase()) {
             failed += 1;
             failures.push({ tradingLineId: String(line.id), code: "CURRENCY_MISMATCH" });
+            return;
+          }
+          const previous = await sql.unsafe(
+            "SELECT price,observed_at FROM market_data_observations WHERE trading_line_id=$1 AND observed_at<$2 ORDER BY observed_at DESC LIMIT 1",
+            [line.id, observation.observedAt]
+          );
+          const maxMove = Number(process.env.MARKET_MAX_QUOTE_MOVE);
+          const assessment = assessQuote(
+            Number(observation.price),
+            previous[0] ? { price: Number(previous[0].price), observedAt: new Date(previous[0].observed_at) } : null,
+            new Date(),
+            Number.isFinite(maxMove) && maxMove > 0 ? maxMove : undefined
+          );
+          if (!assessment.ok) {
+            failed += 1;
+            failures.push({ tradingLineId: String(line.id), code: assessment.code });
             return;
           }
           await sql.unsafe(

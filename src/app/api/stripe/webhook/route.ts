@@ -162,10 +162,18 @@ export async function POST(request:Request){
     }
 
     if(duplicateSubscriptionId){
-      await stripe.subscriptions.cancel(duplicateSubscriptionId);
+      const cancelled=await stripe.subscriptions.cancel(duplicateSubscriptionId);
+      // Cancelling stops further charges but does not return a payment already taken for the
+      // duplicate. Refunds move money, so a person decides; the audit row carries what they need.
+      const latestInvoice=cancelled?.latest_invoice;
       await sql.unsafe(
         "INSERT INTO audit_events (action,entity_type,entity_id,metadata) VALUES ('billing.duplicate-subscription-cancelled','stripe_subscription',$1,$2::jsonb)",
-        [duplicateSubscriptionId,JSON.stringify({eventId:event.id})]
+        [duplicateSubscriptionId,JSON.stringify({
+          eventId:event.id,
+          requiresRefundReview:true,
+          customerId:typeof cancelled?.customer==="string"?cancelled.customer:cancelled?.customer?.id??null,
+          latestInvoiceId:typeof latestInvoice==="string"?latestInvoice:latestInvoice?.id??null
+        })]
       );
     }
     if(affectedUserId)await enforceStrategyEntitlements(affectedUserId);

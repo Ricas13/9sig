@@ -30,3 +30,19 @@ describe("Rebalune brand migration",()=>{
   expect(read("src/components/ThemeToggle.tsx")).toContain('localStorage.setItem("rebalune-theme", next)');
  });
 });
+
+import {readdirSync,statSync} from "node:fs";
+describe("former brand name",()=>{
+ it("does not appear in any customer-facing source file",()=>{
+  const walk=(dir:string):string[]=>readdirSync(join(process.cwd(),dir)).flatMap((name)=>{
+   const rel=dir+"/"+name;
+   return statSync(join(process.cwd(),rel)).isDirectory()?walk(rel):[rel];
+  });
+  const offenders=walk("src").filter((f)=>/\.(tsx?|css)$/.test(f)).filter((f)=>{
+   // The legacy theme storage key is read on purpose so existing users keep their theme.
+   const text=read(f).replace(/strategyos-theme/g,"");
+   return text.includes("StrategyOS");
+  });
+  expect(offenders).toEqual([]);
+ });
+});
