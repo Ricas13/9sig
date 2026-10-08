@@ -1,4 +1,5 @@
 "use client";
+import { Field } from "@/components/Field";
 import {useState} from "react";
 import {useRouter} from "next/navigation";
 
@@ -35,10 +36,10 @@ export function ManualPriceForm({strategyId,instruments}:{strategyId:string;inst
     <h3>Correct a current price</h3>
     <p className="help">This temporarily replaces a displayed instrument price in the valuation <strong>and</strong> trade quantity. It expires automatically, requires a timestamp and leaves an audit trail. It is not a historical broker fill.</p>
     <div className="form-grid">
-      <div className="field full"><label>Instrument</label><select name="instrumentId" required>{instruments.map(i=><option key={i.id} value={i.id}>{i.ticker} · {i.exchange} · {i.currency}</option>)}</select></div>
-      <div className="field"><label>Verified current price</label><input name="manualValue" inputMode="decimal" placeholder="110.25" required/></div>
-      <div className="field"><label>Price observation with timezone</label><input name="observedAt" placeholder="2026-10-08T14:00:00+01:00" required/></div>
-      <div className="field full"><label>Reason (at least 8 characters)</label><input name="reason" minLength={8} maxLength={240} required/></div>
+      <Field className="field full" label="Instrument"><select name="instrumentId" required>{instruments.map(i=><option key={i.id} value={i.id}>{i.ticker} · {i.exchange} · {i.currency}</option>)}</select></Field>
+      <Field label="Verified current price"><input name="manualValue" inputMode="decimal" placeholder="110.25" required/></Field>
+      <Field label="Price observation with timezone"><input name="observedAt" placeholder="2026-10-08T14:00:00+01:00" required/></Field>
+      <Field className="field full" label="Reason (at least 8 characters)"><input name="reason" minLength={8} maxLength={240} required/></Field>
       <label className="field full"><input name="confirmed" type="checkbox" required/> I have verified this price and its observation time and understand that order quantities will change.</label>
     </div>
     <button className="button primary" type="submit" disabled={busy}>{busy?"Saving…":"Apply price correction"}</button>

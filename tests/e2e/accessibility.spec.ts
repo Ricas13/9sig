@@ -27,13 +27,26 @@ async function createUser(testInfo:{project:{name:string};workerIndex:number},ro
   return email;
 }
 
-async function audit(page:Page,label:string){
+async function violations(page:Page){
   const results=await new AxeBuilder({page}).withTags(TAGS).analyze();
-  const summary=results.violations.map((v)=>({
+  return results.violations.map((v)=>({
     rule:v.id,impact:v.impact,help:v.help,
     nodes:v.nodes.slice(0,4).map((n)=>n.target.join(" ")+" :: "+(n.failureSummary??"").split("\n").slice(1,3).join(" ").trim())
   }));
+}
+async function audit(page:Page,label:string){
+  const summary=await violations(page);
   expect(summary,`${label}: ${summary.length} accessibility violation(s)`).toEqual([]);
+}
+// Audits several pages and reports every offender at once instead of stopping at the first.
+async function auditAll(page:Page,paths:string[]){
+  const found:Record<string,unknown>={};
+  for(const path of paths){
+    await page.goto(path);
+    const v=await violations(page);
+    if(v.length)found[path]=v;
+  }
+  expect(found).toEqual({});
 }
 
 async function setTheme(page:Page,theme:"dark"|"light"){
@@ -84,10 +97,29 @@ test("admin screens",async({page},testInfo)=>{
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button",{name:"Sign in"}).click();
   await page.waitForURL("**/app");
-  for(const path of ["/admin","/admin/settings","/admin/launch","/admin/plans"]){
-    await page.goto(path);
-    await audit(page,path);
-  }
+  await auditAll(page,["/admin","/admin/settings","/admin/launch","/admin/plans","/admin/strategies","/admin/strategies/research","/admin/instruments","/admin/users","/admin/operations","/admin/seo"]);
+});
+
+test("a strategy page with its forms (trades, price, settings, switch)",async({page},testInfo)=>{
+  const email=await createUser(testInfo);
+  const url=process.env.DATABASE_URL!;
+  const sql=postgres(url,{max:1,prepare:false});
+  let id="";
+  try{
+    const user=(await sql.unsafe("SELECT id FROM users WHERE email=$1",[email]))[0];
+    const account=await sql.unsafe("INSERT INTO accounts (user_id,name,wrapper,country,currency) VALUES ($1,'A11y','ISA','GB','GBP') RETURNING id",[user.id]);
+    const inst=await sql.unsafe("INSERT INTO strategy_instances (user_id,account_id,strategy_definition_id,strategy_version_id,name) SELECT $1,$2,d.id,v.id,'A11y strategy' FROM strategy_definitions d JOIN strategy_versions v ON v.strategy_definition_id=d.id WHERE d.key='9sig' AND v.lifecycle_status='PUBLISHED' LIMIT 1 RETURNING id,strategy_version_id",[user.id,account[0].id]);
+    id=String(inst[0].id);
+    await sql.unsafe("INSERT INTO strategy_accounts (strategy_instance_id,account_id,role) VALUES ($1,$2,'PRIMARY')",[id,account[0].id]);
+    await sql.unsafe("INSERT INTO strategy_states (strategy_instance_id,strategy_version_id,state) VALUES ($1,$2,'{}'::jsonb)",[id,inst[0].strategy_version_id]);
+    await sql.unsafe("INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,provenance) VALUES ($1,$2,now(),'CONTRIBUTION','GBP',1000,'USER_CONFIRMED')",[id,account[0].id]);
+  }finally{await sql.end();}
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button",{name:"Sign in"}).click();
+  await page.waitForURL("**/app");
+  await auditAll(page,["/app/strategies/"+id]);
 });
 
 test("the sign-in form can be completed with the keyboard alone and focus is always visible",async({page})=>{

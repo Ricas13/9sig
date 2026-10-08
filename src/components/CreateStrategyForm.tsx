@@ -1,4 +1,5 @@
 "use client";
+import { Field } from "@/components/Field";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -12,13 +13,12 @@ function StrategyFields({fields}:{fields:InputField[]}){
   return <div className="setup-section">
     <div className="setup-section-title"><span>Strategy setup</span><small>Only the settings this strategy needs</small></div>
     <div className="form-grid">
-      {fields.map((field)=><div className="field full" key={field.key}>
-        <label>{field.label}</label>
+      {fields.map((field)=><Field className="field full" key={field.key} label={field.label}>
         {field.type==="select"?<select name={"strategyInput:"+field.key} defaultValue={String(field.default??"")} required={field.required}>{!field.required&&<option value="">Not set</option>}{field.options?.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</select>:
         field.type==="boolean"?<label className="toggle-row"><input name={"strategyInput:"+field.key} type="checkbox" defaultChecked={Boolean(field.default)}/><span>{field.help??field.label}</span></label>:
         <input name={"strategyInput:"+field.key} type={field.type} defaultValue={field.default==null?undefined:String(field.default)} required={field.required} min={field.min==null?undefined:String(field.min)} max={field.max==null?undefined:String(field.max)}/>}
         {field.help&&field.type!=="boolean"&&<div className="help">{field.help}</div>}
-      </div>)}
+      </Field>)}
     </div>
   </div>;
 }
@@ -147,9 +147,9 @@ export function CreateStrategyForm({strategies,baseCurrency,brand}:{strategies:S
           <div className="stack">
             <label className="toggle-row"><input type="checkbox" name="fractionalShares" defaultChecked/><span><b>My broker supports fractional shares</b><small>Turn this off if orders must use whole shares.</small></span></label>
             <div className="form-grid">
-              <div className="field"><label>Minimum trade</label><input name="minimumTradeAmount" type="number" min="0" step="0.01" defaultValue="0"/></div>
-              <div className="field"><label>Cash buffer</label><input name="cashBufferAmount" type="number" min="0" step="0.01" defaultValue="0"/></div>
-              <div className="field full"><label>Estimated fee per trade</label><input name="flatFee" type="number" min="0" step="0.01" defaultValue="0"/></div>
+              <Field label="Minimum trade"><input name="minimumTradeAmount" type="number" min="0" step="0.01" defaultValue="0"/></Field>
+              <Field label="Cash buffer"><input name="cashBufferAmount" type="number" min="0" step="0.01" defaultValue="0"/></Field>
+              <Field className="field full" label="Estimated fee per trade"><input name="flatFee" type="number" min="0" step="0.01" defaultValue="0"/></Field>
             </div>
             <label className="toggle-row"><input type="checkbox" name="allowSelling" defaultChecked/><span><b>Allow sell recommendations</b><small>Turn this off if you prefer to correct allocations with new money when the strategy permits.</small></span></label>
           </div>

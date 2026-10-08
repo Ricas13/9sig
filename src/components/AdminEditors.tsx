@@ -1,4 +1,5 @@
 "use client";
+import { Field } from "@/components/Field";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -27,22 +28,22 @@ export function PlanEditor(){
     entitlements:json(String(f.get("entitlements")),{}),trialDays:Number(f.get("trial")||0),visible:Boolean(f.get("visible")),archived:Boolean(f.get("archived")),sortOrder:Number(f.get("sort")||0)
   });}catch{setError("Entitlements must be valid JSON.");}}}>
     <h3>Upsert plan</h3><div className="form-grid">
-      <div className="field"><label>Slug</label><input name="slug" required placeholder="investor"/></div>
-      <div className="field"><label>Display name</label><input name="displayName" required placeholder="Investor"/></div>
-      <div className="field full"><label>Description</label><input name="description"/></div>
-      <div className="field"><label>Monthly price</label><input name="monthly" type="number" min="0" step="0.01" required/></div>
-      <div className="field"><label>Annual price</label><input name="annual" type="number" min="0" step="0.01" required/></div><div className="field"><label>Annual discount %</label><input name="annualDiscount" type="number" min="0" max="100" step="0.01" defaultValue="0"/></div>
-      <div className="field"><label>Primary currency</label><input name="currency" defaultValue="GBP" maxLength={3} required/></div>
-      <div className="field"><label>Supported currencies</label><input name="currencies" defaultValue="GBP" placeholder="GBP,USD,EUR"/></div>
-      <div className="field"><label>Max active strategies</label><input name="max" type="number" min="1" placeholder="blank = unlimited"/></div>
-      <div className="field"><label>Trial days</label><input name="trial" type="number" min="0" defaultValue="0"/></div>
-      <div className="field full"><label>Available strategy keys</label><input name="strategies" placeholder="blank = all enabled strategies"/></div>
-      <div className="field"><label>Stripe monthly Price ID</label><input name="stripeMonthly"/></div>
-      <div className="field"><label>Stripe annual Price ID</label><input name="stripeAnnual"/></div>
-      <div className="field full"><label>Entitlements JSON</label><textarea name="entitlements" rows={4} defaultValue={'{"features":[],"notificationChannels":[]}'}/></div>
+      <Field label="Slug"><input name="slug" required placeholder="investor"/></Field>
+      <Field label="Display name"><input name="displayName" required placeholder="Investor"/></Field>
+      <Field className="field full" label="Description"><input name="description"/></Field>
+      <Field label="Monthly price"><input name="monthly" type="number" min="0" step="0.01" required/></Field>
+      <Field label="Annual price"><input name="annual" type="number" min="0" step="0.01" required/></Field><Field label="Annual discount %"><input name="annualDiscount" type="number" min="0" max="100" step="0.01" defaultValue="0"/></Field>
+      <Field label="Primary currency"><input name="currency" defaultValue="GBP" maxLength={3} required/></Field>
+      <Field label="Supported currencies"><input name="currencies" defaultValue="GBP" placeholder="GBP,USD,EUR"/></Field>
+      <Field label="Max active strategies"><input name="max" type="number" min="1" placeholder="blank = unlimited"/></Field>
+      <Field label="Trial days"><input name="trial" type="number" min="0" defaultValue="0"/></Field>
+      <Field className="field full" label="Available strategy keys"><input name="strategies" placeholder="blank = all enabled strategies"/></Field>
+      <Field label="Stripe monthly Price ID"><input name="stripeMonthly"/></Field>
+      <Field label="Stripe annual Price ID"><input name="stripeAnnual"/></Field>
+      <Field className="field full" label="Entitlements JSON"><textarea name="entitlements" rows={4} defaultValue={'{"features":[],"notificationChannels":[]}'}/></Field>
       <div className="field"><label><input name="visible" type="checkbox" defaultChecked/> Visible</label></div>
       <div className="field"><label><input name="archived" type="checkbox"/> Archived</label></div>
-      <div className="field"><label>Sort order</label><input name="sort" type="number" defaultValue="0"/></div>
+      <Field label="Sort order"><input name="sort" type="number" defaultValue="0"/></Field>
     </div><button className="button primary" style={{marginTop:16}}>Save plan</button>{(error||message)&&<div className={error?"error":"success"}>{error||message}</div>}
   </form>;
 }
@@ -56,11 +57,11 @@ export function StrategyDefinitionEditor(){
     requiredInputs:json(String(f.get("inputs")) ,[])
   });}catch{setError("Required inputs must be valid JSON.");}}}>
     <h3>Upsert strategy definition</h3><div className="form-grid">
-      <div className="field"><label>Key</label><input name="key" required/></div><div className="field"><label>Name</label><input name="name" required/></div>
-      <div className="field"><label>Family</label><input name="family" required/></div><div className="field"><label>Engine</label><select name="engine"><option>VALUE_TARGET</option><option>FIXED_ALLOCATION</option></select></div>
-      <div className="field full"><label>Description</label><input name="description"/></div>
-      <div className="field"><label>Regions</label><input name="regions" defaultValue="GB,US,EU"/></div><div className="field"><label>Wrappers</label><input name="wrappers" defaultValue="ISA,SIPP,TAXABLE"/></div>
-      <div className="field"><label>Benchmark key</label><input name="benchmark"/></div><div className="field"><label>Required inputs JSON</label><input name="inputs" defaultValue="[]"/></div>
+      <Field label="Key"><input name="key" required/></Field><Field label="Name"><input name="name" required/></Field>
+      <Field label="Family"><input name="family" required/></Field><Field label="Engine"><select name="engine"><option>VALUE_TARGET</option><option>FIXED_ALLOCATION</option></select></Field>
+      <Field className="field full" label="Description"><input name="description"/></Field>
+      <Field label="Regions"><input name="regions" defaultValue="GB,US,EU"/></Field><Field label="Wrappers"><input name="wrappers" defaultValue="ISA,SIPP,TAXABLE"/></Field>
+      <Field label="Benchmark key"><input name="benchmark"/></Field><Field label="Required inputs JSON"><input name="inputs" defaultValue="[]"/></Field>
       <div className="field"><label><input type="checkbox" name="enabled"/> Enabled</label></div><div className="field"><label><input type="checkbox" name="proprietary"/> Proprietary</label></div>
     </div><button className="button primary" style={{marginTop:16}}>Save definition</button>{(error||message)&&<div className={error?"error":"success"}>{error||message}</div>}
   </form>;
@@ -75,16 +76,16 @@ export function StrategyVersionEditor(){
     disclosure:f.get("disclosure")??"",releaseNotes:f.get("releaseNotes")??""
   });}catch{setError("Configuration and input schema must be valid JSON.");}}}>
     <h3>Create strategy release draft</h3><div className="form-grid">
-      <div className="field"><label>Strategy key</label><input name="strategyKey" required/></div>
-      <div className="field"><label>Version</label><input name="version" placeholder="1.1" required/></div>
-      <div className="field"><label>Effective from</label><input name="effectiveFrom" type="date" required/></div>
-      <div className="field"><label>Effective to</label><input name="effectiveTo" type="date"/></div>
-      <div className="field"><label>Engine override</label><select name="engineKey"><option value="">Use definition default</option><option>VALUE_TARGET</option><option>FIXED_ALLOCATION</option></select></div>
-      <div className="field"><label>Upgrade policy</label><select name="upgradePolicy"><option>OPTIONAL</option><option>RECOMMENDED</option><option>REQUIRED</option></select></div>
-      <div className="field full"><label>Strategy-specific onboarding fields JSON</label><textarea name="inputSchema" rows={5} defaultValue="[]"/></div>
-      <div className="field full"><label>Config JSON</label><textarea name="config" rows={7} defaultValue="{}"/></div>
-      <div className="field full"><label>Release notes</label><textarea name="releaseNotes" rows={3}/></div>
-      <div className="field full"><label>Disclosure</label><textarea name="disclosure" rows={3}/></div>
+      <Field label="Strategy key"><input name="strategyKey" required/></Field>
+      <Field label="Version"><input name="version" placeholder="1.1" required/></Field>
+      <Field label="Effective from"><input name="effectiveFrom" type="date" required/></Field>
+      <Field label="Effective to"><input name="effectiveTo" type="date"/></Field>
+      <Field label="Engine override"><select name="engineKey"><option value="">Use definition default</option><option>VALUE_TARGET</option><option>FIXED_ALLOCATION</option></select></Field>
+      <Field label="Upgrade policy"><select name="upgradePolicy"><option>OPTIONAL</option><option>RECOMMENDED</option><option>REQUIRED</option></select></Field>
+      <Field className="field full" label="Strategy-specific onboarding fields JSON"><textarea name="inputSchema" rows={5} defaultValue="[]"/></Field>
+      <Field className="field full" label="Config JSON"><textarea name="config" rows={7} defaultValue="{}"/></Field>
+      <Field className="field full" label="Release notes"><textarea name="releaseNotes" rows={3}/></Field>
+      <Field className="field full" label="Disclosure"><textarea name="disclosure" rows={3}/></Field>
     </div><button className="button primary" style={{marginTop:16}}>Create draft</button>{(error||message)&&<div className={error?"error":"success"}>{error||message}</div>}
   </form>;
 }
@@ -102,34 +103,34 @@ export function StrategyVersionManager(){
     else await submit({action,versionId:f.get("versionId")});
   }catch{setError("Draft configuration must be valid JSON.");}}}>
     <h3>Manage strategy release</h3><div className="form-grid">
-      <div className="field full"><label>Version UUID</label><input name="versionId" required/></div>
-      <div className="field"><label>Action</label><select name="action"><option>UPDATE_DRAFT</option><option>PUBLISH</option><option>RETIRE</option></select></div>
-      <div className="field"><label>Engine override (draft only)</label><select name="engineKey"><option value="">Keep current</option><option>VALUE_TARGET</option><option>FIXED_ALLOCATION</option></select></div>
-      <div className="field"><label>Effective from (draft only)</label><input name="effectiveFrom" type="date"/></div>
-      <div className="field"><label>Effective to (draft only)</label><input name="effectiveTo" type="date"/></div>
-      <div className="field"><label>Upgrade policy (draft only)</label><select name="upgradePolicy"><option value="">Keep current</option><option>OPTIONAL</option><option>RECOMMENDED</option><option>REQUIRED</option></select></div>
-      <div className="field full"><label>Input schema JSON (blank = keep current)</label><textarea name="inputSchema" rows={4}/></div>
-      <div className="field full"><label>Config JSON (blank = keep current)</label><textarea name="config" rows={6}/></div>
-      <div className="field full"><label>Release notes (blank = keep current)</label><textarea name="releaseNotes" rows={2}/></div>
-      <div className="field full"><label>Disclosure (blank = keep current)</label><textarea name="disclosure" rows={2}/></div>
+      <Field className="field full" label="Version UUID"><input name="versionId" required/></Field>
+      <Field label="Action"><select name="action"><option>UPDATE_DRAFT</option><option>PUBLISH</option><option>RETIRE</option></select></Field>
+      <Field label="Engine override (draft only)"><select name="engineKey"><option value="">Keep current</option><option>VALUE_TARGET</option><option>FIXED_ALLOCATION</option></select></Field>
+      <Field label="Effective from (draft only)"><input name="effectiveFrom" type="date"/></Field>
+      <Field label="Effective to (draft only)"><input name="effectiveTo" type="date"/></Field>
+      <Field label="Upgrade policy (draft only)"><select name="upgradePolicy"><option value="">Keep current</option><option>OPTIONAL</option><option>RECOMMENDED</option><option>REQUIRED</option></select></Field>
+      <Field className="field full" label="Input schema JSON (blank = keep current)"><textarea name="inputSchema" rows={4}/></Field>
+      <Field className="field full" label="Config JSON (blank = keep current)"><textarea name="config" rows={6}/></Field>
+      <Field className="field full" label="Release notes (blank = keep current)"><textarea name="releaseNotes" rows={2}/></Field>
+      <Field className="field full" label="Disclosure (blank = keep current)"><textarea name="disclosure" rows={2}/></Field>
     </div><button className="button primary" style={{marginTop:16}}>Apply release action</button>{(error||message)&&<div className={error?"error":"success"}>{error||message}</div>}
   </form>;
 }
 
 export function InstrumentEditor(){
   const {submit,message}=useAdminSubmit("/api/admin/instruments");
-  return <div className="detail-grid"><form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);await submit({kind:"instrument",isin:f.get("isin")||null,providerInstrumentId:f.get("providerId")||null,name:f.get("name"),economicExposure:f.get("exposure"),leverage:String(f.get("leverage")),direction:"LONG",fundCurrency:f.get("fundCurrency")||null});}}><h3>Add instrument</h3><div className="stack"><div className="field"><label>Name</label><input name="name" required/></div><div className="field"><label>ISIN</label><input name="isin"/></div><div className="field"><label>Provider instrument ID</label><input name="providerId"/></div><div className="field"><label>Economic exposure</label><input name="exposure" required/></div><div className="field"><label>Leverage</label><input name="leverage" defaultValue="1.000000" required/></div><div className="field"><label>Fund currency</label><input name="fundCurrency"/></div><button className="button primary">Add instrument</button></div></form>
-  <form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);await submit({kind:"mapping",economicExposure:f.get("exposure"),leverage:String(f.get("leverage")),direction:"LONG",country:f.get("country"),wrapper:f.get("wrapper"),broker:f.get("broker")||null,preferredCurrency:f.get("currency")||null,tradingLineId:f.get("tradingLineId"),fidelity:"EXACT",effectiveFrom:f.get("effectiveFrom"),effectiveTo:f.get("effectiveTo")||null,enabled:true});}}><h3>Add exact regional mapping</h3><div className="stack"><div className="field"><label>Exposure</label><input name="exposure" required/></div><div className="field"><label>Leverage</label><input name="leverage" defaultValue="1.000000" required/></div><div className="field"><label>Country</label><input name="country" defaultValue="GB" maxLength={2} required/></div><div className="field"><label>Wrapper</label><input name="wrapper" defaultValue="ISA" required/></div><div className="field"><label>Broker (optional)</label><input name="broker"/></div><div className="field"><label>Preferred currency</label><input name="currency" defaultValue="GBP"/></div><div className="field"><label>Trading line UUID</label><input name="tradingLineId" required/></div><div className="field"><label>Effective from</label><input name="effectiveFrom" type="date" required/></div><div className="field"><label>Effective to</label><input name="effectiveTo" type="date"/></div><button className="button primary">Add mapping</button></div></form>{message&&<div className="success">{message}</div>}</div>;
+  return <div className="detail-grid"><form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);await submit({kind:"instrument",isin:f.get("isin")||null,providerInstrumentId:f.get("providerId")||null,name:f.get("name"),economicExposure:f.get("exposure"),leverage:String(f.get("leverage")),direction:"LONG",fundCurrency:f.get("fundCurrency")||null});}}><h3>Add instrument</h3><div className="stack"><Field label="Name"><input name="name" required/></Field><Field label="ISIN"><input name="isin"/></Field><Field label="Provider instrument ID"><input name="providerId"/></Field><Field label="Economic exposure"><input name="exposure" required/></Field><Field label="Leverage"><input name="leverage" defaultValue="1.000000" required/></Field><Field label="Fund currency"><input name="fundCurrency"/></Field><button className="button primary">Add instrument</button></div></form>
+  <form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);await submit({kind:"mapping",economicExposure:f.get("exposure"),leverage:String(f.get("leverage")),direction:"LONG",country:f.get("country"),wrapper:f.get("wrapper"),broker:f.get("broker")||null,preferredCurrency:f.get("currency")||null,tradingLineId:f.get("tradingLineId"),fidelity:"EXACT",effectiveFrom:f.get("effectiveFrom"),effectiveTo:f.get("effectiveTo")||null,enabled:true});}}><h3>Add exact regional mapping</h3><div className="stack"><Field label="Exposure"><input name="exposure" required/></Field><Field label="Leverage"><input name="leverage" defaultValue="1.000000" required/></Field><Field label="Country"><input name="country" defaultValue="GB" maxLength={2} required/></Field><Field label="Wrapper"><input name="wrapper" defaultValue="ISA" required/></Field><Field label="Broker (optional)"><input name="broker"/></Field><Field label="Preferred currency"><input name="currency" defaultValue="GBP"/></Field><Field label="Trading line UUID"><input name="tradingLineId" required/></Field><Field label="Effective from"><input name="effectiveFrom" type="date" required/></Field><Field label="Effective to"><input name="effectiveTo" type="date"/></Field><button className="button primary">Add mapping</button></div></form>{message&&<div className="success">{message}</div>}</div>;
 }
 
 export function TradingLineEditor(){
   const {submit,message}=useAdminSubmit("/api/admin/instruments");
-  return <form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);await submit({kind:"tradingLine",instrumentId:f.get("instrumentId"),ticker:f.get("ticker"),exchange:f.get("exchange"),currency:f.get("currency"),exchangeTimezone:f.get("timezone"),providerSymbol:f.get("providerSymbol")||null,effectiveFrom:f.get("effectiveFrom"),effectiveTo:f.get("effectiveTo")||null});}}><h3>Add / update trading line</h3><div className="form-grid"><div className="field"><label>Instrument UUID</label><input name="instrumentId" required/></div><div className="field"><label>Ticker</label><input name="ticker" required/></div><div className="field"><label>Exchange</label><input name="exchange" required/></div><div className="field"><label>Currency</label><input name="currency" defaultValue="GBP" required/></div><div className="field"><label>Exchange timezone</label><input name="timezone" defaultValue="Europe/London" required/></div><div className="field"><label>Provider symbol</label><input name="providerSymbol"/></div><div className="field"><label>Effective from</label><input name="effectiveFrom" type="date" required/></div><div className="field"><label>Effective to</label><input name="effectiveTo" type="date"/></div></div><button className="button primary" style={{marginTop:16}}>Save trading line</button>{message&&<div className="success">{message}</div>}</form>;
+  return <form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);await submit({kind:"tradingLine",instrumentId:f.get("instrumentId"),ticker:f.get("ticker"),exchange:f.get("exchange"),currency:f.get("currency"),exchangeTimezone:f.get("timezone"),providerSymbol:f.get("providerSymbol")||null,effectiveFrom:f.get("effectiveFrom"),effectiveTo:f.get("effectiveTo")||null});}}><h3>Add / update trading line</h3><div className="form-grid"><Field label="Instrument UUID"><input name="instrumentId" required/></Field><Field label="Ticker"><input name="ticker" required/></Field><Field label="Exchange"><input name="exchange" required/></Field><Field label="Currency"><input name="currency" defaultValue="GBP" required/></Field><Field label="Exchange timezone"><input name="timezone" defaultValue="Europe/London" required/></Field><Field label="Provider symbol"><input name="providerSymbol"/></Field><Field label="Effective from"><input name="effectiveFrom" type="date" required/></Field><Field label="Effective to"><input name="effectiveTo" type="date"/></Field></div><button className="button primary" style={{marginTop:16}}>Save trading line</button>{message&&<div className="success">{message}</div>}</form>;
 }
 
 export function FeatureFlagEditor(){
   const {submit,message}=useAdminSubmit("/api/admin/feature-flags");const[error,setError]=useState("");
-  return <form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();setError("");const f=new FormData(e.currentTarget);try{await submit({key:f.get("key"),enabled:Boolean(f.get("enabled")),config:json(String(f.get("config")),{})});}catch{setError("Config must be valid JSON.");}}}><h3>Feature flag</h3><div className="form-grid"><div className="field"><label>Key</label><input name="key" required/></div><div className="field"><label><input name="enabled" type="checkbox"/> Enabled</label></div><div className="field full"><label>Config JSON</label><input name="config" defaultValue="{}"/></div></div><button className="button primary" style={{marginTop:16}}>Save flag</button>{(error||message)&&<div className={error?"error":"success"}>{error||message}</div>}</form>;
+  return <form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();setError("");const f=new FormData(e.currentTarget);try{await submit({key:f.get("key"),enabled:Boolean(f.get("enabled")),config:json(String(f.get("config")),{})});}catch{setError("Config must be valid JSON.");}}}><h3>Feature flag</h3><div className="form-grid"><Field label="Key"><input name="key" required/></Field><div className="field"><label><input name="enabled" type="checkbox"/> Enabled</label></div><Field className="field full" label="Config JSON"><input name="config" defaultValue="{}"/></Field></div><button className="button primary" style={{marginTop:16}}>Save flag</button>{(error||message)&&<div className={error?"error":"success"}>{error||message}</div>}</form>;
 }
 
 
@@ -140,13 +141,13 @@ export function PlanPriceEditor(){
     amountMinor:Math.round(Number(f.get("amount"))*100),stripePriceId:f.get("stripePriceId")||null,appleProductId:f.get("appleProductId")||null,googleProductId:f.get("googleProductId")||null,active:Boolean(f.get("active"))
   });}}>
     <h3>Plan price by currency</h3><div className="form-grid">
-      <div className="field"><label>Plan slug</label><input name="planSlug" placeholder="investor" required/></div>
-      <div className="field"><label>Currency</label><input name="currency" defaultValue="GBP" maxLength={3} required/></div>
-      <div className="field"><label>Cadence</label><select name="cadence"><option>MONTHLY</option><option>ANNUAL</option></select></div>
-      <div className="field"><label>Amount</label><input name="amount" type="number" min="0" step="0.01" required/></div>
-      <div className="field full"><label>Stripe Price ID</label><input name="stripePriceId" placeholder="price_..."/></div>
-      <div className="field"><label>App Store product ID</label><input name="appleProductId" placeholder="com.example.pro.monthly"/></div>
-      <div className="field"><label>Google Play product ID</label><input name="googleProductId" placeholder="pro_monthly"/></div>
+      <Field label="Plan slug"><input name="planSlug" placeholder="investor" required/></Field>
+      <Field label="Currency"><input name="currency" defaultValue="GBP" maxLength={3} required/></Field>
+      <Field label="Cadence"><select name="cadence"><option>MONTHLY</option><option>ANNUAL</option></select></Field>
+      <Field label="Amount"><input name="amount" type="number" min="0" step="0.01" required/></Field>
+      <Field className="field full" label="Stripe Price ID"><input name="stripePriceId" placeholder="price_..."/></Field>
+      <Field label="App Store product ID"><input name="appleProductId" placeholder="com.example.pro.monthly"/></Field>
+      <Field label="Google Play product ID"><input name="googleProductId" placeholder="pro_monthly"/></Field>
       <div className="field"><label><input name="active" type="checkbox" defaultChecked/> Active</label></div>
     </div><button className="button primary" style={{marginTop:16}}>Save price</button>{message&&<div className="success">{message}</div>}
   </form>;
@@ -177,10 +178,10 @@ export function ModelPerformanceEditor() {
   }}>
     <h3>Canonical model / benchmark history</h3>
     <div className="stack">
-      <div className="field"><label>Strategy version UUID</label><input name="strategyVersionId" required /></div>
-      <div className="field"><label>Source label</label><input name="source" defaultValue="ADMIN" /></div>
-      <div className="field"><label>Strategy model points JSON</label><textarea name="points" rows={7} defaultValue={'[{"date":"2026-01-02","value":"100"}]'} /></div>
-      <div className="field"><label>Comparison benchmark series JSON <span className="optional">optional</span></label><textarea name="benchmarks" rows={10} defaultValue={'[{"key":"qqq","name":"QQQ","economicExposure":"NASDAQ_100_1X_LONG","label":"QQQ","sortOrder":10,"defaultVisible":false,"points":[{"date":"2026-01-02","value":"100"}]},{"key":"3qqq","name":"3QQQ","economicExposure":"NASDAQ_100_3X_LONG","label":"3QQQ","sortOrder":20,"defaultVisible":false,"points":[{"date":"2026-01-02","value":"100"}]}]'} /></div>
+      <Field label="Strategy version UUID"><input name="strategyVersionId" required /></Field>
+      <Field label="Source label"><input name="source" defaultValue="ADMIN" /></Field>
+      <Field label="Strategy model points JSON"><textarea name="points" rows={7} defaultValue={'[{"date":"2026-01-02","value":"100"}]'} /></Field>
+      <Field label={<>Comparison benchmark series JSON <span className="optional">optional</span></>}><textarea name="benchmarks" rows={10} defaultValue={'[{"key":"qqq","name":"QQQ","economicExposure":"NASDAQ_100_1X_LONG","label":"QQQ","sortOrder":10,"defaultVisible":false,"points":[{"date":"2026-01-02","value":"100"}]},{"key":"3qqq","name":"3QQQ","economicExposure":"NASDAQ_100_3X_LONG","label":"3QQQ","sortOrder":20,"defaultVisible":false,"points":[{"date":"2026-01-02","value":"100"}]}]'} /></Field>
       <button className="button primary">Upload model & comparisons</button>
       <div className="help">Each comparison has its own independent index history. The customer chart replays the user&apos;s real deposits and withdrawals against every series, so DCA is compared like-for-like. Benchmark mappings are strategy-version specific rather than hard-coded to 9Sig.</div>
       {(error || message) && <div className={error ? "error" : "success"}>{error || message}</div>}

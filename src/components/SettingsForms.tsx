@@ -1,8 +1,9 @@
 "use client";
+import { Field } from "@/components/Field";
 import { useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
 
-export function DiscordForm(){const[message,setMessage]=useState("");return <form className="stack" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);const r=await fetch("/api/settings/discord",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({webhook:f.get("webhook")})});const b=await r.json();setMessage(r.ok?"Discord webhook saved.":b.error);}}><div className="field"><label>Discord webhook</label><input name="webhook" type="url" placeholder="https://discord.com/api/webhooks/..." required/></div><button className="button">Save Discord webhook</button>{message&&<div className={message.startsWith("Discord webhook saved")?"success":"error"}>{message}</div>}</form>;}
+export function DiscordForm(){const[message,setMessage]=useState("");return <form className="stack" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);const r=await fetch("/api/settings/discord",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({webhook:f.get("webhook")})});const b=await r.json();setMessage(r.ok?"Discord webhook saved.":b.error);}}><Field label="Discord webhook"><input name="webhook" type="url" placeholder="https://discord.com/api/webhooks/..." required/></Field><button className="button">Save Discord webhook</button>{message&&<div className={message.startsWith("Discord webhook saved")?"success":"error"}>{message}</div>}</form>;}
 
 type BillingPrice={
   planSlug:string;planName:string;currency:string;cadence:"MONTHLY"|"ANNUAL";amountMinor:number;
@@ -58,7 +59,7 @@ export function BillingButtons({
 
   const slugs=[...new Set(prices.map((price)=>price.planSlug))];
   return <div className="stack billing-options">
-    {currencies.length>1&&<div className="field compact-field"><label>Billing currency</label><select value={currency} onChange={e=>setCurrency(e.target.value)}>{currencies.map(c=><option key={c}>{c}</option>)}</select></div>}
+    {currencies.length>1&&<Field className="field compact-field" label="Billing currency"><select value={currency} onChange={e=>setCurrency(e.target.value)}>{currencies.map(c=><option key={c}>{c}</option>)}</select></Field>}
     <div className="billing-plan-grid">
       {slugs.map((slug)=>{
         const plan=planSummary(prices,slug,currency);

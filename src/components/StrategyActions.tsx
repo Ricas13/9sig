@@ -1,4 +1,5 @@
 "use client";
+import { Field } from "@/components/Field";
 import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Plus } from "lucide-react";
@@ -132,8 +133,8 @@ export function ContributionForm({ id, accounts=[] }: { id: string; accounts?:Ac
       setBusy(false);
     }
   }}>
-    <AccountSelect accounts={accounts}/><div className="field"><label>Contribution</label><input name="amount" type="number" min="0.01" step="0.01" required /></div>
-    <div className="field"><label>Date & time</label><input name="when" type="datetime-local" /></div>
+    <AccountSelect accounts={accounts}/><Field label="Contribution"><input name="amount" type="number" min="0.01" step="0.01" required /></Field>
+    <Field label="Date & time"><input name="when" type="datetime-local" /></Field>
     <div className="field full"><button className="button" disabled={busy}>{busy?"Recording…":"Record contribution"}</button>{message && <div className={message.includes("Recalculation needs attention")?"attention-message":message.startsWith("Contribution recorded") ? "success" : "error"}>{message}</div>}</div>
   </form>;
 }
@@ -178,9 +179,9 @@ export function ReconcileForm({ id, expected, accounts=[] }: { id: string; expec
       setBusy(false);
     }
   }}>
-    <AccountSelect accounts={accounts}/><div className="field"><label>Expected value</label><input name="expected" type="number" min="0" step="0.01" defaultValue={expected ?? undefined} required />{accounts.length>1&&<div className="help">Enter the expected value for the selected account only, not the combined strategy value.</div>}</div>
-    <div className="field"><label>Broker reported value</label><input name="broker" type="number" min="0" step="0.01" required /></div>
-    <div className="field full"><label>Reason</label><select name="reason"><option value="">Unknown adjustment</option><option>Broker fee</option><option>FX cost</option><option>Tax</option><option>Financing cost</option><option>Interest</option><option>Other</option></select></div>
+    <AccountSelect accounts={accounts}/><Field label="Expected value"><input name="expected" type="number" min="0" step="0.01" defaultValue={expected ?? undefined} required />{accounts.length>1&&<div className="help">Enter the expected value for the selected account only, not the combined strategy value.</div>}</Field>
+    <Field label="Broker reported value"><input name="broker" type="number" min="0" step="0.01" required /></Field>
+    <Field className="field full" label="Reason"><select name="reason"><option value="">Unknown adjustment</option><option>Broker fee</option><option>FX cost</option><option>Tax</option><option>Financing cost</option><option>Interest</option><option>Other</option></select></Field>
     <div className="field full">
       <label><input name="affectsCash" type="checkbox" /> This difference definitely changes available cash</label>
       <div className="help">Use this for a fee, tax, financing or FX cash charge. Leave it off for an unexplained valuation difference; actions stay blocked instead of treating unknown drift as spendable cash.</div>
@@ -390,12 +391,12 @@ export function StrategyVersionUpgrade({
       {inputSchema.length>0&&<details className="advanced-details">
         <summary>Review strategy-specific settings</summary>
         <div className="form-grid version-inputs">
-          {inputSchema.map((field)=><div className="field full" key={field.key}><label>{field.label}</label>
+          {inputSchema.map((field)=><Field className="field full" key={field.key} label={field.label}>
             {field.type==="select"?<select name={"versionInput:"+field.key} defaultValue={String(currentSettings[field.key]??field.default??"")} required={field.required}>{!field.required&&<option value="">Not set</option>}{field.options?.map((o)=><option key={o.value} value={o.value}>{o.label}</option>)}</select>:
             field.type==="boolean"?<label className="toggle-row"><input name={"versionInput:"+field.key} type="checkbox" defaultChecked={Boolean(currentSettings[field.key]??field.default)}/><span>{field.help??field.label}</span></label>:
             <input name={"versionInput:"+field.key} type={field.type} defaultValue={currentSettings[field.key]==null?(field.default==null?undefined:String(field.default)):String(currentSettings[field.key])} required={field.required} min={field.min==null?undefined:String(field.min)} max={field.max==null?undefined:String(field.max)}/>}
             {field.help&&field.type!=="boolean"&&<div className="help">{field.help}</div>}
-          </div>)}
+          </Field>)}
         </div>
       </details>}
       {preview&&<div className="version-action-preview" role="status">
@@ -431,10 +432,10 @@ export function CashEventForm({id,accounts=[]}:{id:string;accounts?:AccountOptio
       setBusy(false);
     }
   }}>
-    <AccountSelect accounts={accounts}/><div className="field"><label>Event</label><select name="eventType"><option>WITHDRAWAL</option><option>DIVIDEND</option><option>DISTRIBUTION</option><option>INTEREST</option><option>FEE</option><option>TAX</option></select></div>
-    <div className="field"><label>Amount</label><input name="amount" type="number" min="0.01" step="0.01" required/></div>
-    <div className="field"><label>Date & time</label><input name="when" type="datetime-local"/></div>
-    <div className="field"><label>Note (optional)</label><input name="note" maxLength={240}/></div>
+    <AccountSelect accounts={accounts}/><Field label="Event"><select name="eventType"><option>WITHDRAWAL</option><option>DIVIDEND</option><option>DISTRIBUTION</option><option>INTEREST</option><option>FEE</option><option>TAX</option></select></Field>
+    <Field label="Amount"><input name="amount" type="number" min="0.01" step="0.01" required/></Field>
+    <Field label="Date & time"><input name="when" type="datetime-local"/></Field>
+    <Field label="Note (optional)"><input name="note" maxLength={240}/></Field>
     <div className="field full"><button className="button" disabled={busy}>{busy?"Recording…":"Record cash event"}</button><div className="help">Withdrawals, fees and tax reduce cash; dividends, distributions and interest increase cash. The original ledger history remains append-only.</div>{message&&<div className={message.includes("Recalculation needs attention")?"attention-message":message.startsWith("Cash event recorded")?"success":"error"}>{message}</div>}</div>
   </form>;
 }
@@ -488,9 +489,9 @@ export function ExecutionConstraintsForm({id,constraints}:{id:string;constraints
   }}>
     <label className="toggle-row"><input type="checkbox" name="fractionalShares" defaultChecked={value.fractionalShares!==false}/><span><b>Fractional shares</b><small>Turn off if your broker only allows whole shares.</small></span></label>
     <div className="form-grid">
-      <div className="field"><label>Minimum trade</label><input name="minimumTradeAmount" type="number" min="0" step="0.01" defaultValue={String(value.minimumTradeAmount??"0")}/></div>
-      <div className="field"><label>Keep as cash</label><input name="cashBufferAmount" type="number" min="0" step="0.01" defaultValue={String(value.cashBufferAmount??"0")}/></div>
-      <div className="field full"><label>Estimated fee per trade</label><input name="flatFee" type="number" min="0" step="0.01" defaultValue={String(value.flatFee??"0")}/></div>
+      <Field label="Minimum trade"><input name="minimumTradeAmount" type="number" min="0" step="0.01" defaultValue={String(value.minimumTradeAmount??"0")}/></Field>
+      <Field label="Keep as cash"><input name="cashBufferAmount" type="number" min="0" step="0.01" defaultValue={String(value.cashBufferAmount??"0")}/></Field>
+      <Field className="field full" label="Estimated fee per trade"><input name="flatFee" type="number" min="0" step="0.01" defaultValue={String(value.flatFee??"0")}/></Field>
     </div>
     <label className="toggle-row"><input type="checkbox" name="allowSelling" defaultChecked={value.allowSelling!==false}/><span><b>Allow sell recommendations</b><small>Turn off if you want new contributions to do the work wherever the strategy permits.</small></span></label>
     <div className="inline"><button className="button" disabled={busy}>{busy?"Saving…":"Save trade preferences"}</button>{message&&<span className={message.includes("Recalculation needs attention")?"attention-message":message.startsWith("Saved")?"success":"error"}>{message}</span>}</div>
@@ -524,9 +525,9 @@ export function ContributionPlanForm({id,plan}:{id:string;plan?:Record<string,un
   }}>
     <label className="toggle-row"><input type="checkbox" checked={enabled} onChange={(e)=>setEnabled(e.target.checked)}/><span><b>Regular contribution reminder</b><small>Your portfolio cash changes only when you record an actual contribution.</small></span></label>
     {enabled&&<div className="form-grid">
-      <div className="field"><label>Usual amount</label><input name="amount" type="number" min="0.01" step="0.01" defaultValue={String(value.amount??"")||undefined} required/></div>
-      <div className="field"><label>Frequency</label><select name="frequency" defaultValue={String(value.frequency??"MONTHLY")}><option value="WEEKLY">Weekly</option><option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option></select></div>
-      <div className="field full"><label>Next date</label><input name="nextDate" type="date" defaultValue={value.nextDate?String(value.nextDate):undefined}/></div>
+      <Field label="Usual amount"><input name="amount" type="number" min="0.01" step="0.01" defaultValue={String(value.amount??"")||undefined} required/></Field>
+      <Field label="Frequency"><select name="frequency" defaultValue={String(value.frequency??"MONTHLY")}><option value="WEEKLY">Weekly</option><option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option></select></Field>
+      <Field className="field full" label="Next date"><input name="nextDate" type="date" defaultValue={value.nextDate?String(value.nextDate):undefined}/></Field>
     </div>}
     <div className="inline"><button className="button" disabled={busy}>{busy?"Saving…":"Save contribution plan"}</button>{message&&<span className="success">{message}</span>}</div>
   </form>;
@@ -593,14 +594,13 @@ export function StrategySwitchControl({id,options=[]}:{id:string;options?:Strate
   }
 
   return <form className="strategy-switch-control" onSubmit={(event)=>{event.preventDefault();previewSwitch(event.currentTarget)}}>
-    <div className="field"><label>Switch to</label><select value={key} onChange={(event)=>{setKey(event.target.value);setPreview(null);setConfirm(false);setError("")}}>{options.map((option)=><option key={option.key} value={option.key}>{option.name} · v{option.version}</option>)}</select></div>
-    {selected.inputSchema.length>0&&<div className="form-grid">{selected.inputSchema.map((field)=><div className="field full" key={field.key}>
-      <label>{field.label}</label>
+    <Field label="Switch to"><select value={key} onChange={(event)=>{setKey(event.target.value);setPreview(null);setConfirm(false);setError("")}}>{options.map((option)=><option key={option.key} value={option.key}>{option.name} · v{option.version}</option>)}</select></Field>
+    {selected.inputSchema.length>0&&<div className="form-grid">{selected.inputSchema.map((field)=><Field className="field full" key={field.key} label={field.label}>
       {field.type==="select"?<select name={"switchLifecycle:"+field.key} defaultValue={String(field.default??"")} required={field.required}>{!field.required&&<option value="">Not set</option>}{field.options?.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</select>:
       field.type==="boolean"?<label className="toggle-row"><input name={"switchLifecycle:"+field.key} type="checkbox" defaultChecked={Boolean(field.default)}/><span>{field.help??field.label}</span></label>:
       <input name={"switchLifecycle:"+field.key} type={field.type} defaultValue={field.default==null?undefined:String(field.default)} required={field.required} min={field.min==null?undefined:String(field.min)} max={field.max==null?undefined:String(field.max)}/>}
       {field.help&&field.type!=="boolean"&&<div className="help">{field.help}</div>}
-    </div>)}</div>}
+    </Field>)}</div>}
     {!preview&&<button className="button" disabled={busy}>{busy?"Checking…":"Preview switch"}</button>}
     {preview&&<div className="lifecycle-switch-preview">
       <div><span>New strategy would say today</span><strong>{preview.action.title}</strong><p>{preview.action.instruction}</p></div>
@@ -694,27 +694,25 @@ export function WhatIfPreview({
       {type==="EXECUTION_CONSTRAINTS"?<div className="preview-settings">
         <label className="toggle-row"><input type="checkbox" name="fractionalShares" defaultChecked/><span><b>Fractional shares</b><small>Turn off to preview whole-share-only execution.</small></span></label>
         <div className="form-grid">
-          <div className="field"><label>Minimum trade</label><input name="minimumTradeAmount" type="number" min="0" step="0.01" defaultValue="0"/></div>
-          <div className="field"><label>Keep as cash</label><input name="cashBufferAmount" type="number" min="0" step="0.01" defaultValue="0"/></div>
-          <div className="field full"><label>Estimated fee</label><input name="flatFee" type="number" min="0" step="0.01" defaultValue="0"/></div>
+          <Field label="Minimum trade"><input name="minimumTradeAmount" type="number" min="0" step="0.01" defaultValue="0"/></Field>
+          <Field label="Keep as cash"><input name="cashBufferAmount" type="number" min="0" step="0.01" defaultValue="0"/></Field>
+          <Field className="field full" label="Estimated fee"><input name="flatFee" type="number" min="0" step="0.01" defaultValue="0"/></Field>
         </div>
         <label className="toggle-row"><input type="checkbox" name="allowSelling" defaultChecked/><span><b>Allow sell recommendations</b><small>Preview how the next action changes if sells are unavailable.</small></span></label>
         <button className="button primary" disabled={busy}>{busy?"Previewing…":"Preview trade settings"}</button>
       </div>:type==="STRATEGY_SWITCH"&&selectedSwitch?<div className="preview-settings strategy-switch-preview-form">
-        <div className="field">
-          <label>Try another strategy</label>
+        <Field label="Try another strategy">
           <select value={switchKey} onChange={(event)=>{setSwitchKey(event.target.value);setResult(null)}}>
             {switchOptions.map((option)=><option key={option.key} value={option.key}>{option.name} · v{option.version}</option>)}
           </select>
-        </div>
+        </Field>
         {selectedSwitch.inputSchema.length>0&&<div className="form-grid">
-          {selectedSwitch.inputSchema.map((field)=><div className="field full" key={field.key}>
-            <label>{field.label}</label>
+          {selectedSwitch.inputSchema.map((field)=><Field className="field full" key={field.key} label={field.label}>
             {field.type==="select"?<select name={"switchInput:"+field.key} defaultValue={String(field.default??"")} required={field.required}>{!field.required&&<option value="">Not set</option>}{field.options?.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</select>:
             field.type==="boolean"?<label className="toggle-row"><input name={"switchInput:"+field.key} type="checkbox" defaultChecked={Boolean(field.default)}/><span>{field.help??field.label}</span></label>:
             <input name={"switchInput:"+field.key} type={field.type} defaultValue={field.default==null?undefined:String(field.default)} required={field.required} min={field.min==null?undefined:String(field.min)} max={field.max==null?undefined:String(field.max)}/>}
             {field.help&&field.type!=="boolean"&&<div className="help">{field.help}</div>}
-          </div>)}
+          </Field>)}
         </div>}
         <button className="button primary" disabled={busy||!switchKey}>{busy?"Previewing…":"Preview "+selectedSwitch.name}</button>
       </div>:<div className="what-if-input">
