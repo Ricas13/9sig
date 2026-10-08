@@ -5,6 +5,7 @@ import { getStrategyForUser } from "@/lib/strategy-service";
 import { recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
+import { authFailure } from "@/lib/api-auth";
 
 const decimalString = z.string().regex(/^\d+(?:\.\d{1,12})?$/);
 const schema = z.object({
@@ -113,7 +114,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       pendingAccountIds:snapshotState.pendingAccountIds,
       pendingAccountNames:snapshotState.pendingAccountNames
     });
-  } catch (error) {
+  } catch(error){const denied=authFailure(error);if(denied)return denied;
     if (error instanceof z.ZodError) return Response.json({ error: "Check the opening cash and holding quantities." }, { status: 400 });
     const code = error instanceof Error ? error.message : "FAILED";
     if (code === "STRATEGY_CLOSED") return Response.json({ error: "Closed strategies are read-only." }, { status: 409 });

@@ -7,6 +7,8 @@ export type PriceObservation = {
   currency: string;
   observedAt: Date;
   provider: string;
+  granularity?: "TRADE"|"MINUTE_BAR"|"DAILY_BAR";
+  priceKind?: "LAST"|"OPEN"|"HIGH"|"LOW"|"CLOSE";
 };
 
 export interface MarketDataProvider {
@@ -16,10 +18,21 @@ export interface MarketDataProvider {
   historicalPrice(providerSymbol: string, at: Date): Promise<PriceObservation | null>;
 }
 
+// `new URL("/quote", "https://host/v1")` resolves to https://host/quote and silently drops the
+// provider's path prefix, which turned every lookup into a 404 ("no quote"). Append instead.
+export function buildQuoteUrl(baseUrl: string, path: string, params: Record<string, string>) {
+  const url = new URL(baseUrl);
+  url.pathname = url.pathname.replace(/\/+$/, "") + "/" + path.replace(/^\/+/, "");
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  return url;
+}
+
 const quoteSchema = z.object({
   price: z.union([z.string(), z.number()]),
   currency: z.string().length(3),
-  observedAt: z.string().datetime({ offset: true })
+  observedAt: z.string().datetime({ offset: true }),
+  granularity: z.enum(["TRADE","MINUTE_BAR","DAILY_BAR"]).optional(),
+  priceKind: z.enum(["LAST","OPEN","HIGH","LOW","CLOSE"]).optional()
 });
 
 function validatedObservation(raw: unknown, provider: string): PriceObservation {
@@ -30,7 +43,9 @@ function validatedObservation(raw: unknown, provider: string): PriceObservation 
     price: price.toString(),
     currency: parsed.currency.toUpperCase(),
     observedAt: new Date(parsed.observedAt),
-    provider
+    provider,
+    granularity: parsed.granularity,
+    priceKind: parsed.priceKind
   };
 }
 
@@ -65,8 +80,7 @@ class HttpMarketDataProvider implements MarketDataProvider {
 
   private async fetchQuote(path: string, params: Record<string, string>) {
     if (!this.configured || !this.baseUrl || !this.token) return null;
-    const url = new URL(path, this.baseUrl);
-    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+    const url = buildQuoteUrl(this.baseUrl, path, params);
     if (url.protocol !== "https:" && process.env.NODE_ENV === "production") {
       throw new Error("MARKET_DATA_HTTPS_REQUIRED");
     }
@@ -103,7 +117,4 @@ export function getMarketDataProvider(): MarketDataProvider {
   return new UnconfiguredMarketDataProvider();
 }
 
-export function classifyFreshness(observedAt: Date, now = new Date(), maxAgeHours = 36) {
-  const hours = (now.getTime() - observedAt.getTime()) / 3_600_000;
-  return hours <= maxAgeHours ? "CURRENT" : "STALE";
-}
+export { classifyFreshness } from "@/domain/market-freshness";

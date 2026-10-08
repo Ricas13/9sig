@@ -5,6 +5,7 @@ import { recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
 import { buildEntitlementSnapshot } from "@/domain/entitlements";
+import { authFailure } from "@/lib/api-auth";
 
 const schema=z.object({
   name:z.string().min(1).max(80),
@@ -14,9 +15,15 @@ const schema=z.object({
 });
 
 export async function GET(_request:Request,context:{params:Promise<{id:string}>}){
-  const user=await requireUser();
-  const {id}=await context.params;
-  return Response.json({accounts:await listStrategyAccounts(user.id,id)});
+  try{
+    const user=await requireUser();
+    const {id}=await context.params;
+    return Response.json({accounts:await listStrategyAccounts(user.id,id)});
+  }catch(error){
+    const denied=authFailure(error);
+    if(denied)return denied;
+    return Response.json({error:"Could not load accounts."},{status:500});
+  }
 }
 
 export async function POST(request:Request,context:{params:Promise<{id:string}>}){
@@ -81,7 +88,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     });
     const recalc=result.status==="ACTIVE"?await recalculateAfterMutation(id,user.id,"linked-account-added"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({ok:true,accountId:result.accountId,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending},{status:201});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Check the account details."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     const messages:Record<string,string>={

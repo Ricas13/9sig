@@ -62,7 +62,11 @@ export async function getStrategyForUser(userId: string, instanceId: string) {
   return rows[0] ?? null;
 }
 
-export async function createStrategy(userId: string, country: string, input: CreateStrategyInput) {
+export async function createStrategy(userId: string, country: string, rawInput: CreateStrategyInput, timezone?: string) {
+  // Currency is stored and compared as an upper-case ISO code everywhere else.
+  const currency = rawInput.currency.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("INVALID_CURRENCY");
+  const input = { ...rawInput, currency };
   return sql.begin(async (tx) => {
     const locked = await tx.unsafe("SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL FOR UPDATE",[userId]);
     if (!locked[0]) throw new Error("UNAUTHENTICATED");
@@ -104,7 +108,7 @@ export async function createStrategy(userId: string, country: string, input: Cre
     );
     const settings=validateInstanceSettings(inputSchema,input.settings);
     const executionConstraints=serializeExecutionConstraints(input.executionConstraints);
-    const contributionPlan=normalizeContributionPlan(input.contributionPlan);
+    const contributionPlan=normalizeContributionPlan(input.contributionPlan,new Date(),timezone);
 
     const accounts = await tx.unsafe(
       "INSERT INTO accounts (user_id,name,wrapper,country,currency,broker_name) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",

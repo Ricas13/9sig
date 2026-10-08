@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/session";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
 import { enforceStrategyEntitlements } from "@/lib/entitlement-service";
+import { authFailure } from "@/lib/api-auth";
 
 const schema=z.object({
   slug:z.string().min(1).max(60),displayName:z.string().min(1),description:z.string().default(""),
@@ -40,5 +41,5 @@ export async function PUT(request:Request){
     }
     await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'plan.enforced','plan',$2,$3::jsonb)",[admin.id,p.slug,JSON.stringify({subscribersChecked:subscribers.length,strategiesPaused:paused,enforcementFailures})]);
     return Response.json({ok:true,subscribersChecked:subscribers.length,strategiesPaused:paused,enforcementFailures});
-  }catch(error){if(error instanceof z.ZodError)return Response.json({error:"Invalid plan configuration."},{status:400});return Response.json({error:"Could not update plan."},{status:500});}
+  }catch(error){const denied=authFailure(error);if(denied)return denied;if(error instanceof z.ZodError)return Response.json({error:"Invalid plan configuration."},{status:400});return Response.json({error:"Could not update plan."},{status:500});}
 }

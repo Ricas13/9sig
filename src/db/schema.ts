@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, text, timestamp, boolean, integer, numeric, jsonb,
+  pgTable, uuid, text, timestamp, boolean, integer, bigint, numeric, jsonb,
   uniqueIndex, index, date, primaryKey
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -12,13 +12,17 @@ const timestamps = {
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
+  passwordHash: text("password_hash"),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   country: text("country").notNull().default("GB"),
   baseCurrency: text("base_currency").notNull().default("GBP"),
   timezone: text("timezone").notNull().default("Europe/London"),
   role: text("role").notNull().default("USER"),
-  anonymousAggregateOptIn: boolean("anonymous_aggregate_opt_in").notNull().default(true),
+  anonymousAggregateOptIn: boolean("anonymous_aggregate_opt_in").notNull().default(false),
+  mfaSecretEncrypted: text("mfa_secret_encrypted"),
+  mfaEnabledAt: timestamp("mfa_enabled_at",{withTimezone:true}),
+  mfaLastStep: bigint("mfa_last_step",{mode:"number"}).notNull().default(-1),
+  mfaRecoveryHashes: text("mfa_recovery_hashes").array().notNull().default(sql`'{}'::text[]`),
   sessionVersion: integer("session_version").notNull().default(0),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   ...timestamps
@@ -300,6 +304,8 @@ export const overrides = pgTable("overrides", {
   manualValue: jsonb("manual_value"),
   active: boolean("active").notNull().default(true),
   reason: text("reason"),
+  observedAt: timestamp("observed_at", { withTimezone:true }),
+  expiresAt: timestamp("expires_at", { withTimezone:true }),
   createdBy: text("created_by").notNull().default("USER"),
   restoredAt: timestamp("restored_at", { withTimezone: true }),
   ...timestamps
@@ -352,12 +358,14 @@ export const notifications = pgTable("notifications", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   actionId: uuid("action_id").references(() => actions.id, { onDelete: "cascade" }),
+  reviewKey: text("review_key"),
   type: text("type").notNull(),
   title: text("title").notNull(),
   body: text("body").notNull(),
   readAt: timestamp("read_at", { withTimezone: true }),
+  deliveriesCreatedAt: timestamp("deliveries_created_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [index("notification_user_idx").on(t.userId, t.readAt, t.createdAt), uniqueIndex("notification_action_unique").on(t.actionId)]);
+}, (t) => [index("notification_user_idx").on(t.userId, t.readAt, t.createdAt), uniqueIndex("notification_action_unique").on(t.actionId), uniqueIndex("notification_review_key_unique").on(t.reviewKey).where(sql`${t.reviewKey} IS NOT NULL`)]);
 
 export const notificationEndpoints = pgTable("notification_endpoints", {
   id: uuid("id").primaryKey().defaultRandom(),

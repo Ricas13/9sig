@@ -83,3 +83,49 @@ export function BillingButtons({
 }
 
 export function PrivacyControls({optIn}:{optIn:boolean}){const[state,setState]=useState(optIn);const[message,setMessage]=useState("");async function toggle(){const next=!state;const r=await fetch("/api/account/privacy",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({anonymousAggregateOptIn:next})});if(r.ok){setState(next);setMessage("Privacy preference updated.");}else setMessage("Could not update preference.");}async function remove(){if(!confirm("Permanently delete your account and financial history from the application?"))return;const r=await fetch("/api/account/delete",{method:"DELETE"});if(r.ok)await signOut({callbackUrl:"/"});else setMessage("Could not delete account.");}return <div className="stack"><div className="inline"><button className="button" onClick={toggle}>{state?"Opt out of anonymous aggregates":"Opt in to anonymous aggregates"}</button><a className="button" href="/api/account/export">Export my data</a></div><button className="button danger" onClick={remove}>Delete account</button>{message&&<div className={message.startsWith("Privacy")?"success":"error"}>{message}</div>}</div>;}
+
+
+export function SecurityControls({enabled}:{enabled:boolean}){
+  const[on,setOn]=useState(enabled);
+  const[setup,setSetup]=useState<{secret:string;otpauthUri:string}|null>(null);
+  const[recovery,setRecovery]=useState<string[]|null>(null);
+  const[message,setMessage]=useState("");
+  const[error,setError]=useState("");
+  const[busy,setBusy]=useState(false);
+  async function call(path:string,body?:unknown){
+    setBusy(true);setError("");setMessage("");
+    try{
+      const r=await fetch(path,{method:"POST",headers:{"content-type":"application/json"},body:body?JSON.stringify(body):undefined});
+      const b=await r.json().catch(()=>({} as {error?:string}));
+      if(!r.ok){setError(b.error??"Something went wrong. Please try again.");return null;}
+      return b;
+    }catch{setError("Could not reach the server. Please try again.");return null;}
+    finally{setBusy(false);}
+  }
+  if(on&&!recovery)return <form className="stack" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);const b=await call("/api/account/mfa/disable",{password:f.get("password"),code:f.get("code")});if(b){setOn(false);setSetup(null);setMessage("Two-step sign-in is off.");}}}>
+    <p className="help">Two-step sign-in is on. To turn it off, confirm your password and a current code (or a recovery code).</p>
+    <div className="form-grid"><div className="field"><label htmlFor="mfa-off-password">Password</label><input id="mfa-off-password" name="password" type="password" autoComplete="current-password" required/></div>
+    <div className="field"><label htmlFor="mfa-off-code">Code</label><input id="mfa-off-code" name="code" autoComplete="one-time-code" required/></div></div>
+    <button className="button danger" disabled={busy}>Turn off two-step sign-in</button>
+    {error&&<div className="error">{error}</div>}{message&&<div className="success">{message}</div>}
+  </form>;
+  if(recovery)return <div className="stack">
+    <div className="success">Two-step sign-in is on.</div>
+    <p className="help">Save these recovery codes somewhere safe. Each works once if you lose your authenticator. They will not be shown again.</p>
+    <pre style={{fontFamily:"monospace",whiteSpace:"pre-wrap"}}>{recovery.join("\n")}</pre>
+    <button className="button primary" onClick={()=>{setRecovery(null);setSetup(null);}}>I have saved them</button>
+  </div>;
+  if(setup)return <form className="stack" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);const b=await call("/api/account/mfa/enable",{code:f.get("code")});if(b){setOn(true);setRecovery(b.recoveryCodes);}}}>
+    <p className="help">Add this account to your authenticator app by entering the key below (or opening the link on a device that has the app), then type the 6-digit code it shows.</p>
+    <div className="field"><label htmlFor="mfa-secret">Key</label><input id="mfa-secret" readOnly value={setup.secret} onFocus={(e)=>e.currentTarget.select()}/></div>
+    <a className="button" href={setup.otpauthUri}>Open in authenticator app</a>
+    <div className="field"><label htmlFor="mfa-code">Code from the app</label><input id="mfa-code" name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={8} required/></div>
+    <button className="button primary" disabled={busy}>Confirm and turn on</button>
+    {error&&<div className="error">{error}</div>}
+  </form>;
+  return <div className="stack">
+    <p className="help">Ask for a code from an authenticator app when you sign in, on top of your password.</p>
+    <button className="button" disabled={busy} onClick={async()=>{const b=await call("/api/account/mfa/setup");if(b)setSetup(b);}}>Set up two-step sign-in</button>
+    {error&&<div className="error">{error}</div>}{message&&<div className="success">{message}</div>}
+  </div>;
+}

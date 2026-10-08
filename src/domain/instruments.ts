@@ -29,6 +29,10 @@ export type ResolveRequest = {
   asOf: string;
 };
 
+// Currency codes are compared case-insensitively: a lowercase code stored on an account must not
+// make every mapping silently "unsupported".
+const normCurrency = (value: string | null | undefined) => (value == null ? null : String(value).toUpperCase());
+
 export function resolveMapping(candidates: MappingCandidate[], request: ResolveRequest) {
   const eligible = candidates.filter((c) =>
     c.economicExposure === request.economicExposure &&
@@ -41,19 +45,34 @@ export function resolveMapping(candidates: MappingCandidate[], request: ResolveR
     (!c.effectiveTo || c.effectiveTo >= request.asOf) &&
     c.tradingLineEffectiveFrom <= request.asOf &&
     (!c.tradingLineEffectiveTo || c.tradingLineEffectiveTo >= request.asOf) &&
-    (!request.preferredCurrency || c.tradingLineCurrency === request.preferredCurrency) &&
+    (!request.preferredCurrency || normCurrency(c.tradingLineCurrency) === normCurrency(request.preferredCurrency)) &&
     (!c.broker || (!!request.broker && c.broker.toLowerCase() === request.broker.toLowerCase()))
   );
 
-  return eligible.sort((a,b) => {
+  const ranked = eligible.sort((a,b) => {
     const brokerA = a.broker && request.broker && a.broker.toLowerCase() === request.broker.toLowerCase() ? 1 : 0;
     const brokerB = b.broker && request.broker && b.broker.toLowerCase() === request.broker.toLowerCase() ? 1 : 0;
     if (brokerA !== brokerB) return brokerB - brokerA;
-    const configuredCurrencyA = a.preferredCurrency === request.preferredCurrency ? 1 : 0;
-    const configuredCurrencyB = b.preferredCurrency === request.preferredCurrency ? 1 : 0;
+    const configuredCurrencyA = normCurrency(a.preferredCurrency) === normCurrency(request.preferredCurrency) ? 1 : 0;
+    const configuredCurrencyB = normCurrency(b.preferredCurrency) === normCurrency(request.preferredCurrency) ? 1 : 0;
     if (configuredCurrencyA !== configuredCurrencyB) return configuredCurrencyB - configuredCurrencyA;
     return b.effectiveFrom.localeCompare(a.effectiveFrom);
-  })[0] ?? null;
+  });
+  const chosen=ranked[0];
+  if(!chosen)return null;
+  const score=(c:MappingCandidate)=>({
+    broker:Number(Boolean(c.broker&&request.broker&&c.broker.toLowerCase()===request.broker.toLowerCase())),
+    currency:Number(normCurrency(c.preferredCurrency)===normCurrency(request.preferredCurrency)),
+    effectiveFrom:c.effectiveFrom
+  });
+  const first=score(chosen);
+  const equallyRanked=ranked.filter(c=>{
+    const candidate=score(c);
+    return candidate.broker===first.broker&&candidate.currency===first.currency&&candidate.effectiveFrom===first.effectiveFrom;
+  });
+  // If equally preferred mappings resolve to different trading lines,
+  // never invent a deterministic investment choice from arbitrary DB ordering.
+  return new Set(equallyRanked.map(c=>c.tradingLineId)).size===1?chosen:null;
 }
 
 

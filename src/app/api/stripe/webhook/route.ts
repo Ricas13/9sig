@@ -43,13 +43,8 @@ async function resolvePlanId(subscription: Stripe.Subscription) {
     if(legacy.length>1)throw new Error("AMBIGUOUS_STRIPE_PRICE");
     if(legacy[0])return String(legacy[0].id);
   }
-  // The metadata fallback is only trusted when it names a real plan; an unknown id
-  // would otherwise fail a foreign key and make Stripe retry the event forever.
-  const metadataPlanId=subscription.metadata.planId;
-  if(metadataPlanId){
-    const known=await sql.unsafe("SELECT id FROM plans WHERE id::text=$1 LIMIT 1",[metadataPlanId]);
-    if(known[0])return String(known[0].id);
-  }
+  // Never promote a subscription from mutable metadata when its Stripe Price
+  // is not mapped to a published local product.
   return null;
 }
 
@@ -57,37 +52,34 @@ async function retrieveCurrentSubscription(stripe:Stripe,subscriptionId:string){
   try{
     return await stripe.subscriptions.retrieve(subscriptionId);
   }catch(retrieveError){
+    // A subscription Stripe no longer knows about (for example after its customer was
+    // deleted) has ended; callers treat null as "ended" rather than retrying forever.
     if((retrieveError as {code?:string})?.code==="resource_missing")return null;
     throw retrieveError;
   }
 }
 
-async function resetToFree(userId:string,subscriptionId:string){
-  const updated=await sql.unsafe(
-    "UPDATE subscriptions SET status='FREE',cadence='FREE',stripe_subscription_id=NULL,current_period_end=NULL,cancel_at_period_end=false,plan_id=(SELECT id FROM plans WHERE slug='free' LIMIT 1),updated_at=now() WHERE user_id=$1 AND stripe_subscription_id=$2 RETURNING user_id",
-    [userId,subscriptionId]
-  );
-  return Boolean(updated[0]);
-}
-
 async function resolveSubscriptionUserId(subscription:Stripe.Subscription){
-  if(subscription.metadata.userId)return subscription.metadata.userId;
-
+  const customerId=typeof subscription.customer==="string"?subscription.customer:subscription.customer?.id;
+  if(!customerId)throw new Error("STRIPE_CUSTOMER_MISSING");
   const bySubscription=await sql.unsafe(
-    "SELECT user_id FROM subscriptions WHERE stripe_subscription_id=$1 LIMIT 2",
+    "SELECT DISTINCT user_id FROM subscriptions WHERE stripe_subscription_id=$1 LIMIT 2",
     [subscription.id]
   );
-  if(bySubscription.length>1)throw new Error("AMBIGUOUS_SUBSCRIPTION_OWNER");
-  if(bySubscription[0])return String(bySubscription[0].user_id);
-
-  const customerId=typeof subscription.customer==="string"?subscription.customer:subscription.customer?.id;
-  if(!customerId)return null;
   const byCustomer=await sql.unsafe(
-    "SELECT user_id FROM subscriptions WHERE stripe_customer_id=$1 LIMIT 2",
+    "SELECT DISTINCT user_id FROM subscriptions WHERE stripe_customer_id=$1 LIMIT 2",
     [customerId]
   );
-  if(byCustomer.length>1)throw new Error("AMBIGUOUS_SUBSCRIPTION_OWNER");
-  return byCustomer[0]?String(byCustomer[0].user_id):null;
+  if(bySubscription.length>1||byCustomer.length>1)throw new Error("AMBIGUOUS_SUBSCRIPTION_OWNER");
+  const subscriptionUser=bySubscription[0]?String(bySubscription[0].user_id):null;
+  const customerUser=byCustomer[0]?String(byCustomer[0].user_id):null;
+  if(subscriptionUser&&customerUser&&subscriptionUser!==customerUser)
+    throw new Error("SUBSCRIPTION_CUSTOMER_OWNERSHIP_CONFLICT");
+  const canonical=subscriptionUser??customerUser;
+  if(!canonical)throw new Error("SUBSCRIPTION_OWNER_NOT_VERIFIED");
+  if(subscription.metadata.userId&&subscription.metadata.userId!==canonical)
+    throw new Error("STRIPE_METADATA_OWNER_MISMATCH");
+  return canonical;
 }
 
 export async function POST(request:Request){
@@ -109,50 +101,79 @@ export async function POST(request:Request){
     let duplicateSubscriptionId:string|null=null;
 
     if(event.type.startsWith("customer.subscription.")){
-      const eventSubscription=event.data.object as Stripe.Subscription;
-      const userId=await resolveSubscriptionUserId(eventSubscription);
-      if(userId){
-        // Events can arrive late or out of order, so the payload may describe a state the
-        // subscription has already left (for example "active" after it was deleted).
-        // Entitlements are only ever granted from Stripe's current view of it.
-        const subscription=event.type==="customer.subscription.deleted"
-          ?null
-          :await retrieveCurrentSubscription(stripe,eventSubscription.id);
-        if(!subscription||isTerminalStripeStatus(subscription.status)){
-          if(await resetToFree(userId,eventSubscription.id))affectedUserId=userId;
-        }else{
-          const planId=await resolvePlanId(subscription);
-          if(!planId)throw new Error("PLAN_NOT_RESOLVED");
-          const decision=await sql.begin(async(tx)=>{
-            const rows=await tx.unsafe("SELECT stripe_subscription_id,status FROM subscriptions WHERE user_id=$1 FOR UPDATE",[userId]);
-            if(!rows[0])return {duplicate:true,orphan:true};
-            const canonical=rows[0].stripe_subscription_id?String(rows[0].stripe_subscription_id):null;
-            // A stored subscription that is already dead (re-subscribing after a cancellation)
-            // must not block its replacement, otherwise the new paid subscription is cancelled.
-            if(canonical&&canonical!==subscription.id&&!isTerminalLocalStatus(rows[0].status))return {duplicate:true};
-            const status=subscription.status==="active"?"ACTIVE":subscription.status==="trialing"?"TRIALING":subscription.status.toUpperCase();
-            const item=subscription.items.data[0];
-            // Newer Stripe API versions report the billing period per item, older ones on the
-            // subscription. Renewals must keep moving the period end whichever the payload uses.
-            const periodEnd=item?.current_period_end??(subscription as unknown as {current_period_end?:number}).current_period_end??null;
+      const incoming=event.data.object as Stripe.Subscription;
+      // Serialize each subscription before fetching canonical Stripe state.
+      // Replayed or out-of-order events can only ever apply the current state.
+      const outcome=await sql.begin(async(tx)=>{
+        await tx.unsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,1))",[incoming.id]);
+        const canonical=await retrieveCurrentSubscription(stripe,incoming.id);
+        const subject=canonical??incoming;
+        const userId=await resolveSubscriptionUserId(subject);
+        const rows=await tx.unsafe(
+          "SELECT stripe_subscription_id,stripe_customer_id,status FROM subscriptions WHERE user_id=$1 FOR UPDATE",
+          [userId]
+        );
+        if(!rows[0])throw new Error("LOCAL_BILLING_OWNER_MISSING");
+        const customerId=typeof subject.customer==="string"?subject.customer:subject.customer?.id;
+        if(rows[0].stripe_customer_id!==customerId)
+          throw new Error("SUBSCRIPTION_CUSTOMER_OWNERSHIP_CONFLICT");
+        const current=rows[0].stripe_subscription_id?String(rows[0].stripe_subscription_id):null;
+
+        // Ended subscriptions are handled before duplicate detection: they must never be
+        // "cancelled as a duplicate" again, and a late event must never revive them.
+        if(!canonical||isTerminalStripeStatus(canonical.status)){
+          if(current===incoming.id){
             await tx.unsafe(
-              "UPDATE subscriptions SET plan_id=$1,status=$2,cadence=$3,stripe_subscription_id=$4,current_period_end=$5,cancel_at_period_end=$6,updated_at=now() WHERE user_id=$7",
-              [planId,status,item?.price.recurring?.interval==="year"?"ANNUAL":"MONTHLY",subscription.id,periodEnd?new Date(periodEnd*1000):null,subscription.cancel_at_period_end,userId]
+              "UPDATE subscriptions SET status='FREE',cadence='FREE',stripe_subscription_id=NULL,"+
+              "current_period_end=NULL,cancel_at_period_end=false,plan_id=(SELECT id FROM plans WHERE slug='free' LIMIT 1),updated_at=now() "+
+              "WHERE user_id=$1 AND stripe_subscription_id=$2",
+              [userId,incoming.id]
             );
-            return {duplicate:false};
-          });
-          if(decision.duplicate){
-            if(event.type==="customer.subscription.created"||("orphan" in decision&&decision.orphan))duplicateSubscriptionId=subscription.id;
-          }else affectedUserId=userId;
+            return {userId,duplicate:null};
+          }
+          return {userId:null as string|null,duplicate:null};
         }
-      }
+
+        // A stored subscription that is already dead (re-subscribing after a cancellation)
+        // must not block its replacement, otherwise the new paid subscription is cancelled.
+        if(current&&current!==canonical.id&&!isTerminalLocalStatus(rows[0].status))
+          return {userId:null as string|null,duplicate:event.type==="customer.subscription.created"?canonical.id:null};
+
+        // Only permit grants for a mapped Stripe Price, not planId metadata.
+        const planId=await resolvePlanId(canonical);
+        if(!planId)throw new Error("PLAN_NOT_RESOLVED");
+        const item=canonical.items.data[0];
+        if(!item?.price?.recurring)throw new Error("STRIPE_RECURRING_PRICE_MISSING");
+        const status=canonical.status==="active"?"ACTIVE":canonical.status==="trialing"?"TRIALING":canonical.status.toUpperCase();
+        // Newer Stripe API versions report the billing period per item, older ones on the
+        // subscription. Renewals must keep moving the period end whichever the payload uses.
+        const periodEnd=item.current_period_end??(canonical as unknown as {current_period_end?:number}).current_period_end??null;
+        await tx.unsafe(
+          "UPDATE subscriptions SET plan_id=$1,status=$2,cadence=$3,stripe_subscription_id=$4,"+
+          "current_period_end=$5,cancel_at_period_end=$6,updated_at=now() WHERE user_id=$7",
+          [planId,status,item.price.recurring.interval==="year"?"ANNUAL":"MONTHLY",
+            canonical.id,periodEnd?new Date(periodEnd*1000):null,
+            canonical.cancel_at_period_end,userId]
+        );
+        return {userId,duplicate:null};
+      });
+      affectedUserId=outcome.userId;
+      duplicateSubscriptionId=outcome.duplicate;
     }
 
     if(duplicateSubscriptionId){
-      await stripe.subscriptions.cancel(duplicateSubscriptionId);
+      const cancelled=await stripe.subscriptions.cancel(duplicateSubscriptionId);
+      // Cancelling stops further charges but does not return a payment already taken for the
+      // duplicate. Refunds move money, so a person decides; the audit row carries what they need.
+      const latestInvoice=cancelled?.latest_invoice;
       await sql.unsafe(
         "INSERT INTO audit_events (action,entity_type,entity_id,metadata) VALUES ('billing.duplicate-subscription-cancelled','stripe_subscription',$1,$2::jsonb)",
-        [duplicateSubscriptionId,JSON.stringify({eventId:event.id})]
+        [duplicateSubscriptionId,JSON.stringify({
+          eventId:event.id,
+          requiresRefundReview:true,
+          customerId:typeof cancelled?.customer==="string"?cancelled.customer:cancelled?.customer?.id??null,
+          latestInvoiceId:typeof latestInvoice==="string"?latestInvoice:latestInvoice?.id??null
+        })]
       );
     }
     if(affectedUserId)await enforceStrategyEntitlements(affectedUserId);

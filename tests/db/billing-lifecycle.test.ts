@@ -35,12 +35,12 @@ const PRICES={investorMonthly:"price_lc_inv_m_"+run,investorAnnual:"price_lc_inv
 const DAY=86_400;
 const now=()=>Math.floor(Date.now()/1000);
 
-function subscription(id:string,userId:string,over:{status?:string;price?:string;interval?:"month"|"year";periodEnd?:number;cancelAtPeriodEnd?:boolean;itemPeriod?:boolean}={}){
+function subscription(id:string,userId:string,over:{status?:string;price?:string;interval?:"month"|"year";periodEnd?:number;cancelAtPeriodEnd?:boolean;itemPeriod?:boolean;customer?:string;metadataUserId?:string}={}){
   const periodEnd=over.periodEnd??now()+30*DAY;
   const item:Record<string,unknown>={price:{id:over.price??PRICES.investorMonthly,recurring:{interval:over.interval??"month"}}};
   const body:Record<string,unknown>={
-    id,object:"subscription",status:over.status??"active",customer:"cus_lc_"+run,
-    cancel_at_period_end:over.cancelAtPeriodEnd??false,metadata:{userId},items:{data:[item]}
+    id,object:"subscription",status:over.status??"active",customer:over.customer??"cus_lc_"+run,
+    cancel_at_period_end:over.cancelAtPeriodEnd??false,metadata:{userId:over.metadataUserId??userId},items:{data:[item]}
   };
   // Newer API versions report the period per item; older ones on the subscription itself.
   if(over.itemPeriod===false)body.current_period_end=periodEnd;else item.current_period_end=periodEnd;
@@ -221,6 +221,21 @@ describe.skipIf(!url)("subscription payment lifecycle",()=>{
     (unknown.metadata as Record<string,string>).planId="not-a-real-plan";
     expect((await deliver("customer.subscription.updated",unknown)).status).toBe(500);
     expect(await row()).toMatchObject({slug:before.slug,status:before.status});
+  });
+
+  it("refuses an event whose metadata names a different owner",async()=>{
+    const subB="sub_lc_b_"+run;
+    const before=await row();
+    const result=await deliver("customer.subscription.updated",subscription(subB,userId,{metadataUserId:"11111111-1111-1111-1111-111111111111"}));
+    expect(result).toMatchObject({status:500,errorCode:"STRIPE_METADATA_OWNER_MISMATCH"});
+    expect(await row()).toMatchObject({slug:before.slug,status:before.status,stripe_subscription_id:before.stripe_subscription_id});
+  });
+
+  it("refuses a subscription from a customer that no local account owns",async()=>{
+    const stranger="sub_lc_stranger_"+run;
+    const result=await deliver("customer.subscription.created",subscription(stranger,userId,{customer:"cus_stranger_"+run}));
+    expect(result).toMatchObject({status:500,errorCode:"SUBSCRIPTION_OWNER_NOT_VERIFIED"});
+    expect(stripeState.cancelled).not.toContain(stranger);
   });
 
   it("rejects events that are not signed by Stripe",async()=>{

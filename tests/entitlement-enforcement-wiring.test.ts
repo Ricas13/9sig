@@ -19,10 +19,21 @@ describe("entitlement enforcement wiring",()=>{
     expect(enforce).toBeLessThan(source.indexOf("calculateAction(String(row.id))"));
   });
 
-  it("keeps account deletion retryable after a partial Stripe cleanup",()=>{
-    const source=read("src/app/api/account/delete/route.ts");
-    expect(source).toContain('"resource_missing"');
-    expect(source.indexOf("stripe.customers.del")).toBeLessThan(source.indexOf("DELETE FROM users"));
+  it("keeps account deletion retryable and locks the account before touching Stripe",()=>{
+    const route=read("src/app/api/account/delete/route.ts");
+    const service=read("src/lib/account-deletion.ts");
+    expect(service).toContain('"resource_missing"');
+    // Execution order: begin marks the account deleted without any external call; finish disconnects
+    // Stripe first and only then purges.
+    const begin=service.slice(service.indexOf("export async function beginAccountDeletion"),service.indexOf("export async function finishAccountDeletion"));
+    expect(begin).toContain("UPDATE users SET deleted_at");
+    expect(begin).not.toContain("stripe.");
+    const finish=service.slice(service.indexOf("export async function finishAccountDeletion"),service.indexOf("export async function finishPendingAccountDeletions"));
+    expect(finish.indexOf("disconnectBilling(userId)")).toBeGreaterThan(-1);
+    expect(finish.indexOf("disconnectBilling(userId)")).toBeLessThan(finish.indexOf("DELETE FROM users"));
+    expect(route.indexOf("beginAccountDeletion")).toBeLessThan(route.indexOf("finishAccountDeletion"));
+    // The hourly worker finishes stalled deletions.
+    expect(read("src/app/api/cron/actions/route.ts")).toContain("finishPendingAccountDeletions");
   });
 });
 

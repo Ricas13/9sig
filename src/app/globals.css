@@ -1375,3 +1375,57 @@ html[data-theme="light"] .resume-progress {
   border-color:rgba(8,121,93,.15);
   background:rgba(8,121,93,.045);
 }
+
+
+/* Keep landing navigation compact and usable on narrow devices. */
+.public-mobile-menu { display:none; }
+@media (max-width:680px) {
+  .public-nav { position:relative; align-items:center; padding:16px 0; min-height:72px; }
+  .public-nav > .nav-actions { display:none; }
+  .public-mobile-menu { display:block; margin-left:auto; z-index:30; }
+  .public-mobile-menu > summary {
+    list-style:none;
+    cursor:pointer;
+    padding:10px 16px;
+    min-height:44px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:var(--panel-solid);
+    color:var(--text);
+    font-weight:800;
+    font-size:14px;
+  }
+  .public-mobile-menu > summary::-webkit-details-marker { display:none; }
+  .public-mobile-menu > summary:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+  .public-mobile-menu-panel {
+    position:absolute;
+    top:calc(100% - 5px);
+    right:0;
+    width:min(292px,calc(100vw - 22px));
+    padding:12px;
+    border:1px solid var(--line);
+    border-radius:18px;
+    background:var(--panel-solid);
+    box-shadow:0 24px 65px rgba(14,35,60,.22);
+    display:grid;
+    gap:4px;
+  }
+  .public-mobile-menu-panel > a {
+    display:flex;
+    align-items:center;
+    min-height:44px;
+    padding:8px 13px;
+    border-radius:10px;
+    font-weight:750;
+    font-size:14px;
+  }
+  .public-mobile-menu-panel > a:hover,
+  .public-mobile-menu-panel > a:focus-visible { background:rgba(94,173,210,.14); }
+  .public-mobile-menu-panel > .mobile-menu-primary {
+    background:linear-gradient(135deg,var(--accent),#91e9ff);
+    color:#06131b;
+  }
+}

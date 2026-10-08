@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { sql } from "@/lib/db";
+import {safeJsonLd,siteOrigin} from "@/lib/public-seo";
 
 export const dynamic = "force-dynamic";
 
@@ -12,28 +13,52 @@ export default async function HomePage() {
       "SELECT d.name,a.metric_key,a.value,a.sample_size,a.as_of_date FROM anonymous_aggregates a JOIN strategy_definitions d ON d.id=a.strategy_definition_id WHERE a.sample_size>=20 AND a.as_of_date=(SELECT max(as_of_date) FROM anonymous_aggregates) ORDER BY d.name,a.metric_key LIMIT 24"
     );
     plans = await sql.unsafe(
-      "SELECT p.slug,p.display_name,p.billing_currency,COALESCE(pp.amount_minor,p.monthly_price_minor) AS monthly_price_minor,p.max_active_strategies,p.entitlements FROM plans p LEFT JOIN plan_prices pp ON pp.plan_id=p.id AND pp.currency=p.billing_currency AND pp.cadence='MONTHLY' AND pp.active=true WHERE p.visible=true AND p.archived=false ORDER BY p.sort_order"
+      "SELECT p.slug,p.display_name,p.billing_currency,CASE WHEN p.slug='free' THEN 0 ELSE pp.amount_minor END AS monthly_price_minor,p.max_active_strategies,p.entitlements FROM plans p LEFT JOIN plan_prices pp ON pp.plan_id=p.id AND pp.currency=p.billing_currency AND pp.cadence='MONTHLY' AND pp.active=true WHERE p.visible=true AND p.archived=false AND (p.slug='free' OR pp.amount_minor IS NOT NULL) ORDER BY p.sort_order"
     );
   } catch {
     // Public financial/community data fails closed instead of rendering cached or invented values.
   }
 
+  const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune";
+  const origin=siteOrigin(process.env.NEXT_PUBLIC_APP_URL).toString();
+  const offeredPlan=plans.find(p=>p.monthly_price_minor!=null&&Number.isFinite(Number(p.monthly_price_minor))&&Number(p.monthly_price_minor)>=0&&/^[A-Z]{3}$/.test(String(p.billing_currency)));
+  const offer=offeredPlan?{offers:{"@type":"Offer",price:(Number(offeredPlan.monthly_price_minor)/100).toFixed(2),priceCurrency:String(offeredPlan.billing_currency)}}:{};
+  const schema={"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":brand,"url":origin},{"@type":"SoftwareApplication","name":brand,"applicationCategory":"FinanceApplication","operatingSystem":"Web","url":origin,"description":"Rules-based portfolio tracker with holdings, user-selected strategies, market price references and scheduled investment review calculations.",...offer}]};
   return <main>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:safeJsonLd(schema)}}/>
     <div className="container">
       <nav className="public-nav">
-        <Link href="/" className="brand"><span className="brand-mark"/>StrategyOS</Link>
+        <Link href="/" className="brand"><span className="brand-mark"/>{brand}</Link>
         <div className="nav-actions">
+          <Link className="nav-link" href="/features">Features</Link>
+          <Link className="nav-link" href="/strategies">Strategies</Link>
+          <Link className="nav-link" href="/pricing">Pricing</Link>
+          <Link className="nav-link" href="/faq">FAQ</Link>
+          <Link className="nav-link" href="/tools/rebalance-calculator">Calculator</Link>
           <Link className="button" href="/demo">Explore demo</Link>
           <Link className="button" href="/login">Sign in</Link>
           <Link className="button primary" href="/register">Start free</Link>
         </div>
+        <details className="public-mobile-menu">
+          <summary>Menu</summary>
+          <div className="public-mobile-menu-panel">
+            <Link href="/features">Features</Link>
+            <Link href="/strategies">Strategies</Link>
+            <Link href="/pricing">Pricing</Link>
+            <Link href="/faq">FAQ</Link>
+            <Link href="/tools/rebalance-calculator">Calculator</Link>
+            <Link href="/demo">Explore demo</Link>
+            <Link href="/login">Sign in</Link>
+            <Link className="mobile-menu-primary" href="/register">Start free</Link>
+          </div>
+        </details>
       </nav>
 
       <section className="hero">
         <div>
           <div className="eyebrow">Rules-based investing, operationalised</div>
           <h1>Know where you are. Know what comes next.</h1>
-          <p>Track the strategy you chose, reconcile it to reality, and turn complex rules into a transparent action queue. StrategyOS does not choose a strategy for you—it operates the rules you selected.</p>
+          <p>Track the strategy you chose, reconcile it to reality, and turn complex rules into a transparent action queue. Rebalune does not choose a strategy for you—it operates the rules you selected.</p>
           <div className="inline" style={{marginTop:24}}>
             <Link className="button primary" href="/register">Add your first strategy</Link>
             <Link className="button" href="/demo">See fictional example</Link>
@@ -94,7 +119,8 @@ export default async function HomePage() {
       </section>
 
       <footer className="footer">
-        StrategyOS is a strategy tracking and rule-calculation tool. It does not assess suitability or recommend which strategy you should choose. Jurisdiction-specific disclosures and regulatory controls must be configured before public launch.
+        <p><Link href="/features">Features</Link> · <Link href="/strategies">Strategies</Link> · <Link href="/pricing">Pricing</Link> · <Link href="/faq">FAQ</Link></p>
+        {brand} is a strategy tracking and rule-calculation tool. It does not place trades, assess suitability or recommend which strategy you should choose. Investments can fall as well as rise, and past performance is not a guide to future results.
       </footer>
     </div>
   </main>;

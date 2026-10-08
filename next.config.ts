@@ -4,7 +4,8 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {
-    return [{
+    const noIndexRoutes=["/admin/:path*","/app/:path*","/api/:path*","/login","/register","/reset-password","/verify-email","/demo"];
+    return [...noIndexRoutes.map(source=>({source,headers:[{key:"X-Robots-Tag",value:"noindex, nofollow, noarchive"}]})),{
       source: "/(.*)",
       headers: [
         { key: "X-Content-Type-Options", value: "nosniff" },

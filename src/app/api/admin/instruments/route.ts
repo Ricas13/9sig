@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/session";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
+import { authFailure } from "@/lib/api-auth";
 
 const instrument=z.object({kind:z.literal("instrument"),id:z.string().uuid().optional(),isin:z.string().nullable().optional(),providerInstrumentId:z.string().nullable().optional(),name:z.string().min(1),economicExposure:z.string().min(1),leverage:z.string(),direction:z.string().default("LONG"),fundCurrency:z.string().nullable().optional()});
 const tradingLine=z.object({kind:z.literal("tradingLine"),instrumentId:z.string().uuid(),ticker:z.string().min(1),exchange:z.string().min(1),currency:z.string().length(3),exchangeTimezone:z.string().min(1),providerSymbol:z.string().nullable().optional(),effectiveFrom:z.string(),effectiveTo:z.string().nullable().optional()});
@@ -19,5 +20,5 @@ export async function PUT(request:Request){
       await sql.unsafe("INSERT INTO regional_instrument_mappings (economic_exposure,leverage,direction,country,wrapper,broker,preferred_currency,trading_line_id,fidelity,effective_from,effective_to,enabled) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'EXACT',$9,$10,$11)",[p.economicExposure,p.leverage,p.direction,p.country,p.wrapper,p.broker??null,p.preferredCurrency??null,p.tradingLineId,p.effectiveFrom,p.effectiveTo??null,p.enabled]);
     }
     await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,metadata) VALUES ($1,'instrument-config.upsert','instrument_config',$2::jsonb)",[admin.id,JSON.stringify({kind:p.kind})]);return Response.json({ok:true});
-  }catch(error){if(error instanceof z.ZodError)return Response.json({error:"Invalid instrument configuration."},{status:400});return Response.json({error:"Could not update instrument configuration."},{status:500});}
+  }catch(error){const denied=authFailure(error);if(denied)return denied;if(error instanceof z.ZodError)return Response.json({error:"Invalid instrument configuration."},{status:400});return Response.json({error:"Could not update instrument configuration."},{status:500});}
 }

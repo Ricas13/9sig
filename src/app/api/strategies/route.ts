@@ -3,13 +3,14 @@ import { requireUser } from "@/lib/session";
 import { createStrategy } from "@/lib/strategy-service";
 import { assertSameOrigin } from "@/lib/security";
 import { calculateAction } from "@/lib/action-service";
+import { authFailure } from "@/lib/api-auth";
 
 const schema = z.object({
   strategyKey:z.string().min(1),
   name:z.string().min(1).max(80),
   wrapper:z.string().min(1).max(40),
   broker:z.string().max(80).optional().nullable(),
-  currency:z.string().length(3),
+  currency:z.string().regex(/^[A-Za-z]{3}$/),
   onboardingMode:z.enum(["START_NEW","RESUME"]),
   startingCash:z.string().optional(),
   approximateValue:z.string().optional(),
@@ -34,10 +35,10 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const user = await requireUser();
     const input = schema.parse(await request.json());
-    const id = await createStrategy(user.id,user.country,input);
+    const id = await createStrategy(user.id,user.country,input,user.timezone);
     try { await calculateAction(id); } catch { }
     return Response.json({ok:true,id},{status:201});
-  } catch(error) {
+  } catch(error){const denied=authFailure(error);if(denied)return denied;
     if (error instanceof z.ZodError) return Response.json({error:"Check the strategy details."},{status:400});
     const code = error instanceof Error ? error.message : "FAILED";
     if (code === "PLAN_STRATEGY_LIMIT") return Response.json({error:"You have reached the active-strategy limit for your current plan.",code,upgrade:true},{status:403});

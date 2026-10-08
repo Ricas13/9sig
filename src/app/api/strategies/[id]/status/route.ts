@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/session";
 import { changeStrategyStatus } from "@/lib/strategy-service";
 import { recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
+import { authFailure } from "@/lib/api-auth";
 
 const schema = z.object({ status: z.enum(["ACTIVE", "PAUSED", "CLOSED"]) });
 
@@ -18,7 +19,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       ?await recalculateAfterMutation(id,user.id,"strategy-resume")
       :{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({ok:true,status:result.status,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending});
-  } catch (error) {
+  } catch(error){const denied=authFailure(error);if(denied)return denied;
     if (error instanceof z.ZodError) return Response.json({ error: "Invalid strategy status." }, { status: 400 });
     const code = error instanceof Error ? error.message : "FAILED";
     if (code === "STRATEGY_INSTANCE_NOT_FOUND") return Response.json({ error: "Not found." }, { status: 404 });

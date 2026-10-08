@@ -5,8 +5,10 @@ import { getStrategyForUser } from "@/lib/strategy-service";
 import { sql } from "@/lib/db";
 import { recalculateAfterMutation } from "@/lib/action-service";
 import { advanceContributionPlan, normalizeContributionPlan } from "@/domain/contribution-plan";
+import { localDateInZone } from "@/domain/schedule";
 import { assertSameOrigin } from "@/lib/security";
 import { assertLedgerEvent } from "@/domain/ledger";
+import { authFailure } from "@/lib/api-auth";
 
 const schema = z.object({
   amount: z.string().regex(/^\d+(?:\.\d{1,8})?$/),
@@ -57,7 +59,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const currentPlan=normalizeContributionPlan(locked[0].contribution_plan);
       let nextPlan=currentPlan;
       if(currentPlan.enabled){
-        nextPlan=advanceContributionPlan(currentPlan,occurredAt.toISOString().slice(0,10));
+        nextPlan=advanceContributionPlan(currentPlan,localDateInZone(occurredAt,user.timezone));
         if(nextPlan.nextDate!==currentPlan.nextDate){
           await tx.unsafe("UPDATE strategy_instances SET contribution_plan=$1::jsonb,updated_at=now() WHERE id=$2",[JSON.stringify(nextPlan),id]);
         }
@@ -70,7 +72,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     });
     const recalc=result.status==="ACTIVE"&&!result.duplicate?await recalculateAfterMutation(id,user.id,"contribution"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({ ok:true,id:result.eventId,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending,duplicate:result.duplicate });
-  } catch (error) {
+  } catch(error){const denied=authFailure(error);if(denied)return denied;
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Enter a valid contribution and timestamp." }, { status: 400 });
     }

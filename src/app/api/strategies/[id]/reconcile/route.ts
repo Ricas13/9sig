@@ -6,6 +6,7 @@ import { sql } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/security";
 import { recalculateAfterMutation } from "@/lib/action-service";
 import { summarizeReconciliationState } from "@/domain/reconciliation";
+import { authFailure } from "@/lib/api-auth";
 
 const money = z.string().regex(/^\d+(?:\.\d{1,8})?$/);
 const schema = z.object({
@@ -122,7 +123,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       actionId:recalc.actionId,
       recalculationPending:recalc.recalculationPending
     });
-  } catch (error) {
+  } catch(error){const denied=authFailure(error);if(denied)return denied;
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Enter valid monetary amounts with up to 8 decimal places." }, { status: 400 });
     }

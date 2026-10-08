@@ -4,6 +4,7 @@ import { assertSameOrigin } from "@/lib/security";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { normalizeContributionPlan } from "@/domain/contribution-plan";
 import { sql } from "@/lib/db";
+import { authFailure } from "@/lib/api-auth";
 
 const schema=z.object({
   enabled:z.boolean(),
@@ -21,7 +22,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     if(!strategy)return Response.json({error:"Not found."},{status:404});
     if(String(strategy.status)==="CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});
     const input=schema.parse(await request.json());
-    const plan=normalizeContributionPlan(input);
+    const plan=normalizeContributionPlan(input,new Date(),user.timezone);
     await sql.begin(async(tx)=>{
       const locked=await tx.unsafe("SELECT id,status FROM strategy_instances WHERE id=$1 AND user_id=$2 FOR UPDATE",[id,user.id]);
       if(!locked[0])throw new Error("STRATEGY_NOT_FOUND");
@@ -33,7 +34,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       );
     });
     return Response.json({ok:true,plan});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Check your contribution plan."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     if(code==="STRATEGY_CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});

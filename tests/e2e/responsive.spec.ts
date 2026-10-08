@@ -15,6 +15,12 @@ for (const path of ["/", "/demo", "/login", "/register"]) {
 test("landing page exposes the three product questions clearly", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Know where you are. Know what comes next.")).toBeVisible();
+  if(page.viewportSize()&&page.viewportSize()!.width<=680){
+    const menu=page.locator(".public-mobile-menu > summary");
+    await expect(menu).toBeVisible();
+    await menu.click();
+    await expect(page.getByRole("link",{name:"Start free"})).toBeVisible();
+  }
   await expect(page.getByRole("link", { name: "Explore demo" })).toBeVisible();
 });
 

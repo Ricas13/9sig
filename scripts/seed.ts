@@ -5,8 +5,10 @@ async function main(){
   if(!url)throw new Error("DATABASE_URL is required");
   const sql=postgres(url,{max:1,prepare:false});
   try{
+    // The seed is the one tool allowed to rewrite a published version (see migration 0014).
+    await sql.unsafe("SET app.allow_published_edit = 'on'");
     async function seedPlan(slug:string,name:string,monthly:number,annual:number,discountBps:number,max:number|null,entitlements:object,sort:number){
-      const query="INSERT INTO plans (slug,display_name,description,monthly_price_minor,annual_price_minor,annual_discount_bps,billing_currency,supported_billing_currencies,max_active_strategies,entitlements,sort_order) VALUES ($1,$2,$3,$4,$5,$6,'GBP','[\"GBP\"]'::jsonb,$7,$8::jsonb,$9) ON CONFLICT (slug) DO UPDATE SET display_name=EXCLUDED.display_name,monthly_price_minor=EXCLUDED.monthly_price_minor,annual_price_minor=EXCLUDED.annual_price_minor,annual_discount_bps=EXCLUDED.annual_discount_bps,max_active_strategies=EXCLUDED.max_active_strategies,entitlements=EXCLUDED.entitlements,sort_order=EXCLUDED.sort_order,updated_at=now() RETURNING id";
+      const query="INSERT INTO plans (slug,display_name,description,monthly_price_minor,annual_price_minor,annual_discount_bps,billing_currency,supported_billing_currencies,max_active_strategies,entitlements,sort_order) VALUES ($1,$2,$3,$4,$5,$6,'GBP','[\"GBP\"]'::jsonb,$7,$8::text::jsonb,$9) ON CONFLICT (slug) DO UPDATE SET display_name=EXCLUDED.display_name,monthly_price_minor=EXCLUDED.monthly_price_minor,annual_price_minor=EXCLUDED.annual_price_minor,annual_discount_bps=EXCLUDED.annual_discount_bps,max_active_strategies=EXCLUDED.max_active_strategies,entitlements=EXCLUDED.entitlements,sort_order=EXCLUDED.sort_order,updated_at=now() RETURNING id";
       const rows=await sql.unsafe(query,[slug,name,name+" plan",monthly,annual,discountBps,max,JSON.stringify(entitlements),sort]);
       const id=rows[0].id;
       if(monthly>0)await sql.unsafe("INSERT INTO plan_prices (plan_id,currency,cadence,amount_minor,active) VALUES ($1,'GBP','MONTHLY',$2,true) ON CONFLICT (plan_id,currency,cadence) DO UPDATE SET amount_minor=EXCLUDED.amount_minor,updated_at=now()",[id,monthly]);
@@ -39,7 +41,7 @@ async function main(){
 
       const lifecycle=key==="9sig"?"PUBLISHED":"DRAFT";
       await sql.unsafe(
-        "INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,upgrade_policy,input_schema,config,disclosure,published_at) VALUES ($1,'1.0','2026-01-01',$2,$3,'OPTIONAL','[]'::jsonb,$4::jsonb,$5,CASE WHEN $3='PUBLISHED' THEN now() ELSE NULL END) ON CONFLICT (strategy_definition_id,version) DO UPDATE SET engine_key=EXCLUDED.engine_key,lifecycle_status=EXCLUDED.lifecycle_status,config=EXCLUDED.config,disclosure=EXCLUDED.disclosure,published_at=CASE WHEN EXCLUDED.lifecycle_status='PUBLISHED' THEN COALESCE(strategy_versions.published_at,now()) ELSE strategy_versions.published_at END",
+        "INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,upgrade_policy,input_schema,config,disclosure,published_at) VALUES ($1,'1.0','2026-01-01',$2,$3,'OPTIONAL','[]'::jsonb,$4::text::jsonb,$5,CASE WHEN $3='PUBLISHED' THEN now() ELSE NULL END) ON CONFLICT (strategy_definition_id,version) DO UPDATE SET engine_key=EXCLUDED.engine_key,lifecycle_status=EXCLUDED.lifecycle_status,config=EXCLUDED.config,disclosure=EXCLUDED.disclosure,published_at=CASE WHEN EXCLUDED.lifecycle_status='PUBLISHED' THEN COALESCE(strategy_versions.published_at,now()) ELSE strategy_versions.published_at END",
         [id,engine,lifecycle,JSON.stringify(config),"Rule calculator for a user-selected strategy. Not a suitability recommendation."]
       );
     }

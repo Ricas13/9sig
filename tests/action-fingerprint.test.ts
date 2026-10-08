@@ -37,5 +37,6 @@ describe("action fingerprint material",()=>{
     expect(actionFingerprintMaterial({...base,actionType:"SELL"})).not.toBe(first);
     expect(actionFingerprintMaterial({...base,tradingLineId:"line-2"})).not.toBe(first);
     expect(actionFingerprintMaterial({...base,dataStatus:"MISSING"})).not.toBe(first);
+    expect(actionFingerprintMaterial({...base,materialRevision:"price=110;quantity=9.090909"})).not.toBe(first);
   });
 });

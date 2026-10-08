@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { assertSameOrigin } from "@/lib/security";
 import { switchStrategy } from "@/lib/strategy-switch-service";
+import { authFailure } from "@/lib/api-auth";
 
 const schema=z.object({
   targetStrategyKey:z.string().min(1).max(80),
@@ -17,7 +18,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     const input=schema.parse(await request.json());
     const result=await switchStrategy(user.id,id,input);
     return Response.json({ok:true,...result});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Check the strategy-switch details."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     const messages:Record<string,string>={

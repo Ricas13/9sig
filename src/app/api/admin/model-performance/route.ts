@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/session";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
+import { authFailure } from "@/lib/api-auth";
 
 const rowSchema=z.object({
   date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -71,7 +72,7 @@ export async function PUT(request:Request){
       );
     });
     return Response.json({ok:true});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Invalid model performance payload."},{status:400});
     return Response.json({error:"Could not update model performance."},{status:500});
   }

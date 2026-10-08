@@ -12,6 +12,9 @@ export type ExposurePosition = {
   tradingLineId?: string;
 };
 
+export type HistoricalPricePoint = { at: Date; adjustedClose: Decimal }; 
+export type TrustedHistoricalSeries = { exposure: string; currency: string; points: HistoricalPricePoint[]; source: string }; 
+
 export type EngineContext = {
   strategyInstanceId: string;
   strategyVersionId: string;
@@ -26,6 +29,8 @@ export type EngineContext = {
   reviewDue: boolean;
   nextReviewAt?: Date | null;
   dataHealth: DataHealth;
+  /** Must be populated by an authenticated licensed market-data adapter, never user settings. */
+  trustedHistory?: TrustedHistoricalSeries[];
 };
 
 export type ExplanationRow = {

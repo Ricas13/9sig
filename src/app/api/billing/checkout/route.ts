@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/security";
 import { hasLiveStripeSubscription, isTerminalLocalStatus } from "@/domain/subscription-status";
+import { authFailure } from "@/lib/api-auth";
+import { paidCheckoutBlockers } from "@/domain/commercial-launch";
 
 const schema = z.object({
   planSlug: z.enum(["investor", "pro"]),
@@ -16,6 +18,19 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const user = await requireUser();
     const input = schema.parse(await request.json());
+    // Paid onboarding is off until the operator has completed external
+    // commercial, infrastructure, regulatory and live-provider sign-offs.
+    if(process.env.REBALUNE_PAID_LAUNCH_ENABLED!=="true"){
+      return Response.json({error:"Paid subscriptions are not yet available. Rebalune is in staging."},{status:503});
+    }
+
+    // A live Stripe key charges real cards: refuse until every launch check passes. The failed
+    // check names are logged for the operator; the customer only learns billing is unavailable.
+    const blockers = paidCheckoutBlockers(process.env);
+    if (blockers.length) {
+      console.error("Checkout refused: launch checks failing: " + blockers.map((b) => b.key).join(", "));
+      return Response.json({ error: "Billing is not available yet." }, { status: 503 });
+    }
 
     if (!process.env.STRIPE_SECRET_KEY || !process.env.NEXT_PUBLIC_APP_URL) {
       return Response.json({ error: "Billing is not configured." }, { status: 503 });
@@ -36,6 +51,15 @@ export async function POST(request: Request) {
     }
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    // Published price, currency and cadence must match the actual remote
+    // charge. A mismatched admin Stripe ID must never silently bill a user.
+    const stripePrice=await stripe.prices.retrieve(String(price.stripe_price_id));
+    const interval=input.cadence==="annual"?"year":"month";
+    if(!stripePrice.active||stripePrice.currency.toUpperCase()!==currency||
+       stripePrice.unit_amount!==Number(price.amount_minor)||
+       stripePrice.recurring?.interval!==interval||stripePrice.type!=="recurring"){
+      return Response.json({error:"Billing configuration mismatch. Checkout is disabled until an administrator corrects this price."},{status:503});
+    }
     const subRows = await sql.unsafe(
       "SELECT stripe_customer_id,stripe_subscription_id,status FROM subscriptions WHERE user_id=$1 LIMIT 1",
       [user.id]
@@ -87,7 +111,7 @@ export async function POST(request: Request) {
       { idempotencyKey: ["strategyos-checkout", user.id, String(price.id), currency, input.cadence, String(hourBucket)].join("-") }
     );
     return Response.json({ url: session.url });
-  } catch (error) {
+  } catch(error){const denied=authFailure(error);if(denied)return denied;
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Choose a valid plan, billing cycle and currency." }, { status: 400 });
     }

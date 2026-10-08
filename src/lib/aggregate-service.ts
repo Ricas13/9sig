@@ -23,7 +23,10 @@ export async function rebuildAnonymousAggregates(asOf=new Date()){
       const instances=await sql.unsafe(
         "SELECT i.id,p.date,p.value FROM strategy_instances i JOIN users u ON u.id=i.user_id JOIN LATERAL ("+
         " SELECT date,value FROM performance_series ps WHERE ps.strategy_instance_id=i.id AND ps.series_type='USER_VALUE' ORDER BY date DESC LIMIT 1"+
-        ") p ON true WHERE i.strategy_definition_id=$1 AND u.anonymous_aggregate_opt_in=true AND u.deleted_at IS NULL",
+        ") p ON true WHERE i.strategy_definition_id=$1 AND u.anonymous_aggregate_opt_in=true AND u.deleted_at IS NULL"+
+        // A portfolio resumed from an opening snapshot has value the cash flows do not explain, so
+        // its money-weighted return would be inflated; it is left out of this metric.
+        " AND NOT EXISTS (SELECT 1 FROM ledger_events o WHERE o.strategy_instance_id=i.id AND o.event_type IN ('OPENING_CASH','OPENING_POSITION'))",
         [strategyDefinitionId]
       );
 
@@ -31,7 +34,7 @@ export async function rebuildAnonymousAggregates(asOf=new Date()){
       for(const instance of instances){
         const latestDate=String(instance.date).slice(0,10);
         const flows=await sql.unsafe(
-          "SELECT occurred_at,event_type,cash_amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type IN ('CONTRIBUTION','WITHDRAWAL') AND occurred_at::date<=$2::date ORDER BY occurred_at,created_at",
+          "SELECT l.occurred_at,l.event_type,l.cash_amount FROM ledger_events l WHERE l.strategy_instance_id=$1 AND l.event_type IN ('CONTRIBUTION','WITHDRAWAL') AND l.occurred_at::date<=$2::date AND NOT EXISTS (SELECT 1 FROM ledger_events c WHERE c.correction_of_event_id=l.id) ORDER BY l.occurred_at,l.created_at",
           [instance.id,latestDate]
         );
         if(!flows.length)continue;

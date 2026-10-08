@@ -14,7 +14,8 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "launch:preflight": "tsx scripts/launch-preflight.ts"
   },
   "dependencies": {
     "bcryptjs": "3.0.2",

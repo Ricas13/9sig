@@ -11,29 +11,74 @@ export function timeWeightedReturn(periods: Array<{ startValue: Decimal.Value; e
   }, new Decimal(1)).minus(1);
 }
 
+const YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
+const LOWEST_RATE = -0.99999;
+const HIGHEST_RATE = 10_000;
+
+// Money-weighted (internal) rate of return for dated cash flows, annualised. It either returns a
+// rate that really zeroes the net present value or throws; it never returns an unconverged guess.
+// (Newton's method alone silently returned garbage for roughly 2% of realistic loss-making
+// portfolios, which the community statistics then dropped as "implausible", biasing them upward.)
+//
+// A rate needs trustworthy convergence, not arbitrary precision, so the solver works in double
+// precision; amounts are converted once and the result is returned as a Decimal.
 export function xirr(cashFlows: CashFlow[], guess = 0.1) {
   if (cashFlows.length < 2) throw new Error("XIRR requires at least two cash flows");
-  const hasPositive = cashFlows.some((f) => new Decimal(f.amount).gt(0));
-  const hasNegative = cashFlows.some((f) => new Decimal(f.amount).lt(0));
-  if (!hasPositive || !hasNegative) throw new Error("XIRR requires positive and negative cash flows");
+  const amounts = cashFlows.map((f) => new Decimal(f.amount).toNumber());
+  if (!amounts.some((a) => a > 0) || !amounts.some((a) => a < 0)) throw new Error("XIRR requires positive and negative cash flows");
 
-  const base = cashFlows[0].at.getTime();
-  let rate = new Decimal(guess);
-  for (let i = 0; i < 100; i++) {
-    let value = new Decimal(0);
-    let derivative = new Decimal(0);
-    for (const flow of cashFlows) {
-      const years = new Decimal(flow.at.getTime() - base).div(365.25 * 24 * 60 * 60 * 1000);
-      const onePlus = new Decimal(1).plus(rate);
-      const amount = new Decimal(flow.amount);
-      value = value.plus(amount.div(onePlus.pow(years)));
-      derivative = derivative.minus(years.mul(amount).div(onePlus.pow(years.plus(1))));
+  const times = cashFlows.map((f) => f.at.getTime());
+  const base = Math.min(...times);
+  if (Math.max(...times) === base) throw new Error("XIRR requires cash flows on at least two dates");
+  const years = times.map((time) => (time - base) / YEAR_MS);
+  const scale = amounts.reduce((sum, a) => sum + Math.abs(a), 0);
+
+  const npv = (rate: number) => {
+    let sum = 0;
+    for (let i = 0; i < amounts.length; i += 1) sum += amounts[i] / Math.pow(1 + rate, years[i]);
+    return sum;
+  };
+  const slope = (rate: number) => {
+    let sum = 0;
+    for (let i = 0; i < amounts.length; i += 1) sum -= (years[i] * amounts[i]) / Math.pow(1 + rate, years[i] + 1);
+    return sum;
+  };
+  // A rate is only accepted if it genuinely zeroes the value, relative to the money involved.
+  const solves = (rate: number) => Number.isFinite(rate) && rate > -1 && Math.abs(npv(rate)) <= scale * 1e-9;
+
+  let rate = guess;
+  for (let i = 0; i < 100; i += 1) {
+    const derivative = slope(rate);
+    if (!Number.isFinite(derivative) || Math.abs(derivative) < 1e-16) break;
+    const next = rate - npv(rate) / derivative;
+    if (!Number.isFinite(next)) break;
+    if (Math.abs(next - rate) < 1e-12) {
+      if (solves(next)) return new Decimal(next);
+      break;
     }
-    if (derivative.abs().lt("1e-16")) break;
-    const next = rate.minus(value.div(derivative));
-    if (next.minus(rate).abs().lt("1e-12")) return next;
-    rate = next;
-    if (rate.lte("-0.999999")) rate = new Decimal("-0.999999");
+    rate = next <= LOWEST_RATE ? LOWEST_RATE : next;
   }
-  return rate;
+
+  // Newton did not settle on a true root: bracket it instead. Bisection cannot diverge.
+  let low = LOWEST_RATE;
+  let high = HIGHEST_RATE;
+  let lowValue = npv(low);
+  const highValue = npv(high);
+  if (!Number.isFinite(lowValue) || !Number.isFinite(highValue) || lowValue * highValue > 0) {
+    throw new Error("XIRR has no solution in the supported range");
+  }
+  for (let i = 0; i < 300; i += 1) {
+    const mid = (low + high) / 2;
+    const midValue = npv(mid);
+    if (midValue === 0) return new Decimal(mid);
+    if (lowValue * midValue < 0) high = mid;
+    else {
+      low = mid;
+      lowValue = midValue;
+    }
+    if (high - low < 1e-13 * (1 + Math.abs(mid))) break;
+  }
+  const result = (low + high) / 2;
+  if (!solves(result)) throw new Error("XIRR did not converge");
+  return new Decimal(result);
 }

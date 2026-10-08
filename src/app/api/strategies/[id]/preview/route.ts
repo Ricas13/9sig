@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/session";
 import { assertSameOrigin } from "@/lib/security";
 import { previewCashScenario, previewExecutionConstraintsScenario, previewStrategySwitchScenario } from "@/lib/action-service";
 import { loadEntitlements } from "@/lib/entitlement-service";
+import { authFailure } from "@/lib/api-auth";
 
 const cashSchema=z.object({
   type:z.enum(["CONTRIBUTION","WITHDRAWAL"]),
@@ -44,7 +45,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
         ?await previewStrategySwitchScenario(user.id,id,input.targetStrategyKey,input.settings,entitlements.availableStrategyKeys)
         :await previewCashScenario(user.id,id,input);
     return Response.json({ok:true,preview:true,result});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Enter valid preview settings."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     if(code==="STRATEGY_INSTANCE_NOT_FOUND")return Response.json({error:"Strategy not found."},{status:404});

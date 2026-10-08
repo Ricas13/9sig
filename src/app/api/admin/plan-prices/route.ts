@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/session";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
+import { authFailure } from "@/lib/api-auth";
 
 const schema=z.object({
   planSlug:z.string().min(1).max(60),
@@ -24,7 +25,7 @@ export async function PUT(request:Request){
     );
     await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'plan-price.upsert','plan',$2,$3::jsonb)",[admin.id,p.planSlug,JSON.stringify({currency:p.currency.toUpperCase(),cadence:p.cadence})]);
     return Response.json({ok:true});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Invalid plan price."},{status:400});
     return Response.json({error:"Could not update plan price."},{status:500});
   }

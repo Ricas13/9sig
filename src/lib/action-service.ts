@@ -7,9 +7,11 @@ import { getStrategyEngine } from "@/domain/strategy/registry";
 import { exposureLeverage, resolveMapping, type MappingCandidate } from "@/domain/instruments";
 import { assertExecutionCurrencyMatch, normalizeExecutionConstraints, planPracticalTrade, validateExecution } from "@/domain/execution";
 import { nextReviewDueAt } from "@/domain/schedule";
+import { classifyFreshness } from "@/domain/market-freshness";
 import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/config";
 import { actionRecalculationDisposition, type ActionStatus } from "@/domain/actions";
 import { actionFingerprintMaterial } from "@/domain/action-fingerprint";
+import { validatedEffectivePrice } from "@/domain/manual-override";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
 type CalculationScenario={
@@ -74,7 +76,11 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
   );
   if(calculationDefinitionId===String(instance.strategy_definition_id)){
     const targetOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key='strategy_state.targetValue' AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId]);
-    if(targetOverride[0]?.manual_value!=null) state.targetValue=String(targetOverride[0].manual_value);
+    if(targetOverride[0]?.manual_value!=null){
+      const candidate=new Decimal(String(targetOverride[0].manual_value));
+      if(!candidate.isFinite()||candidate.lt(0)||candidate.gt("999999999999"))throw new Error("INVALID_TARGET_OVERRIDE");
+      state.targetValue=candidate.toString();
+    }
   }
 
   const exposurePositions:Array<{economicExposure:string;value:Decimal;tradingLineId?:string;accountId:string;accountName:string}>=[];
@@ -105,21 +111,22 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
         [instrumentId,accountCurrency]
       );
       const m=market[0];
-      const priceOverride=await sql.unsafe("SELECT manual_value FROM overrides WHERE strategy_instance_id=$1 AND field_key=$2 AND active=true ORDER BY created_at DESC LIMIT 1",[strategyInstanceId,"market_price:"+instrumentId]);
+      const priceOverride=await sql.unsafe("SELECT manual_value,observed_at FROM overrides WHERE strategy_instance_id=$1 AND field_key=$2 AND active=true AND expires_at>now() ORDER BY created_at DESC LIMIT 1",[strategyInstanceId,"market_price:"+instrumentId]);
       const priceCurrency=String(m?.observation_currency??m?.trading_currency??"").toUpperCase();
       if(priceCurrency&&priceCurrency!==accountCurrency){
         dataStatus="MISSING";
         dataMessage="FX conversion is required for a held instrument; actions are suppressed until an explicit FX source is configured.";
         continue;
       }
-      const manualPrice=priceOverride[0]?.manual_value==null?null:new Decimal(String(priceOverride[0].manual_value));
+      const manualPrice=priceOverride[0]?.manual_value==null?null:validatedEffectivePrice(priceOverride[0].manual_value);
       if(manualPrice){
-        exposurePositions.push({economicExposure:String(m?.economic_exposure??""),value:quantity.mul(manualPrice),tradingLineId:m?.trading_line_id?String(m.trading_line_id):undefined,accountId,accountName});
+        if(!m?.economic_exposure||!m?.trading_line_id){dataStatus="MISSING";dataMessage="A valid trading line is required for a manually priced holding.";continue;}
+        exposurePositions.push({economicExposure:String(m.economic_exposure),value:quantity.mul(manualPrice),tradingLineId:String(m.trading_line_id),accountId,accountName});
         continue;
       }
       if(!m?.price){dataStatus="MISSING";dataMessage="A held instrument has no current market price in "+accountName+".";continue;}
       const observedAt=new Date(m.observed_at);
-      if((Date.now()-observedAt.getTime())/3600000>36&&dataStatus!=="MISSING"){dataStatus="STALE";dataMessage="Market data is stale; financial actions are suppressed until data is current or confirmed.";}
+      if(classifyFreshness(observedAt)!=="CURRENT"&&dataStatus!=="MISSING"){dataStatus="STALE";dataMessage="Market data is stale or invalid; financial actions are suppressed until data is current and verified.";}
       exposurePositions.push({economicExposure:String(m.economic_exposure),value:quantity.mul(new Decimal(String(m.price))),tradingLineId:m.trading_line_id?String(m.trading_line_id):undefined,accountId,accountName});
     }
   }
@@ -149,7 +156,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
   const reviewDue=Boolean(state.forceReview)||new Date()>=dueAt;
   const contributionRows=scenario?.resetTimeline
     ?[{amount:"0"}]
-    :await sql.unsafe("SELECT COALESCE(sum(cash_amount),0) AS amount FROM ledger_events WHERE strategy_instance_id=$1 AND event_type='CONTRIBUTION' AND occurred_at>$2",[strategyInstanceId,lastReview]);
+    :await sql.unsafe("SELECT COALESCE(sum(l.cash_amount),0) AS amount FROM ledger_events l WHERE l.strategy_instance_id=$1 AND l.event_type='CONTRIBUTION' AND l.occurred_at>$2 AND NOT EXISTS (SELECT 1 FROM ledger_events c WHERE c.correction_of_event_id=l.id)",[strategyInstanceId,lastReview]);
   const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0)).plus(new Decimal(scenario?.contributionDelta??0));
   const engine=getStrategyEngine(calculationEngineKey);
   let proposal=engine.calculate({strategyInstanceId,strategyVersionId:calculationVersionId,now:new Date(),baseCurrency:String(instance.currency),cash:effectiveCash,exposures:engineExposures,contributionsSinceReview,state,config,settings,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
@@ -235,11 +242,23 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
       );
       const quote=quoteRows[0];
       executionTicker=quote?.ticker?String(quote.ticker):null;
-      if(!quote?.price){
+      const executionOverride=quote?.instrument_id
+        ?await sql.unsafe(
+          "SELECT manual_value,observed_at FROM overrides WHERE strategy_instance_id=$1 AND field_key=$2 AND active=true AND expires_at>now() ORDER BY created_at DESC LIMIT 1",
+          [strategyInstanceId,"market_price:"+String(quote.instrument_id)]
+        ):[]; 
+      const chosenOverride=executionOverride[0];
+      const effectivePrice=chosenOverride?.manual_value!=null
+        ?validatedEffectivePrice(chosenOverride.manual_value)
+        :quote?.price!=null?validatedEffectivePrice(String(quote.price)):null;
+      const priceObservedAt=chosenOverride?.observed_at??quote?.observed_at;
+      if(!effectivePrice){
         proposal={actionType:"DATA_REQUIRED",title:"Price needed before you trade",instruction:"A current price is not available for the instrument this strategy would use.",explanation:proposal.explanation,nextState:state,confidence:"LOW",dueAt:proposal.dueAt};
       }else if(String(quote.observation_currency??quote.currency)!==String(instance.currency)){
         proposal={actionType:"DATA_REQUIRED",title:"FX data needed",instruction:"The selected trading line is not priced in your account currency, so we will not estimate an order without an explicit FX conversion.",explanation:proposal.explanation,nextState:state,confidence:"LOW",dueAt:proposal.dueAt};
-      }else if(!quote.observed_at||(Date.now()-new Date(quote.observed_at).getTime())/3600000>36){
+      }else if(!priceObservedAt||!Number.isFinite(new Date(priceObservedAt).getTime())||
+        (Date.now()-new Date(priceObservedAt).getTime())/3600000>36||
+        new Date(priceObservedAt).getTime()>Date.now()+60_000){
         proposal={actionType:"DATA_REQUIRED",title:"Price is out of date",instruction:"Refresh market data before using this trade instruction.",explanation:proposal.explanation,nextState:state,confidence:"LOW",dueAt:proposal.dueAt};
       }else{
         const selectedPosition=accountPositions.get(String(executionAccountId));
@@ -250,7 +269,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
         const practical=planPracticalTrade({
           side:proposal.actionType as "BUY"|"SELL",
           proposedAmount:proposal.amount,
-          price:String(quote.price),
+          price:effectivePrice.toString(),
           availableCash:selectedCash,
           heldQuantity,
           constraints:scenario?.executionConstraints??((instance.execution_constraints??{}) as Record<string,unknown>)
@@ -278,7 +297,8 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
               {label:"Practical order",value:quantityText+" "+(executionTicker??"units"),kind:"text"},
               {label:"Estimated trade value",value:amountText,kind:"money"},
               ...(practical.estimatedFee.gt(0)?[{label:"Estimated fee",value:practical.estimatedFee.toFixed(2),kind:"money" as const}]:[]),
-              ...(practical.note?[{label:"Adjustment",value:practical.note,kind:"text" as const}]:[])
+              ...(practical.note?[{label:"Adjustment",value:practical.note,kind:"text" as const}]:[]),
+              {label:"Price used for order sizing",value:effectivePrice.toString()+" "+String(quote.currency)+(chosenOverride?" (user corrected)":" (market observation)"),kind:"text" as const}
             ]
           };
         }
@@ -307,9 +327,15 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
     effectiveCash:effectiveCash.toString(),
     contributionsSinceReview:contributionsSinceReview.toString(),
     stableHoldings,
-    dataStatus
+    dataStatus,
+    materialRevision:JSON.stringify({amount:proposal.amount?.toDecimalPlaces(2,Decimal.ROUND_HALF_EVEN).toString()??null,instruction:proposal.instruction,explanation:proposal.actionType==="NO_ACTION"?null:proposal.explanation})
   });
   const fingerprint=crypto.createHash("sha256").update(material).digest("hex");
+  // Deliver one generic reminder per strategy review cycle and alert class,
+  // while the newest calculated action and its precise quantities can change.
+  const notificationClass=proposal.actionType==="DATA_REQUIRED"?"DATA_REQUIRED":"REVIEW";
+  const reviewKey=crypto.createHash("sha256")
+    .update(strategyInstanceId+"|"+lastReview.toISOString()+"|"+notificationClass).digest("hex");
   const reviewAction=["BUY","SELL","REBALANCE","HOLD"].includes(proposal.actionType);
   const nextState=reviewAction
     ? proposal.completesReview===false
@@ -317,7 +343,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
       : {...proposal.nextState,lastReviewAt:new Date().toISOString(),forceReview:false}
     : proposal.nextState;
   const totalValue=exposurePositions.reduce((sum,p)=>sum.plus(p.value),effectiveCash);
-  return {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId,executionAccountId};
+  return {instance,proposal,totalValue,dataStatus,fingerprint,reviewKey,nextState,tradingLineId,executionAccountId};
 }
 
 export async function previewCashScenario(
@@ -525,7 +551,7 @@ export async function calculateAction(strategyInstanceId:string){
     await tx.unsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[strategyInstanceId]);
 
     const calculation=await buildActionCalculation(strategyInstanceId);
-    const {instance,proposal,totalValue,dataStatus,fingerprint,nextState,tradingLineId,executionAccountId}=calculation;
+    const {instance,proposal,totalValue,dataStatus,fingerprint,reviewKey,nextState,tradingLineId,executionAccountId}=calculation;
     if(dataStatus==="CURRENT")await tx.unsafe("INSERT INTO performance_series (strategy_instance_id,series_type,date,value,metadata) VALUES ($1,'USER_VALUE',current_date,$2,$3::jsonb) ON CONFLICT (strategy_instance_id,series_type,date) DO UPDATE SET value=EXCLUDED.value,metadata=EXCLUDED.metadata",[strategyInstanceId,totalValue.toString(),JSON.stringify({source:"ledger+market"})]);
     const existing=await tx.unsafe(
       "SELECT id,status FROM actions WHERE strategy_instance_id=$1 AND fingerprint=$2 FOR UPDATE",
@@ -557,7 +583,17 @@ export async function calculateAction(strategyInstanceId:string){
     const healthy=dataStatus==="CURRENT"&&proposal.actionType!=="DATA_REQUIRED";
     await tx.unsafe("UPDATE strategy_instances SET health_status=$1,updated_at=now() WHERE id=$2",[healthy?"HEALTHY":"NEEDS_ATTENTION",strategyInstanceId]);
     if(shouldNotify&&proposal.actionType!=="NO_ACTION"){
-      await tx.unsafe("INSERT INTO notifications (user_id,action_id,type,title,body) VALUES ($1,$2,'ACTION',$3,$4) ON CONFLICT (action_id) WHERE action_id IS NOT NULL DO NOTHING",[instance.user_id,actionId,proposal.title,proposal.instruction]);
+      // Keep the *alert* stable, not an obsolete execution quantity. An
+      // in-flight or delivered alert always points to the latest revision.
+      const noticeTitle=proposal.actionType==="DATA_REQUIRED"?"Strategy data needs attention":"Strategy review ready";
+      const noticeBody="Open your Rebalune dashboard for the latest calculated amounts and current data. Do not trade from an old notification.";
+      await tx.unsafe(
+        "INSERT INTO notifications (user_id,action_id,type,title,body,review_key) "+
+        "VALUES ($1,$2,'ACTION',$3,$4,$5) "+
+        "ON CONFLICT (review_key) WHERE review_key IS NOT NULL "+
+        "DO UPDATE SET action_id=EXCLUDED.action_id,title=EXCLUDED.title,body=EXCLUDED.body",
+        [instance.user_id,actionId,noticeTitle,noticeBody,reviewKey]
+      );
     }
     return {actionId,proposal,totalValue:totalValue.toString()};
   });

@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { AllocationDraftBuilder } from "@/components/AllocationDraftBuilder";
 import { ModelPerformanceEditor, StrategyDefinitionEditor, StrategyVersionEditor, StrategyVersionManager } from "@/components/AdminEditors";
 
 export default async function StrategiesAdmin() {
@@ -28,6 +29,7 @@ export default async function StrategiesAdmin() {
     </table></div>
 
     <div className="detail-grid"><StrategyDefinitionEditor/><StrategyVersionEditor/></div>
+    <div style={{marginTop:18}}><AllocationDraftBuilder/></div>
     <div style={{marginTop:18}}><StrategyVersionManager/></div>
     <div style={{marginTop:18}}><ModelPerformanceEditor/></div>
   </>;

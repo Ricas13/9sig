@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { executeAction } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
+import { authFailure } from "@/lib/api-auth";
 
 const positive = z.string().regex(/^\d+(?:\.\d{1,12})?$/);
 const nonNegative = z.string().regex(/^\d+(?:\.\d{1,12})?$/);
@@ -20,7 +21,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     const input=schema.parse(await request.json().catch(()=>({})));
     const result=await executeAction(user.id,id,input);
     return Response.json({ok:true,...result});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Enter valid price, quantity and fee values."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     const messages:Record<string,string>={
