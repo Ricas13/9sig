@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import {siteOrigin,publicIndexingEnabled} from "@/lib/public-seo";
+import { ensureSettings } from "@/lib/settings";
 import "./globals.css";
 
 // SEO indexing is an operational release gate. Resolve runtime environment on Oracle Docker.
 export const dynamic="force-dynamic";
 
-const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune";
-const origin=siteOrigin(process.env.NEXT_PUBLIC_APP_URL);
-export const metadata: Metadata = {
+// Resolved per request: brand, public address and indexing come from the admin settings.
+export async function generateMetadata(): Promise<Metadata> {
+  await ensureSettings();
+  const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune";
+  const origin=siteOrigin(process.env.NEXT_PUBLIC_APP_URL);
+  return {
   metadataBase:origin,
   applicationName:brand,
   title:{default:brand+" | Rules-Based Portfolio Tracker",template:"%s | "+brand},
@@ -20,6 +24,7 @@ export const metadata: Metadata = {
   verification:process.env.GOOGLE_SITE_VERIFICATION?{google:process.env.GOOGLE_SITE_VERIFICATION}:undefined,
   category:"finance"
 };
+}
 
 const themeScript = `
 (() => {
@@ -37,7 +42,8 @@ const themeScript = `
 })();
 `;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  await ensureSettings();
   return <html lang="en" suppressHydrationWarning>
     <head><script dangerouslySetInnerHTML={{__html:themeScript}}/></head>
     <body>{children}</body>

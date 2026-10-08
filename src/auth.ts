@@ -10,29 +10,41 @@ import Apple from "next-auth/providers/apple";
 import { resolveOAuthSignIn } from "@/lib/oauth";
 import { notifySecurityEvent } from "@/lib/security-notice";
 import { appleConfigured, profileEmailVerified } from "@/domain/oauth-providers";
-import { createAppleClientSecret } from "@/lib/apple-client-secret";
+import { getAppleClientSecret } from "@/lib/apple-client-secret";
+import { ensureSettings } from "@/lib/settings";
 
 const credentials = z.object({ email: z.string().email(), password: z.string().min(8).max(128), totp: z.string().max(32).optional() });
 
-const env = process.env;
-const oauthProviders = [];
-if (env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET) {
-  oauthProviders.push(Google({ clientId: env.AUTH_GOOGLE_ID, clientSecret: env.AUTH_GOOGLE_SECRET }));
-}
-if (appleConfigured(env)) {
-  oauthProviders.push(Apple({
-    clientId: env.AUTH_APPLE_ID,
-    clientSecret: env.AUTH_APPLE_SECRET ?? (await createAppleClientSecret({
-      teamId: env.AUTH_APPLE_TEAM_ID!, clientId: env.AUTH_APPLE_ID!, keyId: env.AUTH_APPLE_KEY_ID!, privateKey: env.AUTH_APPLE_PRIVATE_KEY!
-    }))
-  }));
+// Provider credentials come from the admin screen (or the environment), so the provider list is
+// built per request rather than once at start-up: changing them takes effect without a restart.
+async function oauthProviders() {
+  const env = process.env;
+  const providers = [];
+  if (env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET) {
+    providers.push(Google({ clientId: env.AUTH_GOOGLE_ID, clientSecret: env.AUTH_GOOGLE_SECRET }));
+  }
+  if (appleConfigured(env)) {
+    try {
+      providers.push(Apple({
+        clientId: env.AUTH_APPLE_ID,
+        clientSecret: env.AUTH_APPLE_SECRET ?? (await getAppleClientSecret({
+          teamId: env.AUTH_APPLE_TEAM_ID!, clientId: env.AUTH_APPLE_ID!, keyId: env.AUTH_APPLE_KEY_ID!, privateKey: env.AUTH_APPLE_PRIVATE_KEY!
+        }))
+      }));
+    } catch {
+      // An unreadable Apple key must not take password sign-in down with it.
+    }
+  }
+  return providers;
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut } = NextAuth(async () => {
+  await ensureSettings();
+  return {
   session: { strategy: "jwt", maxAge: 12 * 60 * 60 },
   pages: { signIn: "/login" },
   providers: [
-    ...oauthProviders,
+    ...(await oauthProviders()),
     Credentials({
       credentials: { email: {}, password: {}, totp: {} },
       async authorize(raw) {
@@ -98,4 +110,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     }
   }
+};
 });

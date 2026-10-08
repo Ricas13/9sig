@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { ensureSettings } from "@/lib/settings";
 import { sql } from "@/lib/db";
 import { enforceStrategyEntitlements } from "@/lib/entitlement-service";
 import { isTerminalLocalStatus, isTerminalStripeStatus } from "@/domain/subscription-status";
@@ -83,6 +84,7 @@ async function resolveSubscriptionUserId(subscription:Stripe.Subscription){
 }
 
 export async function POST(request:Request){
+  await ensureSettings();
   const secret=process.env.STRIPE_SECRET_KEY;
   const webhookSecret=process.env.STRIPE_WEBHOOK_SECRET;
   if(!secret||!webhookSecret)return new Response("Billing not configured",{status:503});

@@ -34,7 +34,7 @@ export default async function NewStrategyPage(){
         <Link className="button primary" href="/app/settings#plan">See plan options <ArrowRight size={16}/></Link>
         <Link className="button quiet" href="/app/strategies">Back to portfolio</Link>
       </div>
-    </section>:strategies.length?<CreateStrategyForm strategies={strategies} baseCurrency={user.baseCurrency}/>:<section className="glass plan-limit-state">
+    </section>:strategies.length?<CreateStrategyForm strategies={strategies} baseCurrency={user.baseCurrency} brand={process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune"}/>:<section className="glass plan-limit-state">
       <div className="eyebrow">Your plan</div><h1>No additional strategies are available on this plan.</h1>
       <p>Your current strategies are unaffected. You can review plan options to unlock additional strategy types when available.</p>
       <Link className="button primary" href="/app/settings#plan">See plan options <ArrowRight size={16}/></Link>

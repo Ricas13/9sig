@@ -1,4 +1,5 @@
 import { requestIp } from "@/domain/client-ip";
+import { ensureSettings } from "@/lib/settings";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { sql } from "@/lib/db";
@@ -13,6 +14,7 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
+  await ensureSettings();
   try {
     assertSameOrigin(request);
     const ip = requestIp(request);

@@ -2,8 +2,10 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { sql } from "@/lib/db";
+import { ensureSettings } from "@/lib/settings";
 
 export async function requireUser() {
+  await ensureSettings();
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
   const rows = await sql.unsafe(

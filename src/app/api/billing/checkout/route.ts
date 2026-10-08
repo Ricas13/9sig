@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { ensureSettings } from "@/lib/settings";
 import { z } from "zod";
 import { requireUser } from "@/lib/session";
 import { sql } from "@/lib/db";
@@ -14,6 +15,7 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
+  await ensureSettings();
   try {
     assertSameOrigin(request);
     const user = await requireUser();

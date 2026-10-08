@@ -27,7 +27,8 @@ const PUBLIC=[
   "/src/app/api/verify-email/route.ts",
   "/src/app/api/password-reset/request/route.ts",
   "/src/app/api/password-reset/confirm/route.ts",
-  "/src/app/api/health/route.ts"
+  "/src/app/api/health/route.ts",
+  "/src/app/api/setup/route.ts"
 ];
 const SELF_AUTHENTICATED=["/src/app/api/stripe/webhook/route.ts","/src/app/api/cron/actions/route.ts"];
 

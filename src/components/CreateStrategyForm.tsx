@@ -23,7 +23,7 @@ function StrategyFields({fields}:{fields:InputField[]}){
   </div>;
 }
 
-export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strategy[];baseCurrency:string}) {
+export function CreateStrategyForm({strategies,baseCurrency,brand}:{strategies:Strategy[];baseCurrency:string;brand:string}) {
   const router=useRouter();
   const [step,setStep]=useState(0);
   const [mode,setMode]=useState<"START_NEW"|"RESUME">("START_NEW");
@@ -104,7 +104,7 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
           <button type="button" className={"choice-card mode-card "+(mode==="RESUME"?"selected":"")} onClick={()=>setMode("RESUME")}>
             <span className="mode-icon"><RotateCcw size={20}/></span>
             <strong>Already following it</strong>
-            <p>I already hold investments and want {process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune"} to pick up from where I am.</p>
+            <p>I already hold investments and want {brand} to pick up from where I am.</p>
             <span className="choice-action">Resume my journey <ArrowRight size={14}/></span>
           </button>
         </div>
@@ -168,6 +168,6 @@ export function CreateStrategyForm({strategies,baseCurrency}:{strategies:Strateg
       </div>
     </section>
 
-    <p className="onboarding-trust">You stay in control. {process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune"} calculates and explains actions; it does not place trades for you.</p>
+    <p className="onboarding-trust">You stay in control. {brand} calculates and explains actions; it does not place trades for you.</p>
   </form>;
 }

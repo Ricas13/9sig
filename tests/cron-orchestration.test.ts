@@ -76,7 +76,8 @@ describe("hourly worker orchestration",()=>{
   it("refuses calls without the bearer secret and does no work",async()=>{
     expect((await call()).status).toBe(401);
     expect((await call("Bearer nope")).status).toBe(401);
-    expect(h.queries).toHaveLength(0);
+    // Reading the saved settings (the bearer secret can live there) is not "work".
+    expect(h.queries.filter((q)=>!String(q).includes("app_settings"))).toHaveLength(0);
   });
 
   it("skips a run that would overlap one already in progress",async()=>{
