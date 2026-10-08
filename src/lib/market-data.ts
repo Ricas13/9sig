@@ -105,5 +105,5 @@ export function getMarketDataProvider(): MarketDataProvider {
 
 export function classifyFreshness(observedAt: Date, now = new Date(), maxAgeHours = 36) {
   const hours = (now.getTime() - observedAt.getTime()) / 3_600_000;
-  return hours <= maxAgeHours ? "CURRENT" : "STALE";
+  return Number.isFinite(hours) && hours >= 0 && hours <= maxAgeHours ? "CURRENT" : "STALE";
 }
