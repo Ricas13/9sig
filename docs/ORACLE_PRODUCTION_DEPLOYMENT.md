@@ -46,7 +46,7 @@ docker compose -f docker-compose.oracle.yml --env-file .env.production --profile
 
 ## SEO public launch
 
-Set `NEXT_PUBLIC_BRAND_NAME` after a satisfactory name and trademark check; keep the repo named 9sig if you wish. Configure `GOOGLE_SITE_VERIFICATION` and verify the production domain. After the site and policies are reviewed, set `PUBLIC_INDEXING_ENABLED=true` and redeploy. Then verify `/robots.txt` and `/sitemap.xml`, submit the sitemap to Search Console, and run Lighthouse/Core Web Vitals checks. See `docs/COMMERCIAL_SEO_LAUNCH.md`.
+Set `NEXT_PUBLIC_BRAND_NAME=Rebalune`; the GitHub source repository may remain `Ricas13/9sig`. Trademark/domain clearance still needs to be independently confirmed before public launch. Configure `GOOGLE_SITE_VERIFICATION` and verify the production domain. After the site and policies are reviewed, set `PUBLIC_INDEXING_ENABLED=true` and redeploy. Then verify `/robots.txt` and `/sitemap.xml`, submit the sitemap to Search Console, and run Lighthouse/Core Web Vitals checks. See `docs/COMMERCIAL_SEO_LAUNCH.md`.
 
 ## Still required before commercial launch
 
