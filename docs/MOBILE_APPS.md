@@ -39,9 +39,33 @@ The site then serves `/.well-known/assetlinks.json` and `/.well-known/apple-app-
 
 ## Behaviour inside the apps (set by the user-agent marker `WealtharrApp`)
 
-- **No purchase buttons and no checkout.** Apple and Google require their own in-app purchase systems for digital subscriptions sold inside an app. The apps show the current plan and say plans are managed on the website; `/api/billing/checkout` answers 403 to the apps. *Decide with your own advice whether to add native in-app purchases or keep website-only billing before submitting.*
+- **Subscriptions: both ways.** Inside the apps, plans are bought with the App Store / Google Play (see *In-app purchases* below); the website checkout is never offered there and `/api/billing/checkout` answers 403 to the apps. On the website, plans are bought with Stripe. A person is billed by exactly one of them at a time, and either one works in the app and on the web.
 - **Google sign-in button hidden.** Google blocks OAuth inside embedded web views. Email/password and Sign in with Apple still work. The proper fix is the native Google Sign-In plugin (a follow-up).
 - **Sign in with Apple is mandatory on iOS** if any third-party sign-in (Google) is offered anywhere in the app; keep both configured in Admin > Settings > Sign-in providers.
+
+## In-app purchases (App Store and Google Play) alongside website billing
+
+How it works: the app shows the store's own purchase sheet (through [RevenueCat](https://www.revenuecat.com)'s Capacitor plugin). RevenueCat checks the receipt with Apple/Google and notifies the server at `/api/billing/store/webhook`; only that notification changes a plan. Nothing the phone sends can grant access, so a modified app gains nothing.
+
+Rules enforced on the server (tested in `tests/db/store-webhook.test.ts`):
+
+- One biller at a time. A store purchase **never replaces a live website subscription**, and a new website subscription never replaces a live store one (it is cancelled as a duplicate and flagged for refund review). A conflicting purchase is recorded in the audit log as `billing.store-needs-review` for a person to resolve (refund one of them).
+- The plan comes only from your product mapping (**Admin > Plans > Plan price by currency**: App Store / Google Play product ID). Unknown products are refused.
+- Replayed and out-of-order notifications are ignored; an expiry only ends the subscription it belongs to; a refund ends access immediately.
+- Sandbox (test) purchases are free to make, so they are refused unless **Accept test purchases** is on. Keep it off on the live site.
+- Cancellation keeps access to the end of the paid period; a billing problem keeps access (past due) like the website does; expiry returns the account to the free plan and pauses strategies over its limit.
+- On the website, someone billed by a store sees where to manage it; the billing portal and checkout refuse them.
+
+Setup (a person must do this; it cannot be tested without store accounts):
+
+1. In App Store Connect and Play Console create the subscription products (one per plan and cadence) and subscription groups.
+2. In RevenueCat create a project, add the iOS and Android apps, import the products, add them to a *current* offering, and copy the public SDK keys (`appl_...`, `goog_...`).
+3. In RevenueCat > Integrations > Webhooks add `https://<your domain>/api/billing/store/webhook` with an Authorization header value of your choice.
+4. In **Admin > Settings > Mobile app purchases** enter the same authorization value and the two public SDK keys. In **Admin > Plans** enter each price's store product IDs.
+5. Build the apps (`cd mobile && npm install && npm run sync`; the RevenueCat plugin is already listed) and test with TestFlight / Play internal testing after turning **Accept test purchases** on temporarily.
+6. Check: buy, renew, cancel, expire, restore purchases, and a user who already subscribed on the website (the app should only offer to manage it there).
+
+What is not covered: the purchase sheet itself runs only on a device and has not been exercised here; RevenueCat's fee and the stores' commission apply; Apple's rules on mentioning cheaper web prices inside an app vary by region, so the app deliberately does not link to or advertise the website checkout.
 
 ## Before submitting to the stores (checklist)
 

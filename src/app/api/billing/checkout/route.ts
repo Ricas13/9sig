@@ -68,10 +68,13 @@ export async function POST(request: Request) {
       return Response.json({error:"Billing configuration mismatch. Checkout is disabled until an administrator corrects this price."},{status:503});
     }
     const subRows = await sql.unsafe(
-      "SELECT stripe_customer_id,stripe_subscription_id,status FROM subscriptions WHERE user_id=$1 LIMIT 1",
+      "SELECT stripe_customer_id,stripe_subscription_id,status,source FROM subscriptions WHERE user_id=$1 LIMIT 1",
       [user.id]
     );
     const local = subRows[0];
+    if (local && String(local.source ?? "STRIPE") !== "STRIPE" && !isTerminalLocalStatus(local.status)) {
+      return Response.json({ error: "Your subscription is billed through the " + (local.source === "APPLE" ? "App Store" : "Google Play") + ". Manage or change it there." }, { status: 409 });
+    }
     if (local?.stripe_subscription_id && !isTerminalLocalStatus(local.status)) {
       return Response.json({ error: "You already have a Stripe subscription. Use Manage billing to change the plan or billing cycle." }, { status: 409 });
     }
