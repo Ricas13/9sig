@@ -62,8 +62,19 @@ describe.skipIf(!url)("notification worker backlog",()=>{
     const pro=await user("backlog","pro");
     await sql!.unsafe("INSERT INTO notifications (user_id,type,title,body) SELECT $1,'INFO','n'||g,'b' FROM generate_series(1,130) g",[pro]);
     await drainPending();
-    const result=await processDeliveryBacklog({budgetMs:60_000,batch:50});
+    // Other test files share this database and may be draining the same queue at the same moment, so
+    // a delivery can briefly sit claimed by their worker. Keep draining until the queue is empty.
+    let result=await processDeliveryBacklog({budgetMs:60_000,batch:50});
+    for(let attempt=0;attempt<40&&!result.exhausted;attempt+=1){
+      await new Promise((resolve)=>setTimeout(resolve,250));
+      result=await processDeliveryBacklog({budgetMs:60_000,batch:50});
+    }
     expect(result.exhausted).toBe(true);
+    for(let attempt=0;attempt<40;attempt+=1){
+      const open=await sql!.unsafe("SELECT count(*)::int AS n FROM notification_deliveries d JOIN notifications n ON n.id=d.notification_id WHERE n.user_id=$1 AND d.status<>'SENT'",[pro]);
+      if(Number(open[0].n)===0)break;
+      await new Promise((resolve)=>setTimeout(resolve,250));
+    }
     const states=await sql!.unsafe(
       "SELECT d.status,count(*)::int AS n FROM notification_deliveries d JOIN notifications n ON n.id=d.notification_id WHERE n.user_id=$1 GROUP BY d.status",
       [pro]
