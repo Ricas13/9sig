@@ -37,7 +37,8 @@ test("backdated funding → broker fill → immutable ledger → quarterly revie
     await page.getByLabel("What should we call it?").fill("Historical trade integration");
     await page.getByLabel("How much are you starting with?").fill("0");
     await page.getByRole("button",{name:/Start my strategy/}).click();
-    await page.waitForURL(/\/app\/strategies\/[^/]+$/);
+    await page.waitForURL(/\/app\/strategies\/[0-9a-f]{8}-[0-9a-f-]{27,}$/i);
+    await expect(page.getByRole("heading",{name:"Historical trade integration"})).toBeVisible();
     const strategyId=page.url().split("/").pop()!;
     const accountRows=await sql.unsafe("SELECT account_id FROM strategy_instances WHERE id=$1",[strategyId]);
     expect(accountRows).toHaveLength(1);
