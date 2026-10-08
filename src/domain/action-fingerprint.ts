@@ -12,6 +12,7 @@ export type ActionFingerprintInput={
   contributionsSinceReview:string;
   stableHoldings:string;
   dataStatus:string;
+  materialRevision?:string;
 };
 
 export function actionFingerprintMaterial(input:ActionFingerprintInput){
@@ -28,6 +29,7 @@ export function actionFingerprintMaterial(input:ActionFingerprintInput){
     input.effectiveCash,
     input.contributionsSinceReview,
     input.stableHoldings,
-    input.dataStatus
+    input.dataStatus,
+    input.materialRevision??""
   ].join("|");
 }
