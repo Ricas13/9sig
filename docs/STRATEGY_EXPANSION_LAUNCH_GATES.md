@@ -23,6 +23,8 @@ Reference strategy records are in `src/domain/strategy/research-catalog.ts`. Sou
 - [ ] Verify full source-specific 3Sig/6Sig trade adjustment, reserve and reset procedures; do not guess
 - [ ] Add safe advanced custom strategy editor with JSON schema validation, permissions, version diffs, immutable publication and restricted operator sandbox
 - [ ] Run independent golden-case regression tests against primary source examples
+- [x] Fail-closed admin publication gate prevents research-only momentum engines from becoming customer-visible
+- [ ] Add per-strategy verified release attestations, source-specific golden tests and customer acceptance before broadening the publishable-engine allowlist
 - [ ] Publish strategy-specific disclosures including leverage and volatility decay
 - [ ] Verify economic exposure, currency, wrapper eligibility, fractional trading and *actual purchasability* by region and broker; never automatically substitute a similar ticker
 - [ ] Establish commercial data/licensing rights before production activation
