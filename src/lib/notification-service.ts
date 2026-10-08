@@ -69,7 +69,7 @@ export async function processPendingDeliveries(limit=50){
       }else if(d.channel==="DISCORD"){
         const endpoints=await sql.unsafe("SELECT encrypted_destination FROM notification_endpoints WHERE user_id=$1 AND channel='DISCORD' AND enabled=true LIMIT 1",[d.user_id]);
         if(endpoints[0]){
-          const response=await fetch(decryptSecret(String(endpoints[0].encrypted_destination)),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({content:"**"+String(d.title)+"**\n"+String(d.body)})});
+          const response=await fetch(decryptSecret(String(endpoints[0].encrypted_destination)),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({content:"**"+String(d.title)+"**\n"+String(d.body)}),signal:AbortSignal.timeout(10_000),cache:"no-store"});
           ok=response.ok;
         }
       }
