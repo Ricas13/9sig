@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import {siteOrigin,publicIndexingEnabled} from "@/lib/public-seo";
 import "./globals.css";
 
+// SEO indexing is an operational release gate. Resolve runtime environment on Oracle Docker.
+export const dynamic="force-dynamic";
+
 const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"StrategyOS";
 const origin=siteOrigin(process.env.NEXT_PUBLIC_APP_URL);
 export const metadata: Metadata = {
