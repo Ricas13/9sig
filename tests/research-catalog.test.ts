@@ -1,0 +1,25 @@
+import { describe,it,expect } from "vitest";
+import Decimal from "decimal.js";
+import { RESEARCH_STRATEGIES } from "../src/domain/strategy/research-catalog";
+import { fixedAllocationEngine } from "../src/domain/strategy/fixed-allocation";
+describe("research catalog stays fail-closed",()=>{
+  it("uses unique keys and never auto-enables unverified strategies",()=>{
+    expect(new Set(RESEARCH_STRATEGIES.map(x=>x.key)).size).toBe(RESEARCH_STRATEGIES.length);
+    expect(RESEARCH_STRATEGIES.every(x=>x.launchState==="DRAFT_REQUIRES_VERIFICATION")).toBe(true);
+  });
+  it("validates every fixed-allocation profile and total weight",()=>{
+    for(const profile of RESEARCH_STRATEGIES.filter(x=>x.engine==="FIXED_ALLOCATION")){
+      expect(()=>fixedAllocationEngine.validateConfig(profile.config!)).not.toThrow();
+      const allocations=profile.config!.allocations as {weight:string}[];
+      expect(allocations.reduce((sum,a)=>sum.plus(a.weight),new Decimal(0)).eq(1)).toBe(true);
+    }
+  });
+  it("never maps TQQQ to classic HFEA",()=>{
+    const hfea=RESEARCH_STRATEGIES.find(x=>x.key==="hfea")!;
+    expect(hfea.rules).toContain("NOT the original HFEA");
+  });
+  it("refuses to claim unimplemented momentum and Kelly variants are executable",()=>{
+    expect(RESEARCH_STRATEGIES.filter(x=>["MOMENTUM","CUSTOM_PENDING"].includes(x.engine))
+      .every(x=>x.config===undefined)).toBe(true);
+  });
+});
