@@ -5,6 +5,8 @@ async function main(){
   if(!url)throw new Error("DATABASE_URL is required");
   const sql=postgres(url,{max:1,prepare:false});
   try{
+    // The seed is the one tool allowed to rewrite a published version (see migration 0014).
+    await sql.unsafe("SET app.allow_published_edit = 'on'");
     async function seedPlan(slug:string,name:string,monthly:number,annual:number,discountBps:number,max:number|null,entitlements:object,sort:number){
       const query="INSERT INTO plans (slug,display_name,description,monthly_price_minor,annual_price_minor,annual_discount_bps,billing_currency,supported_billing_currencies,max_active_strategies,entitlements,sort_order) VALUES ($1,$2,$3,$4,$5,$6,'GBP','[\"GBP\"]'::jsonb,$7,$8::text::jsonb,$9) ON CONFLICT (slug) DO UPDATE SET display_name=EXCLUDED.display_name,monthly_price_minor=EXCLUDED.monthly_price_minor,annual_price_minor=EXCLUDED.annual_price_minor,annual_discount_bps=EXCLUDED.annual_discount_bps,max_active_strategies=EXCLUDED.max_active_strategies,entitlements=EXCLUDED.entitlements,sort_order=EXCLUDED.sort_order,updated_at=now() RETURNING id";
       const rows=await sql.unsafe(query,[slug,name,name+" plan",monthly,annual,discountBps,max,JSON.stringify(entitlements),sort]);

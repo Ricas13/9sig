@@ -1,0 +1,146 @@
+import { afterAll,beforeAll,describe,expect,it,vi } from "vitest";
+import postgres from "postgres";
+import { randomUUID } from "node:crypto";
+
+// Real admin route, real database. Only the session lookup is replaced.
+type SessionUser={id:string;email:string;country:string;baseCurrency:string;timezone:string;role:string;anonymousAggregateOptIn:boolean};
+const session=vi.hoisted(()=>({user:null as SessionUser|null}));
+vi.mock("@/lib/session",()=>({
+  requireUser:async()=>{if(!session.user)throw new Error("UNAUTHENTICATED");return session.user;},
+  requireAdmin:async()=>{
+    if(!session.user)throw new Error("UNAUTHENTICATED");
+    if(session.user.role!=="ADMIN")throw new Error("FORBIDDEN");
+    return session.user;
+  },
+  requirePageUser:async()=>{if(!session.user)throw new Error("UNAUTHENTICATED");return session.user;}
+}));
+
+const url=process.env.DATABASE_URL;
+const sql=url?postgres(url,{max:6,prepare:false}):null;
+const ORIGIN="http://127.0.0.1:3000";
+// This test client has no custom serializers: pass JSON text through ::text::jsonb or it is encoded twice.
+const CONFIG={targetExposure:"NASDAQ_100_3X_LONG",initialTargetRatio:"0.60",targetRate:"0.09",contributionTargetRatio:"0.50",maxCashUse:"0.90",tolerance:"0.01",reviewFrequency:"QUARTERLY",reviewCutoffLocal:"16:00",businessDayConvention:"PREVIOUS"};
+
+describe.skipIf(!url)("strategy version lifecycle",()=>{
+  const run=Math.random().toString(36).slice(2,10);
+  const key="lifecycle-"+run;
+  let adminId="";
+  let definitionId="";
+
+  async function patch(body:unknown){
+    const {PATCH}=await import("@/app/api/admin/strategies/route");
+    const response=await PATCH(new Request(ORIGIN+"/api/admin/strategies",{method:"PATCH",headers:{origin:ORIGIN,"content-type":"application/json"},body:JSON.stringify(body)}));
+    return {status:response.status,json:await response.json() as {error?:string;status?:string}};
+  }
+  async function draft(version:string,effectiveFrom:string,config:Record<string,unknown>=CONFIG){
+    const rows=await sql!.unsafe(
+      "INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,input_schema,config) VALUES ($1,$2,$3,'VALUE_TARGET','DRAFT','[]'::jsonb,$4::text::jsonb) RETURNING id",
+      [definitionId,version,effectiveFrom,JSON.stringify(config)]
+    );
+    return String(rows[0].id);
+  }
+  const row=async(id:string)=>(await sql!.unsafe("SELECT lifecycle_status,config,effective_from::text AS effective_from FROM strategy_versions WHERE id=$1",[id]))[0];
+
+  beforeAll(async()=>{
+    process.env.NEXT_PUBLIC_APP_URL=ORIGIN;
+    const users=await sql!.unsafe("INSERT INTO users (email,password_hash,role) VALUES ($1,'x','ADMIN') RETURNING id",[`lc-admin-${run}@example.test`]);
+    adminId=String(users[0].id);
+    session.user={id:adminId,email:`lc-admin-${run}@example.test`,country:"GB",baseCurrency:"GBP",timezone:"Europe/London",role:"ADMIN",anonymousAggregateOptIn:true};
+    const defs=await sql!.unsafe(
+      "INSERT INTO strategy_definitions (key,name,family,engine,enabled) VALUES ($1,'Lifecycle test','SIGNAL_VALUE_TARGET','VALUE_TARGET',false) RETURNING id",[key]
+    );
+    definitionId=String(defs[0].id);
+  });
+  afterAll(async()=>{
+    if(!sql)return;
+    await sql.unsafe("SET app.allow_published_edit = 'on'");
+    await sql.unsafe("DELETE FROM strategy_versions WHERE strategy_definition_id=$1",[definitionId]);
+    await sql.unsafe("DELETE FROM strategy_definitions WHERE id=$1",[definitionId]);
+    await sql.unsafe("DELETE FROM audit_events WHERE actor_user_id=$1",[adminId]);
+    await sql.unsafe("DELETE FROM users WHERE id=$1",[adminId]);
+    await sql.end();
+  });
+
+  it("publishes a draft and refuses to publish it twice",async()=>{
+    const id=await draft("1.0","2031-01-01");
+    expect(await patch({action:"PUBLISH",versionId:id})).toMatchObject({status:200,json:{status:"PUBLISHED"}});
+    expect((await row(id)).lifecycle_status).toBe("PUBLISHED");
+    expect((await patch({action:"PUBLISH",versionId:id})).status).toBe(409);
+  });
+
+  it("will not edit a published version through the API",async()=>{
+    const id=await draft("1.1","2031-02-01");
+    await patch({action:"PUBLISH",versionId:id});
+    const attempt=await patch({action:"UPDATE_DRAFT",versionId:id,config:{...CONFIG,targetRate:"0.50"}});
+    expect(attempt.status).toBe(409);
+    expect((await row(id)).config).toMatchObject({targetRate:"0.09"});
+  });
+
+  it("the database itself rejects a rule change on a published version, whatever wrote it",async()=>{
+    const id=await draft("1.2","2031-03-01");
+    await patch({action:"PUBLISH",versionId:id});
+    await expect(sql!.unsafe("UPDATE strategy_versions SET config=$2::text::jsonb WHERE id=$1",[id,JSON.stringify({...CONFIG,targetRate:"0.99"})])).rejects.toThrow(/PUBLISHED_STRATEGY_VERSION_IS_IMMUTABLE/);
+    await expect(sql!.unsafe("UPDATE strategy_versions SET effective_from='2031-03-02' WHERE id=$1",[id])).rejects.toThrow(/IMMUTABLE/);
+    expect((await row(id)).config).toMatchObject({targetRate:"0.09"});
+    // Non-rule fields and lifecycle moves are still allowed.
+    await expect(sql!.unsafe("UPDATE strategy_versions SET release_notes='clarified' WHERE id=$1",[id])).resolves.toBeDefined();
+  });
+
+  it("allows only one of two operators publishing the same effective date at the same moment",async()=>{
+    const first=await draft("2.0-a","2031-06-01");
+    const second=await draft("2.0-b","2031-06-01");
+    const results=await Promise.all([
+      patch({action:"PUBLISH",versionId:first}),
+      patch({action:"PUBLISH",versionId:second})
+    ]);
+    expect(results.map((r)=>r.status).sort()).toEqual([200,409]);
+    const published=await sql!.unsafe("SELECT count(*)::int AS n FROM strategy_versions WHERE strategy_definition_id=$1 AND lifecycle_status='PUBLISHED' AND effective_from='2031-06-01'",[definitionId]);
+    expect(published[0].n).toBe(1);
+  });
+
+  it("serialises an edit racing a publish so the published rules can never change",async()=>{
+    for(let attempt=0;attempt<5;attempt+=1){
+      const id=await draft("3."+attempt,"2032-0"+(attempt+1)+"-01");
+      const [edit,publish]=await Promise.all([
+        patch({action:"UPDATE_DRAFT",versionId:id,config:{...CONFIG,targetRate:"0.77"}}),
+        patch({action:"PUBLISH",versionId:id})
+      ]);
+      const stored=await row(id);
+      expect(publish.status,JSON.stringify(publish)).toBe(200);
+      // Either the edit won (and was published with it) or it lost (409); never an edit after publish.
+      if(edit.status===200)expect(stored.config).toMatchObject({targetRate:"0.77"});
+      else{
+        expect(edit.status).toBe(409);
+        expect(stored.config).toMatchObject({targetRate:"0.09"});
+      }
+    }
+  });
+
+  it("refuses to retire a draft or a version that is already retired",async()=>{
+    const id=await draft("4.0","2033-01-01");
+    expect((await patch({action:"RETIRE",versionId:id})).status).toBe(409);
+    await patch({action:"PUBLISH",versionId:id});
+    expect((await patch({action:"RETIRE",versionId:id})).status).toBe(200);
+    expect((await patch({action:"RETIRE",versionId:id})).status).toBe(409);
+  });
+
+  it("refuses to retire the only published version of an enabled strategy",async()=>{
+    const enabled=await sql!.unsafe("INSERT INTO strategy_definitions (key,name,family,engine,enabled) VALUES ($1,'Enabled lifecycle','SIGNAL_VALUE_TARGET','VALUE_TARGET',true) RETURNING id",[key+"-enabled"]);
+    const rows=await sql!.unsafe(
+      "INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,input_schema,config) VALUES ($1,'1.0','2031-01-01','VALUE_TARGET','DRAFT','[]'::jsonb,$2::text::jsonb) RETURNING id",
+      [enabled[0].id,JSON.stringify(CONFIG)]
+    );
+    const id=String(rows[0].id);
+    await patch({action:"PUBLISH",versionId:id});
+    const attempt=await patch({action:"RETIRE",versionId:id});
+    expect(attempt.status).toBe(409);
+    expect(attempt.json.error).toMatch(/only published version/i);
+    await sql!.unsafe("SET app.allow_published_edit = 'on'");
+    await sql!.unsafe("DELETE FROM strategy_versions WHERE strategy_definition_id=$1",[enabled[0].id]);
+    await sql!.unsafe("DELETE FROM strategy_definitions WHERE id=$1",[enabled[0].id]);
+  });
+
+  it("answers an unknown version with 404",async()=>{
+    expect((await patch({action:"PUBLISH",versionId:randomUUID()})).status).toBe(404);
+  });
+});

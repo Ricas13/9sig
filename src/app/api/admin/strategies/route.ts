@@ -87,59 +87,90 @@ export async function POST(request:Request){
   }
 }
 
+// A state conflict found while holding the lifecycle locks; reported to the operator as-is.
+class LifecycleConflict extends Error{
+  constructor(message:string,readonly status:number){super(message);}
+}
+
 export async function PATCH(request:Request){
   try{
     assertSameOrigin(request);
     const admin=await requireAdmin();
     const p=patchSchema.parse(await request.json());
-    const rows=await sql.unsafe(
-      "SELECT v.*,d.key AS strategy_key,d.engine AS default_engine FROM strategy_versions v JOIN strategy_definitions d ON d.id=v.strategy_definition_id WHERE v.id=$1 LIMIT 1",
-      [p.versionId]
-    );
-    const current=rows[0];
-    if(!current)return Response.json({error:"Version not found."},{status:404});
-
-    if(p.action==="UPDATE_DRAFT"){
-      if(String(current.lifecycle_status)!=="DRAFT")return Response.json({error:"Published strategy versions are immutable. Create a new version instead."},{status:409});
-      const engineKey=p.engineKey??String(current.engine_key);
-      const config=p.config??((current.config??{}) as Record<string,unknown>);
-      const inputSchema=p.inputSchema??(Array.isArray(current.input_schema)?current.input_schema:[]);
-      assertEngine(engineKey);validateEngineConfig(engineKey,config);parseInputSchema(inputSchema);
-      await sql.unsafe(
-        "UPDATE strategy_versions SET effective_from=$1,effective_to=$2,engine_key=$3,upgrade_policy=$4,input_schema=$5::jsonb,config=$6::jsonb,disclosure=$7,release_notes=$8 WHERE id=$9",
-        [p.effectiveFrom??current.effective_from,p.effectiveTo===undefined?current.effective_to:p.effectiveTo,engineKey,p.upgradePolicy??current.upgrade_policy,JSON.stringify(inputSchema),JSON.stringify(config),p.disclosure??current.disclosure,p.releaseNotes??current.release_notes,p.versionId]
+    const result=await sql.begin(async(tx)=>{
+      // Lock the definition first, then the version, always in that order. Every lifecycle change
+      // for one strategy is serialised, so state read below is still true when it is written.
+      await tx.unsafe(
+        "SELECT d.id FROM strategy_definitions d WHERE d.id=(SELECT strategy_definition_id FROM strategy_versions WHERE id=$1) FOR UPDATE",
+        [p.versionId]
       );
-      await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id) VALUES ($1,'strategy-version.draft-updated','strategy_version',$2)",[admin.id,p.versionId]);
-      return Response.json({ok:true,status:"DRAFT"});
-    }
-
-    if(p.action==="PUBLISH"){
-      if(String(current.lifecycle_status)!=="DRAFT")return Response.json({error:"Only a draft version can be published."},{status:409});
-      assertEngine(String(current.engine_key));
-      assertCustomerPublishableEngine(String(current.engine_key));
-      validateEngineConfig(String(current.engine_key),(current.config??{}) as Record<string,unknown>);
-      parseInputSchema(current.input_schema);
-      const duplicate=await sql.unsafe(
-        "SELECT id FROM strategy_versions WHERE strategy_definition_id=$1 AND lifecycle_status='PUBLISHED' AND effective_from=$2 AND id<>$3 LIMIT 1",
-        [current.strategy_definition_id,current.effective_from,p.versionId]
+      const rows=await tx.unsafe(
+        "SELECT v.*,d.key AS strategy_key,d.enabled AS strategy_enabled FROM strategy_versions v JOIN strategy_definitions d ON d.id=v.strategy_definition_id WHERE v.id=$1 FOR UPDATE OF v",
+        [p.versionId]
       );
-      if(duplicate[0])return Response.json({error:"Another published version already has that effective date."},{status:409});
-      await sql.begin(async(tx)=>{
-        await tx.unsafe("UPDATE strategy_versions SET lifecycle_status='PUBLISHED',published_at=now() WHERE id=$1",[p.versionId]);
+      const current=rows[0];
+      if(!current)throw new LifecycleConflict("Version not found.",404);
+
+      if(p.action==="UPDATE_DRAFT"){
+        if(String(current.lifecycle_status)!=="DRAFT")throw new LifecycleConflict("Published strategy versions are immutable. Create a new version instead.",409);
+        const engineKey=p.engineKey??String(current.engine_key);
+        const config=p.config??((current.config??{}) as Record<string,unknown>);
+        const inputSchema=p.inputSchema??(Array.isArray(current.input_schema)?current.input_schema:[]);
+        assertEngine(engineKey);validateEngineConfig(engineKey,config);parseInputSchema(inputSchema);
+        const updated=await tx.unsafe(
+          "UPDATE strategy_versions SET effective_from=$1,effective_to=$2,engine_key=$3,upgrade_policy=$4,input_schema=$5::jsonb,config=$6::jsonb,disclosure=$7,release_notes=$8 WHERE id=$9 AND lifecycle_status='DRAFT' RETURNING id",
+          [p.effectiveFrom??current.effective_from,p.effectiveTo===undefined?current.effective_to:p.effectiveTo,engineKey,p.upgradePolicy??current.upgrade_policy,JSON.stringify(inputSchema),JSON.stringify(config),p.disclosure??current.disclosure,p.releaseNotes??current.release_notes,p.versionId]
+        );
+        if(!updated[0])throw new LifecycleConflict("This version is no longer a draft.",409);
+        await tx.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id) VALUES ($1,'strategy-version.draft-updated','strategy_version',$2)",[admin.id,p.versionId]);
+        return "DRAFT";
+      }
+
+      if(p.action==="PUBLISH"){
+        if(String(current.lifecycle_status)!=="DRAFT")throw new LifecycleConflict("Only a draft version can be published.",409);
+        assertEngine(String(current.engine_key));
+        assertCustomerPublishableEngine(String(current.engine_key));
+        validateEngineConfig(String(current.engine_key),(current.config??{}) as Record<string,unknown>);
+        parseInputSchema(current.input_schema);
+        const duplicate=await tx.unsafe(
+          "SELECT id FROM strategy_versions WHERE strategy_definition_id=$1 AND lifecycle_status='PUBLISHED' AND effective_from=$2 AND id<>$3 LIMIT 1",
+          [current.strategy_definition_id,current.effective_from,p.versionId]
+        );
+        if(duplicate[0])throw new LifecycleConflict("Another published version already has that effective date.",409);
+        const published=await tx.unsafe(
+          "UPDATE strategy_versions SET lifecycle_status='PUBLISHED',published_at=now() WHERE id=$1 AND lifecycle_status='DRAFT' RETURNING id",
+          [p.versionId]
+        );
+        if(!published[0])throw new LifecycleConflict("This version is no longer a draft.",409);
         await tx.unsafe(
           "INSERT INTO notifications (user_id,type,title,body) SELECT DISTINCT i.user_id,'STRATEGY_VERSION',$1,$2 FROM strategy_instances i WHERE i.strategy_definition_id=$3 AND i.strategy_version_id<>$4 AND i.status IN ('ACTIVE','PAUSED')",
           ["Strategy update available: "+String(current.strategy_key)+" v"+String(current.version),String(current.release_notes||"A new strategy rules version is available to review."),current.strategy_definition_id,p.versionId]
         );
         await tx.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id) VALUES ($1,'strategy-version.published','strategy_version',$2)",[admin.id,p.versionId]);
-      });
-      return Response.json({ok:true,status:"PUBLISHED"});
-    }
+        return "PUBLISHED";
+      }
 
-    await sql.unsafe("UPDATE strategy_versions SET lifecycle_status='RETIRED',effective_to=COALESCE(effective_to,current_date) WHERE id=$1",[p.versionId]);
-    await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id) VALUES ($1,'strategy-version.retired','strategy_version',$2)",[admin.id,p.versionId]);
-    return Response.json({ok:true,status:"RETIRED"});
+      if(String(current.lifecycle_status)!=="PUBLISHED")throw new LifecycleConflict("Only a published version can be retired.",409);
+      const remaining=await tx.unsafe(
+        "SELECT id FROM strategy_versions WHERE strategy_definition_id=$1 AND lifecycle_status='PUBLISHED' AND id<>$2 LIMIT 1",
+        [current.strategy_definition_id,p.versionId]
+      );
+      if(!remaining[0]&&current.strategy_enabled)
+        throw new LifecycleConflict("This is the only published version of an enabled strategy. Publish a replacement or disable the strategy first.",409);
+      const retired=await tx.unsafe(
+        "UPDATE strategy_versions SET lifecycle_status='RETIRED',effective_to=COALESCE(effective_to,current_date) WHERE id=$1 AND lifecycle_status='PUBLISHED' RETURNING id",
+        [p.versionId]
+      );
+      if(!retired[0])throw new LifecycleConflict("This version is no longer published.",409);
+      await tx.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id) VALUES ($1,'strategy-version.retired','strategy_version',$2)",[admin.id,p.versionId]);
+      return "RETIRED";
+    });
+    return Response.json({ok:true,status:result});
   }catch(error){const denied=authFailure(error);if(denied)return denied;
+    if(error instanceof LifecycleConflict)return Response.json({error:error.message},{status:error.status});
     if(error instanceof z.ZodError)return Response.json({error:"Invalid strategy version operation."},{status:400});
+    // The partial unique index is the last line of defence against two published versions with the same date.
+    if((error as {code?:string})?.code==="23505")return Response.json({error:"Another published version already has that effective date."},{status:409});
     const message=error instanceof Error?error.message:"FAILED";
     return Response.json({error:message.startsWith("INVALID_")||message.includes("REQUIRES")||message.includes("WEIGHTS")?"Strategy configuration failed validation.":"Could not update strategy version."},{status:400});
   }
