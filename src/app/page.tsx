@@ -13,7 +13,7 @@ export default async function HomePage() {
       "SELECT d.name,a.metric_key,a.value,a.sample_size,a.as_of_date FROM anonymous_aggregates a JOIN strategy_definitions d ON d.id=a.strategy_definition_id WHERE a.sample_size>=20 AND a.as_of_date=(SELECT max(as_of_date) FROM anonymous_aggregates) ORDER BY d.name,a.metric_key LIMIT 24"
     );
     plans = await sql.unsafe(
-      "SELECT p.slug,p.display_name,p.billing_currency,COALESCE(pp.amount_minor,p.monthly_price_minor) AS monthly_price_minor,p.max_active_strategies,p.entitlements FROM plans p LEFT JOIN plan_prices pp ON pp.plan_id=p.id AND pp.currency=p.billing_currency AND pp.cadence='MONTHLY' AND pp.active=true WHERE p.visible=true AND p.archived=false ORDER BY p.sort_order"
+      "SELECT p.slug,p.display_name,p.billing_currency,CASE WHEN p.slug='free' THEN 0 ELSE pp.amount_minor END AS monthly_price_minor,p.max_active_strategies,p.entitlements FROM plans p LEFT JOIN plan_prices pp ON pp.plan_id=p.id AND pp.currency=p.billing_currency AND pp.cadence='MONTHLY' AND pp.active=true WHERE p.visible=true AND p.archived=false ORDER BY p.sort_order"
     );
   } catch {
     // Public financial/community data fails closed instead of rendering cached or invented values.
@@ -21,7 +21,7 @@ export default async function HomePage() {
 
   const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Rebalune";
   const origin=siteOrigin(process.env.NEXT_PUBLIC_APP_URL).toString();
-  const offeredPlan=plans.find(p=>Number.isFinite(Number(p.monthly_price_minor))&&Number(p.monthly_price_minor)>=0&&/^[A-Z]{3}$/.test(String(p.billing_currency)));
+  const offeredPlan=plans.find(p=>p.monthly_price_minor!=null&&Number.isFinite(Number(p.monthly_price_minor))&&Number(p.monthly_price_minor)>=0&&/^[A-Z]{3}$/.test(String(p.billing_currency)));
   const offer=offeredPlan?{offers:{"@type":"Offer",price:(Number(offeredPlan.monthly_price_minor)/100).toFixed(2),priceCurrency:String(offeredPlan.billing_currency)}}:{};
   const schema={"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":brand,"url":origin},{"@type":"SoftwareApplication","name":brand,"applicationCategory":"FinanceApplication","operatingSystem":"Web","url":origin,"description":"Rules-based portfolio tracker with holdings, user-selected strategies, market price references and scheduled investment review calculations.",...offer}]};
   return <main>
