@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Plus } from "lucide-react";
-import { requireUser } from "@/lib/session";
+import { requirePageUser } from "@/lib/session";
 import { listUserStrategies } from "@/lib/strategy-service";
 
 function strategyCardState(strategy:any){
@@ -13,7 +13,7 @@ function strategyCardState(strategy:any){
 }
 
 export default async function StrategiesPage(){
-  const user=await requireUser();
+  const user=await requirePageUser();
   const rows=await listUserStrategies(user.id);
   return <>
     <div className="page-title">

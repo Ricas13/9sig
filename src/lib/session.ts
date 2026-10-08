@@ -1,4 +1,5 @@
 import "server-only";
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { sql } from "@/lib/db";
 
@@ -27,4 +28,15 @@ export async function requireAdmin() {
   const user = await requireUser();
   if (user.role !== "ADMIN") throw new Error("FORBIDDEN");
   return user;
+}
+
+// For server-rendered pages and layouts: a missing, deleted or revoked session (for example
+// after a password reset on another device) sends the user to sign in instead of an error page.
+export async function requirePageUser() {
+  try {
+    return await requireUser();
+  } catch (error) {
+    if (error instanceof Error && error.message === "UNAUTHENTICATED") redirect("/login");
+    throw error;
+  }
 }

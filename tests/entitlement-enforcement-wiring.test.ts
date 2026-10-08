@@ -42,3 +42,21 @@ describe("ledger write paths",()=>{
     expect(source).not.toMatch(/try\{[^}]*calculateAction/);
   });
 });
+
+describe("revoked sessions",()=>{
+  it("sends pages and layouts with a revoked session to sign-in instead of an error page",()=>{
+    const session=read("src/lib/session.ts");
+    expect(session).toContain("export async function requirePageUser");
+    expect(session).toContain('redirect("/login")');
+    for(const path of ["src/app/app/layout.tsx","src/app/app/page.tsx","src/app/app/settings/page.tsx","src/app/app/strategies/page.tsx","src/app/app/strategies/[id]/page.tsx","src/app/app/strategies/new/page.tsx","src/app/app/notifications/page.tsx","src/app/admin/layout.tsx"]){
+      const source=read(path);
+      expect(source).toContain("requirePageUser");
+      expect(source).not.toMatch(/\brequireUser\b/);
+    }
+  });
+
+  it("audits a plan edit before enforcing it on subscribers",()=>{
+    const source=read("src/app/api/admin/plans/route.ts");
+    expect(source.indexOf("'plan.upsert'")).toBeLessThan(source.indexOf("enforceStrategyEntitlements(String(subscriber.user_id))"));
+  });
+});

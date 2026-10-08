@@ -1,9 +1,9 @@
 import { Bell, CheckCircle2 } from "lucide-react";
-import { requireUser } from "@/lib/session";
+import { requirePageUser } from "@/lib/session";
 import { sql } from "@/lib/db";
 
 export default async function NotificationsPage(){
-  const user=await requireUser();
+  const user=await requirePageUser();
   const rows=await sql.unsafe(
     "SELECT id,type,title,body,read_at,created_at FROM ("+
     " SELECT DISTINCT ON (COALESCE(action_id,id)) id,action_id,type,title,body,read_at,created_at"+
