@@ -4,6 +4,15 @@ import { assertCustomerPublishableEngine } from "../src/domain/strategy/registry
 import { RESEARCH_STRATEGIES } from "../src/domain/strategy/research-catalog";
 import { fixedAllocationEngine } from "../src/domain/strategy/fixed-allocation";
 describe("research catalog stays fail-closed",()=>{
+  it("uses only HTTPS reference sources and nonempty risk disclosures",()=>{
+    for(const profile of RESEARCH_STRATEGIES){
+      expect(profile.research.length).toBeGreaterThan(0);
+      expect(profile.research.every(url=>new URL(url).protocol==="https:")).toBe(true);
+      expect(profile.risks.length).toBeGreaterThan(0);
+      expect(profile.rules.length).toBeGreaterThan(30);
+    }
+  });
+
   it("refuses to publish research-only momentum engine",()=>{
     expect(()=>assertCustomerPublishableEngine("MOMENTUM_ROTATION")).toThrow("ENGINE_NOT_CUSTOMER_VERIFIED");
     expect(()=>assertCustomerPublishableEngine("FIXED_ALLOCATION")).not.toThrow();
