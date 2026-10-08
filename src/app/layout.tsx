@@ -17,6 +17,7 @@ export const metadata: Metadata = {
     description:"Track portfolio strategies, scheduled reviews and transparent rebalance calculations."},
   twitter:{card:"summary",title:brand+" | Rules-Based Portfolio Tracker",description:"Keep track of your investment strategies and review dates."},
   robots:publicIndexingEnabled(process.env)?{index:true,follow:true}:{index:false,follow:false,noarchive:true},
+  verification:process.env.GOOGLE_SITE_VERIFICATION?{google:process.env.GOOGLE_SITE_VERIFICATION}:undefined,
   category:"finance"
 };
 
