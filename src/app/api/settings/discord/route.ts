@@ -4,6 +4,7 @@ import { assertNotificationAllowed } from "@/lib/entitlement-service";
 import { encryptSecret } from "@/lib/crypto";
 import { sql } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/security";
+import { authFailure } from "@/lib/api-auth";
 
 const schema=z.object({webhook:z.string().url().refine((value)=>value.startsWith("https://discord.com/api/webhooks/")||value.startsWith("https://discordapp.com/api/webhooks/"))});
 
@@ -19,7 +20,7 @@ export async function POST(request:Request){
       [user.id,encrypted]
     );
     return Response.json({ok:true});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Enter a valid Discord webhook."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     if(code==="CHANNEL_NOT_IN_PLAN")return Response.json({error:"Discord notifications are not included in your plan."},{status:403});

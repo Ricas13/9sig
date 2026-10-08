@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/security";
 import { hasLiveStripeSubscription, isTerminalLocalStatus } from "@/domain/subscription-status";
+import { authFailure } from "@/lib/api-auth";
 
 const schema = z.object({
   planSlug: z.enum(["investor", "pro"]),
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
       { idempotencyKey: ["strategyos-checkout", user.id, String(price.id), currency, input.cadence, String(hourBucket)].join("-") }
     );
     return Response.json({ url: session.url });
-  } catch (error) {
+  } catch(error){const denied=authFailure(error);if(denied)return denied;
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Choose a valid plan, billing cycle and currency." }, { status: 400 });
     }

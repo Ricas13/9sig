@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { requireUser } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/security";
+import { authFailure } from "@/lib/api-auth";
 
 export async function POST(request:Request){
   try{
@@ -13,7 +14,7 @@ export async function POST(request:Request){
     const stripe=new Stripe(process.env.STRIPE_SECRET_KEY);
     const session=await stripe.billingPortal.sessions.create({customer:String(rows[0].stripe_customer_id),return_url:process.env.NEXT_PUBLIC_APP_URL+"/app/settings"});
     return Response.json({url:session.url});
-  }catch{
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     return Response.json({error:"Could not open billing portal."},{status:500});
   }
 }

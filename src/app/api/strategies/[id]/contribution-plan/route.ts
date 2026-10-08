@@ -4,6 +4,7 @@ import { assertSameOrigin } from "@/lib/security";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { normalizeContributionPlan } from "@/domain/contribution-plan";
 import { sql } from "@/lib/db";
+import { authFailure } from "@/lib/api-auth";
 
 const schema=z.object({
   enabled:z.boolean(),
@@ -33,7 +34,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       );
     });
     return Response.json({ok:true,plan});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Check your contribution plan."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     if(code==="STRATEGY_CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});

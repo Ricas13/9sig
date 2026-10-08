@@ -5,6 +5,7 @@ import {assertSameOrigin} from "@/lib/security";
 import {getEmailProvider} from "@/lib/email";
 import {getMarketDataProvider} from "@/lib/market-data";
 import {sql} from "@/lib/db";
+import { authFailure } from "@/lib/api-auth";
 
 const schema=z.discriminatedUnion("service",[
  z.object({service:z.literal("STRIPE")}),
@@ -42,7 +43,7 @@ export async function POST(request:Request){
    admin.id,JSON.stringify({service:p.service,ok,code:ok?"CONNECTED":"TEST_FAILED"})
   ]);
   return Response.json({ok,message},{status:ok?200:503,headers:{"cache-control":"no-store"}});
- }catch(error){
+ }catch(error){const denied=authFailure(error);if(denied)return denied;
   if(error instanceof z.ZodError)return Response.json({error:"Invalid connection test request."},{status:400});
   return Response.json({error:"Connection test unavailable."},{status:500});
  }

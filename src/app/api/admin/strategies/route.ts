@@ -4,6 +4,7 @@ import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
 import { supportedEngineKeys, validateEngineConfig, assertCustomerPublishableEngine } from "@/domain/strategy/registry";
 import { parseInputSchema } from "@/domain/strategy/config";
+import { authFailure } from "@/lib/api-auth";
 
 const definitionSchema=z.object({
   key:z.string().min(1),name:z.string().min(1),family:z.string().min(1),description:z.string(),
@@ -49,7 +50,7 @@ export async function PUT(request:Request){
     );
     await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id) VALUES ($1,'strategy-definition.upsert','strategy_definition',$2)",[admin.id,p.key]);
     return Response.json({ok:true});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Invalid strategy definition."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     if(code==="UNSUPPORTED_ENGINE"||code==="INVALID_INPUT_SCHEMA")return Response.json({error:"The strategy engine or input schema is invalid."},{status:400});
@@ -79,7 +80,7 @@ export async function POST(request:Request){
       [admin.id,String(rows[0].id),JSON.stringify({strategyKey:p.strategyKey,version:p.version})]
     );
     return Response.json({ok:true,id:String(rows[0].id),status:"DRAFT"});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Invalid strategy version."},{status:400});
     const message=error instanceof Error?error.message:"FAILED";
     return Response.json({error:message.startsWith("INVALID_")||message.includes("REQUIRES")||message.includes("WEIGHTS")||message==="ENGINE_NOT_CUSTOMER_VERIFIED"?"Strategy configuration failed validation.":"Could not create strategy version."},{status:400});
@@ -137,7 +138,7 @@ export async function PATCH(request:Request){
     await sql.unsafe("UPDATE strategy_versions SET lifecycle_status='RETIRED',effective_to=COALESCE(effective_to,current_date) WHERE id=$1",[p.versionId]);
     await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id) VALUES ($1,'strategy-version.retired','strategy_version',$2)",[admin.id,p.versionId]);
     return Response.json({ok:true,status:"RETIRED"});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Invalid strategy version operation."},{status:400});
     const message=error instanceof Error?error.message:"FAILED";
     return Response.json({error:message.startsWith("INVALID_")||message.includes("REQUIRES")||message.includes("WEIGHTS")?"Strategy configuration failed validation.":"Could not update strategy version."},{status:400});

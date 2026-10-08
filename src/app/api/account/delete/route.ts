@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { requireUser } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/security";
+import { authFailure } from "@/lib/api-auth";
 
 export async function DELETE(request: Request) {
   try {
@@ -42,7 +43,7 @@ export async function DELETE(request: Request) {
       await tx.unsafe("DELETE FROM users WHERE id=$1", [user.id]);
     });
     return Response.json({ ok: true });
-  } catch {
+  } catch(error){const denied=authFailure(error);if(denied)return denied;
     return Response.json({ error: "Could not delete account safely. No local data was deleted." }, { status: 500 });
   }
 }

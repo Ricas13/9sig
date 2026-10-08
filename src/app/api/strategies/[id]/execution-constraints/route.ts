@@ -5,6 +5,7 @@ import { getStrategyForUser } from "@/lib/strategy-service";
 import { serializeExecutionConstraints } from "@/domain/execution";
 import { recalculateAfterMutation } from "@/lib/action-service";
 import { sql } from "@/lib/db";
+import { authFailure } from "@/lib/api-auth";
 
 const decimalString=z.string().regex(/^\d+(?:\.\d{1,8})?$/);
 const schema=z.object({
@@ -35,7 +36,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     });
     const recalc=result.status==="ACTIVE"?await recalculateAfterMutation(id,user.id,"execution-constraints"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({ok:true,constraints,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Check your trade preferences."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     if(code==="STRATEGY_CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});

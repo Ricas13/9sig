@@ -6,6 +6,7 @@ import {getStrategyForUser} from "@/lib/strategy-service";
 import {recalculateAfterMutation} from "@/lib/action-service";
 import {exchangeTradingDate,historicalBrokerFill} from "@/domain/historical-trade";
 import {sql} from "@/lib/db";
+import { authFailure } from "@/lib/api-auth";
 
 const decimal=z.string().regex(/^\d+(?:\.\d{1,12})?$/);
 const inputSchema=z.object({
@@ -163,7 +164,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     return Response.json({ok:true,eventId:result.id,duplicate:result.duplicate,
       actionId:recalculation.actionId,recalculationPending:recalculation.recalculationPending},
       {headers:{"cache-control":"private, no-store"}});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Confirm account, exact broker fill, fee, and ISO execution time with offset."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     if(code==="RATE_LIMITED")return Response.json({error:"Too many requests."},{status:429});

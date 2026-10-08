@@ -1,9 +1,14 @@
 import { requireAdmin } from "@/lib/session";
 import { checkCommercialLaunch } from "@/domain/commercial-launch";
 import { sql } from "@/lib/db";
+import { authFailure } from "@/lib/api-auth";
 export const dynamic="force-dynamic";
 export async function GET(){
- await requireAdmin();
+ try{ await requireAdmin(); }catch(error){
+  const denied=authFailure(error);
+  if(denied)return denied;
+  throw error;
+ }
  const checks=checkCommercialLaunch(process.env);
  const [workers,deliveries,webhooks]=await Promise.all([
   sql.unsafe("SELECT DISTINCT ON (worker_key) worker_key,status,started_at,finished_at FROM worker_runs ORDER BY worker_key,started_at DESC LIMIT 30"),

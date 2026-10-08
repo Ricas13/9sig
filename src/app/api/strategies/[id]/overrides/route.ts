@@ -5,6 +5,7 @@ import {recalculateAfterMutation} from "@/lib/action-service";
 import {parseManualOverride} from "@/domain/manual-override";
 import {sql} from "@/lib/db";
 import {assertSameOrigin,consumeRateLimit} from "@/lib/security";
+import { authFailure } from "@/lib/api-auth";
 
 const fieldSchema=z.object({fieldKey:z.union([
   z.literal("strategy_state.targetValue"),
@@ -81,7 +82,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       :{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({ok:true,overrideId:result.overrideId,actionId:recalc.actionId,
       recalculationPending:recalc.recalculationPending});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Confirm a permitted field, valid amount, evidence time and reason (8+ characters)."}, {status:400});
     if(error instanceof Error&&error.message==="RATE_LIMITED")return Response.json({error:"Too many requests."},{status:429});
     const code=error instanceof Error?error.message:"FAILED";
@@ -128,7 +129,7 @@ export async function DELETE(request:Request,context:{params:Promise<{id:string}
       :{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({ok:true,changed:result.changed,actionId:recalc.actionId,
       recalculationPending:recalc.recalculationPending});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Invalid field."},{status:400});
     return Response.json({error:"Could not restore automatic value."},{status:500});
   }

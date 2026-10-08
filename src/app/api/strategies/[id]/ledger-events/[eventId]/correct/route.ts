@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/session";
 import { recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
+import { authFailure } from "@/lib/api-auth";
 
 const schema=z.object({reason:z.string().min(1).max(240)});
 
@@ -51,7 +52,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string;ev
 
     const recalc=corrected.status==="ACTIVE"?await recalculateAfterMutation(id,user.id,"ledger-correction"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({ok:true,correctionId:corrected.correctionId,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Enter a reason for the correction."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     const messages:Record<string,string>={

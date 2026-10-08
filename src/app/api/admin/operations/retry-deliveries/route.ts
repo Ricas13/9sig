@@ -2,6 +2,7 @@ import {z} from "zod";
 import {requireAdmin} from "@/lib/session";
 import {assertSameOrigin} from "@/lib/security";
 import {sql} from "@/lib/db";
+import { authFailure } from "@/lib/api-auth";
 const schema=z.object({channel:z.enum(["EMAIL","DISCORD"]).optional(),limit:z.number().int().min(1).max(25).default(10),includeDeadLetter:z.boolean().default(false)});
 /** An operator may advance a *bounded* set of pending failed deliveries.
  * Never resend SENT, CANCELLED or action-superseded notifications.
@@ -31,7 +32,7 @@ export async function POST(request:Request){
    return ids.length;
   });
   return Response.json({ok:true,queued:result},{headers:{"cache-control":"no-store"}});
- }catch(e){
+ }catch(e){const denied=authFailure(e);if(denied)return denied;
   if(e instanceof z.ZodError)return Response.json({error:"Invalid retry request."},{status:400});
   return Response.json({error:"Could not queue delivery retries."},{status:500});
  }

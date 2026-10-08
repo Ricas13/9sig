@@ -6,6 +6,7 @@ import { recalculateAfterMutation } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
 import { sql } from "@/lib/db";
 import { assertLedgerEvent } from "@/domain/ledger";
+import { authFailure } from "@/lib/api-auth";
 
 const amount=z.string().regex(/^\d+(?:\.\d{1,8})?$/);
 const schema=z.object({
@@ -65,7 +66,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     });
     const recalc=eventResult.status==="ACTIVE"&&!eventResult.duplicate?await recalculateAfterMutation(id,user.id,"cash-event"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({ok:true,id:eventResult.eventId,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending,duplicate:eventResult.duplicate});
-  }catch(error){
+  }catch(error){const denied=authFailure(error);if(denied)return denied;
     if(error instanceof z.ZodError)return Response.json({error:"Check the cash event details."},{status:400});
     const code=error instanceof Error?error.message:"FAILED";
     if(code==="STRATEGY_CLOSED")return Response.json({error:"Closed strategies are read-only."},{status:409});

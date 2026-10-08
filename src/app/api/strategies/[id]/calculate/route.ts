@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/session";
 import { getStrategyForUser } from "@/lib/strategy-service";
 import { calculateAction } from "@/lib/action-service";
 import { assertSameOrigin } from "@/lib/security";
+import { authFailure } from "@/lib/api-auth";
 
 export async function POST(request: Request, context: { params: Promise<{id:string}> }) {
   try {
@@ -12,7 +13,7 @@ export async function POST(request: Request, context: { params: Promise<{id:stri
     if (!strategy) return Response.json({error:"Not found."},{status:404});
     const result = await calculateAction(id);
     return Response.json({ok:true,actionId:result.actionId});
-  } catch {
+  } catch(error){const denied=authFailure(error);if(denied)return denied;
     return Response.json({error:"Could not recalculate this strategy."},{status:500});
   }
 }

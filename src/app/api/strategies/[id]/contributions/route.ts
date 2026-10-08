@@ -7,6 +7,7 @@ import { recalculateAfterMutation } from "@/lib/action-service";
 import { advanceContributionPlan, normalizeContributionPlan } from "@/domain/contribution-plan";
 import { assertSameOrigin } from "@/lib/security";
 import { assertLedgerEvent } from "@/domain/ledger";
+import { authFailure } from "@/lib/api-auth";
 
 const schema = z.object({
   amount: z.string().regex(/^\d+(?:\.\d{1,8})?$/),
@@ -70,7 +71,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     });
     const recalc=result.status==="ACTIVE"&&!result.duplicate?await recalculateAfterMutation(id,user.id,"contribution"):{actionId:null,recalculationPending:false,errorCode:null};
     return Response.json({ ok:true,id:result.eventId,actionId:recalc.actionId,recalculationPending:recalc.recalculationPending,duplicate:result.duplicate });
-  } catch (error) {
+  } catch(error){const denied=authFailure(error);if(denied)return denied;
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Enter a valid contribution and timestamp." }, { status: 400 });
     }

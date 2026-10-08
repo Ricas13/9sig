@@ -5,6 +5,7 @@ import {sql} from "@/lib/db";
 import {getMarketDataProvider} from "@/lib/market-data";
 import {validateHistoricalTradePrice} from "@/domain/historical-trade-price";
 import {exchangeTradingDate} from "@/domain/historical-trade";
+import { authFailure } from "@/lib/api-auth";
 const inputSchema=z.object({
  accountId:z.string().uuid(),
  ticker:z.string().regex(/^[A-Za-z0-9.^_-]{1,24}$/),
@@ -52,7 +53,7 @@ export async function POST(request:Request){
   }catch{
    return Response.json({error:"Historical observation is too coarse, stale or inconsistent with the requested trade."},{status:422});
   }
- }catch(error){
+ }catch(error){const denied=authFailure(error);if(denied)return denied;
   if(error instanceof z.ZodError)return Response.json({error:"Enter a valid account, ticker, exchange and ISO timestamp with timezone."},{status:400});
   if(error instanceof Error&&error.message==="UNSUPPORTED_EXCHANGE_TIMEZONE")return Response.json({error:"Exchange timezone has not yet been verified."},{status:422});
   if(error instanceof Error&&error.message==="RATE_LIMITED")return Response.json({error:"Too many requests. Retry later."},{status:429});
