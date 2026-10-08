@@ -7,6 +7,8 @@ export type PriceObservation = {
   currency: string;
   observedAt: Date;
   provider: string;
+  granularity?: "TRADE"|"MINUTE_BAR"|"DAILY_BAR";
+  priceKind?: "LAST"|"OPEN"|"HIGH"|"LOW"|"CLOSE";
 };
 
 export interface MarketDataProvider {
@@ -19,7 +21,9 @@ export interface MarketDataProvider {
 const quoteSchema = z.object({
   price: z.union([z.string(), z.number()]),
   currency: z.string().length(3),
-  observedAt: z.string().datetime({ offset: true })
+  observedAt: z.string().datetime({ offset: true }),
+  granularity: z.enum(["TRADE","MINUTE_BAR","DAILY_BAR"]).optional(),
+  priceKind: z.enum(["LAST","OPEN","HIGH","LOW","CLOSE"]).optional()
 });
 
 function validatedObservation(raw: unknown, provider: string): PriceObservation {
@@ -30,7 +34,9 @@ function validatedObservation(raw: unknown, provider: string): PriceObservation 
     price: price.toString(),
     currency: parsed.currency.toUpperCase(),
     observedAt: new Date(parsed.observedAt),
-    provider
+    provider,
+    granularity: parsed.granularity,
+    priceKind: parsed.priceKind
   };
 }
 
