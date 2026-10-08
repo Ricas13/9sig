@@ -1,11 +1,12 @@
 // Plain-text emails sent after a change to how an account is protected, so the owner hears about it
 // even if someone else made it. Wording avoids links on purpose: nothing here is a call to click.
-export type SecurityNoticeKind = "PASSWORD_CHANGED" | "MFA_ENABLED" | "MFA_DISABLED" | "SIGN_IN_METHOD_ADDED";
+export type SecurityNoticeKind = "PASSWORD_CHANGED" | "MFA_ENABLED" | "MFA_DISABLED" | "SIGN_IN_METHOD_ADDED" | "NEW_DEVICE_SIGN_IN";
 
 const BODY: Record<SecurityNoticeKind, { subject: string; what: string }> = {
   PASSWORD_CHANGED: { subject: "Your password was changed", what: "The password for your account was just changed, and every device was signed out." },
   MFA_ENABLED: { subject: "Two-step sign-in was turned on", what: "Two-step sign-in was just turned on for your account." },
   MFA_DISABLED: { subject: "Two-step sign-in was turned off", what: "Two-step sign-in was just turned off for your account." },
+  NEW_DEVICE_SIGN_IN: { subject: "New sign-in to your account", what: "Your account was just signed in to from a browser or device we have not seen before." },
   SIGN_IN_METHOD_ADDED: { subject: "A new way to sign in was added", what: "A sign-in provider (such as Google or Apple) was just linked to your account." }
 };
 

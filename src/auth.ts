@@ -12,6 +12,8 @@ import { notifySecurityEvent } from "@/lib/security-notice";
 import { appleConfigured, profileEmailVerified } from "@/domain/oauth-providers";
 import { getAppleClientSecret } from "@/lib/apple-client-secret";
 import { ensureSettings } from "@/lib/settings";
+import { recordSignIn } from "@/lib/sign-in-devices";
+import { headers as requestHeaders } from "next/headers";
 
 const credentials = z.object({ email: z.string().email(), password: z.string().min(8).max(128), totp: z.string().max(32).optional() });
 
@@ -47,7 +49,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async () => {
     ...(await oauthProviders()),
     Credentials({
       credentials: { email: {}, password: {}, totp: {} },
-      async authorize(raw) {
+      async authorize(raw, request) {
         const parsed = credentials.safeParse(raw);
         if (!parsed.success) return null;
         try {
@@ -67,6 +69,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async () => {
         // Two-step sign-in, when the account has it on. The shared per-email attempt limit above
         // also bounds guesses at the six-digit code.
         if (user.mfa_enabled_at && !(await verifySecondFactor(String(user.id), parsed.data.totp))) return null;
+        await recordSignIn(String(user.id), request?.headers?.get("user-agent"));
         return { id: String(user.id), email: String(user.email), role: String(user.role), sessionVersion: Number(user.session_version ?? 0) };
       }
     })
@@ -88,6 +91,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async () => {
         user.email = result.user.email;
         user.role = result.user.role;
         user.sessionVersion = result.user.sessionVersion;
+        let userAgent: string | null = null;
+        try { userAgent = (await requestHeaders()).get("user-agent"); } catch { /* no request context */ }
+        await recordSignIn(result.user.id, userAgent);
         if (result.newlyLinked) await notifySecurityEvent(result.user.id, "SIGN_IN_METHOD_ADDED", account.provider);
         return true;
       } catch {
