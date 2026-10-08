@@ -2,6 +2,7 @@ import {
   pgTable, uuid, text, timestamp, boolean, integer, numeric, jsonb,
   uniqueIndex, index, date, primaryKey
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -159,10 +160,23 @@ export const strategyInstances = pgTable("strategy_instances", {
   healthStatus: text("health_status").notNull().default("NEEDS_ATTENTION"),
   lastReconciledAt: timestamp("last_reconciled_at", { withTimezone: true }),
   settings: jsonb("settings").notNull().default({}),
+  executionConstraints: jsonb("execution_constraints").notNull().default({fractionalShares:true,minimumTradeAmount:"0",cashBufferAmount:"0",flatFee:"0",allowSelling:true}),
+  contributionPlan: jsonb("contribution_plan").notNull().default({enabled:false,amount:"0",frequency:"MONTHLY",nextDate:null}),
   ...timestamps
 }, (t) => [
   index("strategy_instances_user_idx").on(t.userId, t.status),
   index("strategy_instances_definition_idx").on(t.strategyDefinitionId, t.status)
+]);
+
+export const strategyAccounts = pgTable("strategy_accounts", {
+  strategyInstanceId: uuid("strategy_instance_id").notNull().references(() => strategyInstances.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+  role: text("role").notNull().default("SECONDARY"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+}, (t) => [
+  primaryKey({ columns: [t.strategyInstanceId, t.accountId] }),
+  uniqueIndex("strategy_accounts_primary_unique").on(t.strategyInstanceId).where(sql`${t.role} = 'PRIMARY'`),
+  index("strategy_accounts_account_idx").on(t.accountId)
 ]);
 
 export const strategyVersionMigrations = pgTable("strategy_version_migrations", {
@@ -238,6 +252,7 @@ export const regionalInstrumentMappings = pgTable("regional_instrument_mappings"
 export const ledgerEvents = pgTable("ledger_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   strategyInstanceId: uuid("strategy_instance_id").notNull().references(() => strategyInstances.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   eventType: text("event_type").notNull(),
   currency: text("currency").notNull(),
@@ -251,14 +266,17 @@ export const ledgerEvents = pgTable("ledger_events", {
   correctionOfEventId: uuid("correction_of_event_id"),
   metadata: jsonb("metadata").notNull().default({}),
   createdBy: text("created_by").notNull().default("USER"),
+  requestKey: uuid("request_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (t) => [
-  index("ledger_instance_time_idx").on(t.strategyInstanceId, t.occurredAt, t.createdAt)
+  index("ledger_instance_time_idx").on(t.strategyInstanceId, t.occurredAt, t.createdAt),
+  uniqueIndex("ledger_events_strategy_request_unique").on(t.strategyInstanceId,t.requestKey).where(sql`${t.requestKey} IS NOT NULL`)
 ]);
 
 export const reconciliations = pgTable("reconciliations", {
   id: uuid("id").primaryKey().defaultRandom(),
   strategyInstanceId: uuid("strategy_instance_id").notNull().references(() => strategyInstances.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   expectedValue: numeric("expected_value", { precision: 24, scale: 8 }),
   brokerReportedValue: numeric("broker_reported_value", { precision: 24, scale: 8 }),
@@ -266,8 +284,12 @@ export const reconciliations = pgTable("reconciliations", {
   reason: text("reason"),
   provenance: text("provenance").notNull().default("USER_CONFIRMED"),
   metadata: jsonb("metadata").notNull().default({}),
+  requestKey: uuid("request_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [index("reconciliation_instance_idx").on(t.strategyInstanceId, t.occurredAt)]);
+}, (t) => [
+  index("reconciliation_instance_idx").on(t.strategyInstanceId, t.occurredAt),
+  uniqueIndex("reconciliations_strategy_request_unique").on(t.strategyInstanceId,t.requestKey).where(sql`${t.requestKey} IS NOT NULL`)
+]);
 
 export const overrides = pgTable("overrides", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -299,6 +321,7 @@ export const marketDataObservations = pgTable("market_data_observations", {
 export const actions = pgTable("actions", {
   id: uuid("id").primaryKey().defaultRandom(),
   strategyInstanceId: uuid("strategy_instance_id").notNull().references(() => strategyInstances.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
   strategyVersionId: uuid("strategy_version_id").notNull().references(() => strategyVersions.id),
   fingerprint: text("fingerprint").notNull(),
   actionType: text("action_type").notNull(),
@@ -373,6 +396,25 @@ export const benchmarks = pgTable("benchmarks", {
   economicExposure: text("economic_exposure").notNull(),
   description: text("description").notNull().default("")
 });
+
+export const benchmarkPerformance = pgTable("benchmark_performance", {
+  benchmarkId: uuid("benchmark_id").notNull().references(() => benchmarks.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  value: numeric("value", { precision: 28, scale: 10 }).notNull(),
+  source: text("source").notNull().default("ADMIN"),
+  metadata: jsonb("metadata").notNull().default({})
+}, (t) => [primaryKey({ columns: [t.benchmarkId, t.date] })]);
+
+export const strategyVersionBenchmarks = pgTable("strategy_version_benchmarks", {
+  strategyVersionId: uuid("strategy_version_id").notNull().references(() => strategyVersions.id, { onDelete: "cascade" }),
+  benchmarkId: uuid("benchmark_id").notNull().references(() => benchmarks.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  defaultVisible: boolean("default_visible").notNull().default(false)
+}, (t) => [
+  primaryKey({ columns: [t.strategyVersionId, t.benchmarkId] }),
+  index("strategy_version_benchmark_order_idx").on(t.strategyVersionId, t.sortOrder)
+]);
 
 export const canonicalModelPerformance = pgTable("canonical_model_performance", {
   strategyVersionId: uuid("strategy_version_id").notNull().references(() => strategyVersions.id, { onDelete: "cascade" }),

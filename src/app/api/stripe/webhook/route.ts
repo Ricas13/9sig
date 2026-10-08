@@ -28,11 +28,41 @@ async function markWebhookEvent(eventId:string,status:"SUCCESS"|"FAILED",errorCo
 async function resolvePlanId(subscription: Stripe.Subscription) {
   const priceId=subscription.items.data[0]?.price.id;
   if(priceId){
-    let byPrice=await sql.unsafe("SELECT p.id FROM plan_prices pp JOIN plans p ON p.id=pp.plan_id WHERE pp.stripe_price_id=$1 AND pp.active=true LIMIT 1",[priceId]);
-    if(!byPrice[0])byPrice=await sql.unsafe("SELECT id FROM plans WHERE stripe_monthly_price_id=$1 OR stripe_annual_price_id=$1 LIMIT 1",[priceId]);
+    const byPrice=await sql.unsafe(
+      "SELECT DISTINCT p.id FROM plan_prices pp JOIN plans p ON p.id=pp.plan_id WHERE pp.stripe_price_id=$1 LIMIT 2",
+      [priceId]
+    );
+    if(byPrice.length>1)throw new Error("AMBIGUOUS_STRIPE_PRICE");
     if(byPrice[0])return String(byPrice[0].id);
+
+    const legacy=await sql.unsafe(
+      "SELECT id FROM plans WHERE stripe_monthly_price_id=$1 OR stripe_annual_price_id=$1 LIMIT 2",
+      [priceId]
+    );
+    if(legacy.length>1)throw new Error("AMBIGUOUS_STRIPE_PRICE");
+    if(legacy[0])return String(legacy[0].id);
   }
   return subscription.metadata.planId||null;
+}
+
+async function resolveSubscriptionUserId(subscription:Stripe.Subscription){
+  if(subscription.metadata.userId)return subscription.metadata.userId;
+
+  const bySubscription=await sql.unsafe(
+    "SELECT user_id FROM subscriptions WHERE stripe_subscription_id=$1 LIMIT 2",
+    [subscription.id]
+  );
+  if(bySubscription.length>1)throw new Error("AMBIGUOUS_SUBSCRIPTION_OWNER");
+  if(bySubscription[0])return String(bySubscription[0].user_id);
+
+  const customerId=typeof subscription.customer==="string"?subscription.customer:subscription.customer?.id;
+  if(!customerId)return null;
+  const byCustomer=await sql.unsafe(
+    "SELECT user_id FROM subscriptions WHERE stripe_customer_id=$1 LIMIT 2",
+    [customerId]
+  );
+  if(byCustomer.length>1)throw new Error("AMBIGUOUS_SUBSCRIPTION_OWNER");
+  return byCustomer[0]?String(byCustomer[0].user_id):null;
 }
 
 export async function POST(request:Request){
@@ -55,7 +85,7 @@ export async function POST(request:Request){
 
     if(event.type.startsWith("customer.subscription.")){
       const subscription=event.data.object as Stripe.Subscription;
-      const userId=subscription.metadata.userId;
+      const userId=await resolveSubscriptionUserId(subscription);
       if(userId){
         if(event.type==="customer.subscription.deleted"){
           const updated=await sql.unsafe(
@@ -99,6 +129,9 @@ export async function POST(request:Request){
     return Response.json({received:true});
   }catch(error){
     const code=error instanceof Error?error.message:"WEBHOOK_FAILED";
+    if(code==="WEBHOOK_ALREADY_PROCESSING"){
+      return new Response("Webhook is already being processed",{status:503});
+    }
     await markWebhookEvent(event.id,"FAILED",code).catch(()=>{});
     return new Response("Webhook processing failed",{status:500});
   }

@@ -1,5 +1,5 @@
 import { describe,expect,it } from "vitest";
-import { resolveMapping } from "../src/domain/instruments";
+import { exposureLeverage, resolveMapping } from "../src/domain/instruments";
 
 const base={
   economicExposure:"NASDAQ_100_3X_LONG",
@@ -18,12 +18,26 @@ const base={
 };
 
 describe("regional instrument resolver",()=>{
+  it("supports arbitrary leverage rather than only 1X and 3X",()=>{
+    expect(exposureLeverage("NASDAQ_100_2X_LONG")).toBe("2");
+    expect(exposureLeverage("CUSTOM_EXPOSURE","1.5")).toBe("1.5");
+    expect(exposureLeverage("CUSTOM_EXPOSURE")).toBe("1");
+  });
+
   it("prefers a broker-specific exact mapping",()=>{
     const result=resolveMapping([
       {id:"generic",tradingLineId:"a",...base},
       {id:"specific",tradingLineId:"b",...base,broker:"Example Broker"}
     ],{economicExposure:base.economicExposure,leverage:base.leverage,direction:"LONG",country:"GB",wrapper:"ISA",broker:"Example Broker",preferredCurrency:"GBP",asOf:"2026-10-01"});
     expect(result?.id).toBe("specific");
+  });
+
+  it("does not use a broker-specific mapping when no broker was supplied",()=>{
+    const result=resolveMapping(
+      [{id:"specific",tradingLineId:"b",...base,broker:"Example Broker"}],
+      {economicExposure:base.economicExposure,leverage:base.leverage,direction:"LONG",country:"GB",wrapper:"ISA",broker:null,preferredCurrency:"GBP",asOf:"2026-10-01"}
+    );
+    expect(result).toBeNull();
   });
 
   it("refuses economically different leverage",()=>{

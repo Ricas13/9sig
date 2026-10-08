@@ -31,5 +31,9 @@ export async function GET(request: Request) {
 
   const delivered = await processPendingDeliveries(100);
   const aggregates = await rebuildAnonymousAggregates();
-  return Response.json({ ok: true, marketData, calculated, calculationFailures, delivered, aggregates });
+  const ok=calculationFailures===0;
+  return Response.json(
+    {ok,status:ok?"healthy":"degraded",marketData,calculated,calculationFailures,delivered,aggregates},
+    {status:ok?200:503,headers:{"cache-control":"no-store"}}
+  );
 }

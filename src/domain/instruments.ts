@@ -1,3 +1,5 @@
+import Decimal from "decimal.js";
+
 export type MappingCandidate = {
   id: string;
   economicExposure: string;
@@ -30,7 +32,7 @@ export type ResolveRequest = {
 export function resolveMapping(candidates: MappingCandidate[], request: ResolveRequest) {
   const eligible = candidates.filter((c) =>
     c.economicExposure === request.economicExposure &&
-    c.leverage === request.leverage &&
+    new Decimal(c.leverage).eq(new Decimal(request.leverage)) &&
     c.direction === request.direction &&
     c.country === request.country &&
     c.wrapper === request.wrapper &&
@@ -40,7 +42,7 @@ export function resolveMapping(candidates: MappingCandidate[], request: ResolveR
     c.tradingLineEffectiveFrom <= request.asOf &&
     (!c.tradingLineEffectiveTo || c.tradingLineEffectiveTo >= request.asOf) &&
     (!request.preferredCurrency || c.tradingLineCurrency === request.preferredCurrency) &&
-    (!c.broker || !request.broker || c.broker.toLowerCase() === request.broker.toLowerCase())
+    (!c.broker || (!!request.broker && c.broker.toLowerCase() === request.broker.toLowerCase()))
   );
 
   return eligible.sort((a,b) => {
@@ -52,4 +54,15 @@ export function resolveMapping(candidates: MappingCandidate[], request: ResolveR
     if (configuredCurrencyA !== configuredCurrencyB) return configuredCurrencyB - configuredCurrencyA;
     return b.effectiveFrom.localeCompare(a.effectiveFrom);
   })[0] ?? null;
+}
+
+
+export function exposureLeverage(exposure:string, explicit?:unknown){
+  if(explicit!=null&&String(explicit).trim()){
+    const leverage=new Decimal(String(explicit));
+    if(!leverage.isFinite()||leverage.lte(0))throw new Error("INVALID_EXPOSURE_LEVERAGE");
+    return leverage.toString();
+  }
+  const match=String(exposure).match(/(?:^|_)(\d+(?:\.\d+)?)X(?:_|$)/i);
+  return match?new Decimal(match[1]).toString():"1";
 }

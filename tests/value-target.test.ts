@@ -15,6 +15,30 @@ describe("value-target engine",()=>{
     expect(result.actionType).toBe("BUY");
     expect(result.amount?.toFixed(2)).toBe("2400.00");
   });
+  it("sums the same economic exposure across multiple holdings",()=>{
+    const result=valueTargetEngine.calculate({
+      ...base,
+      cash:new Decimal(10000),
+      exposures:[
+        {economicExposure:"NASDAQ_100_3X_LONG",value:new Decimal(6000)},
+        {economicExposure:"NASDAQ_100_3X_LONG",value:new Decimal(4000)}
+      ],
+      state:{targetValue:"10000"},
+      contributionsSinceReview:new Decimal(0),
+      config:{...base.config,targetRate:"0.09"}
+    });
+    expect(result.amount?.toFixed(2)).toBe("900.00");
+  });
+
+  it("fails closed when a resumed account contains an unmanaged holding",()=>{
+    const result=valueTargetEngine.calculate({
+      ...base,
+      exposures:[{economicExposure:"OTHER_ASSET",value:new Decimal(1000)}]
+    });
+    expect(result.actionType).toBe("DATA_REQUIRED");
+    expect(result.title).toContain("classification");
+  });
+
   it("fails closed when critical data is stale",()=>{
     const result=valueTargetEngine.calculate({...base,dataHealth:{status:"STALE" as const,message:"stale"}});
     expect(result.actionType).toBe("DATA_REQUIRED");

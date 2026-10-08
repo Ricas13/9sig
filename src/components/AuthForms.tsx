@@ -10,8 +10,8 @@ export function LoginForm() {
     const result=await signIn("credentials",{email:String(f.get("email")),password:String(f.get("password")),redirect:false});
     setBusy(false); if(result?.error) setError("Email or password is incorrect, or the email is not verified."); else router.push("/app");
   }}>
-    <div className="field"><label>Email</label><input name="email" type="email" autoComplete="email" required/></div>
-    <div className="field"><label>Password</label><input name="password" type="password" autoComplete="current-password" required/></div>
+    <div className="field"><label htmlFor="login-email">Email</label><input id="login-email" name="email" type="email" autoComplete="email" required/></div>
+    <div className="field"><label htmlFor="login-password">Password</label><input id="login-password" name="password" type="password" autoComplete="current-password" required/></div>
     {error&&<div className="error">{error}</div>}<button className="button primary" disabled={busy}>Sign in</button>
   </form>;
 }
@@ -26,10 +26,10 @@ export function RegisterForm() {
     if(process.env.NODE_ENV!=="production") { await signIn("credentials",{email:String(f.get("email")),password:String(f.get("password")),redirect:false}); router.push("/app"); }
     else router.push("/login?registered=1");
   }}>
-    <div className="field"><label>Email</label><input name="email" type="email" required/></div>
-    <div className="field"><label>Password</label><input name="password" type="password" minLength={12} required/><div className="help">At least 12 characters.</div></div>
-    <div className="form-grid"><div className="field"><label>Country</label><select name="country" defaultValue="GB"><option value="GB">United Kingdom</option><option value="US">United States</option><option value="IE">Ireland</option><option value="PT">Portugal</option></select></div>
-    <div className="field"><label>Base currency</label><select name="currency" defaultValue="GBP"><option>GBP</option><option>USD</option><option>EUR</option></select></div></div>
+    <div className="field"><label htmlFor="register-email">Email</label><input id="register-email" name="email" type="email" autoComplete="email" required/></div>
+    <div className="field"><label htmlFor="register-password">Password</label><input id="register-password" name="password" type="password" autoComplete="new-password" minLength={12} required/><div className="help">At least 12 characters.</div></div>
+    <div className="form-grid"><div className="field"><label htmlFor="register-country">Country</label><select id="register-country" name="country" defaultValue="GB"><option value="GB">United Kingdom</option><option value="US">United States</option><option value="IE">Ireland</option><option value="PT">Portugal</option></select></div>
+    <div className="field"><label htmlFor="register-currency">Base currency</label><select id="register-currency" name="currency" defaultValue="GBP"><option>GBP</option><option>USD</option><option>EUR</option></select></div></div>
     {error&&<div className="error">{error}</div>}<button className="button primary" disabled={busy}>Create account</button>
   </form>;
 }

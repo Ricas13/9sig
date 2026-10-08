@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import type { EngineContext, ProposedAction, StrategyEngine } from "./types";
 
-type Allocation = { exposure: string; weight: string | number };
+type Allocation = { exposure: string; weight: string | number; leverage?: string | number };
 
 function money(v: Decimal) {
   return v.toDecimalPlaces(2, Decimal.ROUND_HALF_EVEN).toFixed(2);
@@ -52,6 +52,19 @@ export const fixedAllocationEngine: StrategyEngine = {
     }
 
     const allocations = (ctx.config.allocations ?? []) as Allocation[];
+    const managedExposures=new Set(allocations.map((allocation)=>String(allocation.exposure)));
+    const unmanaged=ctx.exposures.filter((position)=>!managedExposures.has(position.economicExposure)&&!position.value.eq(0));
+    if(unmanaged.length){
+      return {
+        actionType:"DATA_REQUIRED",
+        title:"A holding needs classification",
+        instruction:"This portfolio contains a holding outside the strategy allocation. Move it out of this strategy or reconcile the account before rebalancing.",
+        explanation:unmanaged.map((item)=>({label:"Outside strategy",value:item.economicExposure,kind:"text" as const})),
+        nextState:ctx.state,
+        confidence:"LOW",
+        dueAt:ctx.now
+      };
+    }
     const threshold = new Decimal(String(ctx.config.rebalanceThreshold ?? "0.05"));
     const invested = ctx.exposures.reduce((sum, p) => sum.plus(p.value), new Decimal(0));
     const total = invested.plus(ctx.cash);
@@ -68,9 +81,9 @@ export const fixedAllocationEngine: StrategyEngine = {
     }
 
     const rows = allocations.map((a) => {
-      const current = ctx.exposures.find((p) => p.economicExposure === a.exposure)?.value ?? new Decimal(0);
+      const current = ctx.exposures.filter((p) => p.economicExposure === a.exposure).reduce((sum,p)=>sum.plus(p.value),new Decimal(0));
       const target = total.mul(new Decimal(String(a.weight)));
-      return { exposure: a.exposure, current, target, delta: target.minus(current) };
+      return { exposure: a.exposure, leverage:a.leverage, current, target, delta: target.minus(current) };
     });
     const worst = [...rows].sort((a,b) => b.delta.abs().cmp(a.delta.abs()))[0];
     const drift = worst.delta.abs().div(total);
@@ -93,17 +106,54 @@ export const fixedAllocationEngine: StrategyEngine = {
       };
     }
 
+    const underweight=[...rows].filter((row)=>row.delta.gt(0)).sort((a,b)=>b.delta.cmp(a.delta))[0];
+    if(underweight&&ctx.cash.gt(0)){
+      const amount=Decimal.min(underweight.delta,ctx.cash);
+      const projected=rows.map((row)=>row.exposure===underweight.exposure?{...row,current:row.current.plus(amount)}:row);
+      const projectedWorst=projected.reduce((max,row)=>Decimal.max(max,row.target.minus(row.current).abs().div(total)),new Decimal(0));
+      return {
+        actionType:"BUY",
+        title:"Use available cash on "+underweight.exposure,
+        instruction:"Buy "+money(amount)+" "+ctx.baseCurrency+" of "+underweight.exposure+". This moves the portfolio toward its target without an unnecessary sale.",
+        amount,
+        currency:ctx.baseCurrency,
+        economicExposure:underweight.exposure,
+        leverage:underweight.leverage==null?undefined:String(underweight.leverage),
+        explanation,
+        nextState:{...ctx.state,lastCalculatedAt:ctx.now.toISOString()},
+        confidence:"HIGH",
+        dueAt:ctx.now,
+        completesReview:projectedWorst.lte(threshold)
+      };
+    }
+
+    const overweight=[...rows].filter((row)=>row.delta.lt(0)).sort((a,b)=>a.delta.cmp(b.delta))[0];
+    if(overweight){
+      const amount=overweight.delta.abs();
+      return {
+        actionType:"SELL",
+        title:"Free cash from "+overweight.exposure,
+        instruction:"Sell about "+money(amount)+" "+ctx.baseCurrency+" of "+overweight.exposure+". We will recalculate the next step from the actual fill.",
+        amount,
+        currency:ctx.baseCurrency,
+        economicExposure:overweight.exposure,
+        leverage:overweight.leverage==null?undefined:String(overweight.leverage),
+        explanation,
+        nextState:{...ctx.state,lastCalculatedAt:ctx.now.toISOString()},
+        confidence:"HIGH",
+        dueAt:ctx.now,
+        completesReview:false
+      };
+    }
+
     return {
-      actionType: "REBALANCE",
-      title: "Rebalance required",
-      instruction: "Under the strategy rules you selected, adjust the portfolio toward the target allocations shown below.",
-      amount: worst.delta.abs(),
-      currency: ctx.baseCurrency,
-      economicExposure: worst.exposure,
+      actionType:"DATA_REQUIRED",
+      title:"Rebalance needs attention",
+      instruction:"The allocation is outside its threshold but no executable rebalance step could be determined.",
       explanation,
-      nextState: { ...ctx.state, lastCalculatedAt: ctx.now.toISOString() },
-      confidence: "HIGH",
-      dueAt: ctx.now
+      nextState:ctx.state,
+      confidence:"LOW",
+      dueAt:ctx.now
     };
   }
 };

@@ -69,9 +69,11 @@ src/lib/market-data.ts defines the provider interface. The built-in production a
 
 Build the Docker image after migrations have been applied. Run db:migrate and db:seed as controlled release steps before switching application traffic. Configure the hourly /api/cron/actions worker with Authorization: Bearer CRON_SECRET.
 
+The container health check calls `/api/health`. Core readiness requires a reachable database plus a valid application URL, Auth.js secret, cron secret and 32-byte encryption key. Billing, email and licensed market data are reported separately as capabilities so infrastructure can distinguish “the app is unhealthy” from “an optional/commercial integration is not configured.” The cron endpoint returns HTTP 503 when any strategy calculation unexpectedly fails, allowing monitoring to distinguish a degraded worker run from a successful pass.
+
 ## Security and regulatory posture
 
-Financial information is treated as sensitive. The application uses server-side validation, signed Stripe webhooks, secure headers, rate limiting for account flows, encrypted notification secrets and audit events.
+Financial information is treated as sensitive. The application uses server-side validation, fail-closed production origin checks, signed and idempotently claimed Stripe webhooks, secure response headers, database-backed rate limiting for account flows, encrypted notification secrets, retry-safe financial mutation keys and audit events.
 
 The application does not select a strategy based on suitability. Customer-facing wording describes the output as a calculation under rules the user selected. Jurisdiction-specific legal and regulatory review remains required before launch.
 

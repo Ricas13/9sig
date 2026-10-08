@@ -33,4 +33,17 @@ describe("immutable ledger fold",()=>{
   it("rejects sign-inconsistent trade events",()=>{
     expect(()=>assertLedgerEvent({eventType:"BUY",cashAmount:"100",instrumentId:"x",quantity:"1"})).toThrow();
   });
+  it("rejects negative fees on normal ledger rows",()=>{
+    expect(()=>assertLedgerEvent({eventType:"BUY",cashAmount:"-100",feeAmount:"-1",instrumentId:"x",quantity:"1"})).toThrow("Ledger fees cannot be negative");
+  });
+  it("rejects trade fees smuggled onto non-trade cash events",()=>{
+    expect(()=>assertLedgerEvent({eventType:"CONTRIBUTION",cashAmount:"100",feeAmount:"2"})).toThrow("Only trade, fee, or correction events may carry a fee amount");
+  });
+  it("allows a correction row to reverse an earlier fee",()=>{
+    expect(()=>assertLedgerEvent({eventType:"CORRECTION",cashAmount:"100",feeAmount:"-2",instrumentId:"x",quantity:"-1"})).not.toThrow();
+  });
+  it("requires fee-only events to use a positive fee amount",()=>{
+    expect(()=>assertLedgerEvent({eventType:"FEE",cashAmount:"0",feeAmount:"2"})).not.toThrow();
+    expect(()=>assertLedgerEvent({eventType:"FEE",cashAmount:"-2",feeAmount:"2"})).toThrow();
+  });
 });

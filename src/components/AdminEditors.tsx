@@ -161,23 +161,26 @@ export function ModelPerformanceEditor() {
     const f = new FormData(e.currentTarget);
     try {
       const points = json(String(f.get("points")), []);
-      if (!Array.isArray(points)) throw new Error("INVALID_JSON");
+      const benchmarks = json(String(f.get("benchmarks")||"[]"), []);
+      if (!Array.isArray(points) || !Array.isArray(benchmarks)) throw new Error("INVALID_JSON");
       await submit({
         strategyVersionId: f.get("strategyVersionId"),
         source: f.get("source") || "ADMIN",
-        points
+        points,
+        benchmarks
       });
     } catch {
-      setError("Points must be a JSON array of {date, value, benchmarkValue?} objects.");
+      setError("Model points and benchmark series must be valid JSON arrays.");
     }
   }}>
     <h3>Canonical model / benchmark history</h3>
     <div className="stack">
       <div className="field"><label>Strategy version UUID</label><input name="strategyVersionId" required /></div>
       <div className="field"><label>Source label</label><input name="source" defaultValue="ADMIN" /></div>
-      <div className="field"><label>Points JSON</label><textarea name="points" rows={8} defaultValue={'[{"date":"2026-01-02","value":"100","benchmarkValue":"100"}]'} /></div>
-      <button className="button primary">Upload model points</button>
-      <div className="help">Values may be any positive canonical index scale. The customer chart replays the user&apos;s own cash flows against the index before comparing account values.</div>
+      <div className="field"><label>Strategy model points JSON</label><textarea name="points" rows={7} defaultValue={'[{"date":"2026-01-02","value":"100"}]'} /></div>
+      <div className="field"><label>Comparison benchmark series JSON <span className="optional">optional</span></label><textarea name="benchmarks" rows={10} defaultValue={'[{"key":"qqq","name":"QQQ","economicExposure":"NASDAQ_100_1X_LONG","label":"QQQ","sortOrder":10,"defaultVisible":false,"points":[{"date":"2026-01-02","value":"100"}]},{"key":"3qqq","name":"3QQQ","economicExposure":"NASDAQ_100_3X_LONG","label":"3QQQ","sortOrder":20,"defaultVisible":false,"points":[{"date":"2026-01-02","value":"100"}]}]'} /></div>
+      <button className="button primary">Upload model & comparisons</button>
+      <div className="help">Each comparison has its own independent index history. The customer chart replays the user&apos;s real deposits and withdrawals against every series, so DCA is compared like-for-like. Benchmark mappings are strategy-version specific rather than hard-coded to 9Sig.</div>
       {(error || message) && <div className={error ? "error" : "success"}>{error || message}</div>}
     </div>
   </form>;

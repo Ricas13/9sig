@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { sql } from "@/lib/db";
-import { consumeRateLimit, hashToken, newToken } from "@/lib/security";
+import { assertSameOrigin, consumeRateLimit, hashToken, newToken } from "@/lib/security";
 import { getEmailProvider } from "@/lib/email";
 
 const schema = z.object({email:z.string().email()});
 
 export async function POST(request: Request) {
   try {
+    assertSameOrigin(request);
     const input = schema.parse(await request.json());
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
     await consumeRateLimit("reset:" + ip, 6, 3600);
