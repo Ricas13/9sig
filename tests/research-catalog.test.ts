@@ -1,8 +1,13 @@
 import { describe,it,expect } from "vitest";
 import Decimal from "decimal.js";
+import { assertCustomerPublishableEngine } from "../src/domain/strategy/registry";
 import { RESEARCH_STRATEGIES } from "../src/domain/strategy/research-catalog";
 import { fixedAllocationEngine } from "../src/domain/strategy/fixed-allocation";
 describe("research catalog stays fail-closed",()=>{
+  it("refuses to publish research-only momentum engine",()=>{
+    expect(()=>assertCustomerPublishableEngine("MOMENTUM_ROTATION")).toThrow("ENGINE_NOT_CUSTOMER_VERIFIED");
+    expect(()=>assertCustomerPublishableEngine("FIXED_ALLOCATION")).not.toThrow();
+  });
   it("uses unique keys and never auto-enables unverified strategies",()=>{
     expect(new Set(RESEARCH_STRATEGIES.map(x=>x.key)).size).toBe(RESEARCH_STRATEGIES.length);
     expect(RESEARCH_STRATEGIES.every(x=>x.launchState==="DRAFT_REQUIRES_VERIFICATION")).toBe(true);
