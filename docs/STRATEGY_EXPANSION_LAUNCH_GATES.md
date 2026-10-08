@@ -9,10 +9,13 @@ Reference strategy records are in `src/domain/strategy/research-catalog.ts`. Sou
 - [x] Reference definitions for HFEA, Golden Butterfly, Permanent Portfolio, All Weather, three-fund, 60/40 and 80/20
 - [x] Distinguish canonical HFEA 55/45 UPRO/TMF from TQQQ/TMF modifications
 - [x] Record strict research-only status for 3Sig, 6Sig, dual momentum, GTAA/Ivy, PAA and VAA
-- [ ] Independently verify every primary-source rule and trading/calendar convention
+- [x] Cross-check Faber monthly/10-month SMA convention and Kelly's public 3/6/9 growth/leverage definitions against author-published material
+- [ ] Independently verify remaining primary-source rules and trading/calendar conventions
 - [x] Add a research-stage fail-closed relative/absolute momentum rotation engine and unit test fixtures (not wired to live data)
+- [x] Implement pure fail-closed research Ivy 10-month closing-price decision helper with signal tests
 - [ ] Integrate licensed historical prices into EngineContext, handle corporate actions and calendars, and independently backtest momentum signal engines with no look-ahead
-- [ ] Verify source-specific 3Sig and 6Sig formulas; do not guess
+- [x] Confirm author-published basic 3Sig/6Sig quarterly growth targets and leverage levels
+- [ ] Verify full source-specific 3Sig/6Sig trade adjustment, reserve and reset procedures; do not guess
 - [ ] Add safe advanced custom strategy editor with JSON schema validation, permissions, version diffs, immutable publication and restricted operator sandbox
 - [ ] Run independent golden-case regression tests against primary source examples
 - [ ] Publish strategy-specific disclosures including leverage and volatility decay
