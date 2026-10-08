@@ -52,3 +52,15 @@ Reference strategy records are in `src/domain/strategy/research-catalog.ts`. Sou
 Run `npm run launch:preflight` with genuine production configuration before enabling paid onboarding. It rejects development defaults, test Stripe keys, non-HTTPS external endpoints, missing secrets, and missing operator attestations for backups, UK regulatory sign-off, and verified instruments. It does not prove those attestations are genuine or confirm third-party service connectivity: keep signed evidence, run real Stripe/email/data integration tests and perform a backup restore drill. Do not set attestation environment flags until the actual work has been completed.
 
 **Operating rule:** Green CI proves software checks passed, not market-data accuracy, regional product eligibility, investment methodology authenticity, legal approval or production readiness. No automatic broker trades are authorised by these research definitions.
+
+## User-selected manual-data-first launch variant (October 2026)
+
+- [x] Oracle Docker self-host profile with private Postgres and basic scheduler.
+- [x] Add explicit `MARKET_DATA_MODE=MANUAL` to commercial configuration preflight; external quote licensing is **not** mandatory for genuinely user-supplied values.
+- [ ] Make *all* relevant user journeys work without a quote provider: secure timestamped price input, validation, stale-price/review controls, and provenance in charts, calculations and notifications.
+- [ ] Add end-to-end manual-data tests for each strategy, including missing prices and account discrepancies.
+- [ ] Implement off-host encrypted backups and test recovery, admin worker controls/observability, secret management and provider connectivity tests for Oracle Docker.
+- [ ] Validate complete algorithm versions with trusted golden reference examples and customer workflow tests.
+- [ ] Have a UK professional evaluate the *actual* product design, user-specific instructions, and marketing under the applicable FCA perimeter; manual-entry wording alone is not a substitute for this narrow review.
+
+Do **not** treat `MARKET_DATA_MODE=MANUAL` as sufficient proof that all strategy calculations can complete without external quotes. Users must understand that values are manual, may be stale, and are not guaranteed market prices.
