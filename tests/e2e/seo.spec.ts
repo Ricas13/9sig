@@ -4,7 +4,8 @@ for(const [path,heading] of [
  ["/features","Track the rules. See the numbers. Know the next review."],
  ["/strategies","One portfolio workspace. Different rules."],
  ["/pricing","Start simple. Add strategies as you need them."],
- ["/faq","Frequently asked questions"]
+ ["/faq","Frequently asked questions"],
+ ["/tools/rebalance-calculator","Portfolio rebalancing calculator"]
 ] as const){
  test("public SEO page "+path+" renders a canonical heading and metadata",async({page})=>{
   await page.goto(path);
@@ -24,4 +25,11 @@ test("staging never accidentally exposes indexing",async({request})=>{
 test("protected routes send noindex header",async({request})=>{
  const res=await request.get("/login",{maxRedirects:0});
  expect(res.headers()["x-robots-tag"]).toContain("noindex");
+});
+
+test("public calculator shows transparent target-weight adjustment",async({page})=>{
+ await page.goto("/tools/rebalance-calculator");
+ await expect(page.getByRole("heading",{name:"Illustrative sell £500.00"})).toBeVisible();
+ await page.getByLabel("Current value of this holding (£)").fill("5000");
+ await expect(page.getByRole("heading",{name:"Illustrative buy £1000.00"})).toBeVisible();
 });
