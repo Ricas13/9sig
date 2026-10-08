@@ -21,8 +21,8 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     const p=parseManualOverride(await request.json());
     const result=await sql.begin(async(tx)=>{
       const strategy=await tx.unsafe(
-        "SELECT i.id,i.status,i.currency,v.engine_key,ss.state FROM strategy_instances i "+
-        "JOIN strategy_versions v ON v.id=i.strategy_version_id "+
+        "SELECT i.id,i.status,a.currency,v.engine_key,ss.state FROM strategy_instances i "+
+        "JOIN accounts a ON a.id=i.account_id JOIN strategy_versions v ON v.id=i.strategy_version_id "+
         "JOIN strategy_states ss ON ss.strategy_instance_id=i.id "+
         "WHERE i.id=$1 AND i.user_id=$2 FOR UPDATE OF i",
         [id,user.id]
