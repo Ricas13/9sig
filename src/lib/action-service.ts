@@ -15,6 +15,7 @@ import { validatedEffectivePrice } from "@/domain/manual-override";
 import { loadTrustedHistory } from "@/lib/trusted-history-loader";
 import { assessStrategyMarket, StrategyMarketUnavailableError } from "@/domain/strategy/market-eligibility";
 import { VERIFIED_MARKET_MAPPINGS_SQL, verifiedCandidates } from "@/lib/verified-market-mappings";
+import { nextCalendarQuarterDueAt } from "@/domain/schedule";
 import { buildStrategyAlert } from "@/domain/strategy-alert";
 import { validatedFillTime } from "@/domain/execution-time";
 
@@ -150,14 +151,16 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
   const reviewTimezone=String(config.reviewTimezone??instance.user_timezone??"UTC");
   const holidayDates=Array.isArray(config.marketHolidays)?config.marketHolidays.filter((v):v is string=>typeof v==="string"):[];
   const convention=config.businessDayConvention==="NEXT"?"NEXT":"PREVIOUS";
-  const dueAt=nextReviewDueAt({
+  const scheduleInput={
     lastReviewAt:lastReview,
-    frequency,
     timeZone:reviewTimezone,
     cutoffLocal:String(config.reviewCutoffLocal??"16:00"),
     holidays:holidayDates,
     convention
-  });
+  };
+  const dueAt=config.reviewSchedule==="CALENDAR_QUARTER_END"
+    ?nextCalendarQuarterDueAt(scheduleInput)
+    :nextReviewDueAt({...scheduleInput,frequency});
   const reviewDue=Boolean(state.forceReview)||new Date()>=dueAt;
   const contributionRows=scenario?.resetTimeline
     ?[{amount:"0"}]
