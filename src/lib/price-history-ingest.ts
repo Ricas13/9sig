@@ -10,7 +10,9 @@ const MAX_DAYS_PER_LINE_PER_RUN = 40;
 /**
  * Fills daily adjusted closes for the trading lines of momentum research strategies. Off unless the
  * operator has confirmed, in Admin > Settings, that the data service returns adjusted closes and that
- * the licence allows storing them (MARKET_DATA_HISTORY_ADJUSTED_LICENSED). Newest missing days are
+ * the licence allows storing them (MARKET_DATA_HISTORY_ADJUSTED_LICENSED). Each returned daily
+ * price must also explicitly declare corporateActionsAdjusted=true; plain closes are rejected.
+ * Newest missing days are
  * fetched first so the series becomes fresh before the older backfill completes; each run is capped
  * so a long backfill spreads over several hourly runs.
  */

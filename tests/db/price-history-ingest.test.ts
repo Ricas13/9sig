@@ -19,7 +19,7 @@ describe.skipIf(!url)("price history ingest", () => {
     historicalPrice: async (_symbol, at) => {
       calls.push(at.toISOString());
       const day = at.toISOString().slice(0, 10);
-      return { price: "101", currency: "GBP", observedAt: at, provider: "fake", granularity: "DAILY_BAR", priceKind: "CLOSE", ...(overrides[day] ?? {}) } as never;
+      return { price: "101", currency: "GBP", observedAt: at, provider: "fake", granularity: "DAILY_BAR", priceKind: "CLOSE", corporateActionsAdjusted: true, ...(overrides[day] ?? {}) } as never;
     }
   });
   const count = async () => Number((await sql!.unsafe("SELECT count(*)::int AS n FROM price_history WHERE trading_line_id=$1", [lineId]))[0].n);
@@ -61,6 +61,19 @@ describe.skipIf(!url)("price history ingest", () => {
     const expected = new Date();
     do expected.setUTCDate(expected.getUTCDate() - 1); while ([0, 6].includes(expected.getUTCDay()));
     expect(String(newest[0].d)).toBe(expected.toISOString().slice(0, 10));
+  });
+
+  it("rejects unadjusted closes despite operator licensing flag",async()=>{
+    const before=await count();
+    process.env.MARKET_DATA_HISTORY_ADJUSTED_LICENSED="true";
+    const result=await ingestPriceHistory({provider:provider(Object.fromEntries(
+      Array.from({length:60},(_,i)=>{
+        const date=new Date(Date.now()-i*86400_000).toISOString().slice(0,10);
+        return [date,{corporateActionsAdjusted:false}];
+      })
+    ))});
+    expect(result.rejected).toBeGreaterThan(0);
+    expect(await count()).toBe(before);
   });
 
   it("rejects non-close answers instead of storing them, and a rerun continues the backfill", async () => {

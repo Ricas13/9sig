@@ -26,6 +26,11 @@ describe("trusted history", () => {
     expect(buildTrustedSeries("GOLD", days.slice(-6).map((d) => row(d)), rules)).toBeNull();
     expect(buildTrustedSeries("GOLD", days.filter((d) => !["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25"].includes(d)).map((d) => row(d)), rules)).toBeNull();
   });
+  it("rejects impossible calendar dates and any future observations",()=>{
+    expect(buildTrustedSeries("GOLD",days.map((d,i)=>row(i===3?"2026-02-30":d)),rules)).toBeNull();
+    expect(buildTrustedSeries("GOLD",[...days.slice(0,-1).map(d=>row(d)),row("2026-12-31")],rules)).toBeNull();
+    expect(buildTrustedSeries("GOLD",days.map(d=>row(d)),{...rules,now:new Date("invalid")})).toBeNull();
+  });
   it("rejects duplicate days, non-positive and non-numeric prices, and empty input", () => {
     expect(buildTrustedSeries("GOLD", [...days.map((d) => row(d)), row("2026-10-08")], rules)).toBeNull();
     expect(buildTrustedSeries("GOLD", days.map((d, i) => row(d, { adjustedClose: i === 4 ? "0" : "100" })), rules)).toBeNull();
@@ -36,7 +41,7 @@ describe("trusted history", () => {
 
 import { acceptHistoryObservation } from "../src/domain/trusted-history";
 describe("history observations from a provider", () => {
-  const good = { price: "101.5", currency: "GBP", observedAt: new Date("2026-10-08T21:00:00Z"), granularity: "DAILY_BAR", priceKind: "CLOSE" };
+  const good = { price: "101.5", currency: "GBP", observedAt: new Date("2026-10-08T21:00:00Z"), granularity: "DAILY_BAR", priceKind: "CLOSE", corporateActionsAdjusted: true };
   it("accepts only a daily CLOSE dated that day in the line's currency", () => {
     expect(acceptHistoryObservation(good, "2026-10-08", "GBP")).toBe(true);
     expect(acceptHistoryObservation({ ...good, currency: "gbp" }, "2026-10-08", "GBP")).toBe(true);
@@ -44,6 +49,10 @@ describe("history observations from a provider", () => {
     expect(acceptHistoryObservation({ ...good, priceKind: "LAST" }, "2026-10-08", "GBP")).toBe(false);
     expect(acceptHistoryObservation({ ...good, granularity: "MINUTE_BAR" }, "2026-10-08", "GBP")).toBe(false);
     expect(acceptHistoryObservation({ ...good, granularity: undefined }, "2026-10-08", "GBP")).toBe(false);
+    expect(acceptHistoryObservation({ ...good, corporateActionsAdjusted: false }, "2026-10-08", "GBP")).toBe(false);
+    expect(acceptHistoryObservation({ ...good, corporateActionsAdjusted: undefined }, "2026-10-08", "GBP")).toBe(false);
+    expect(acceptHistoryObservation({ ...good, observedAt: new Date("invalid") }, "2026-10-08", "GBP")).toBe(false);
+    expect(acceptHistoryObservation(good, "2026-02-30", "GBP")).toBe(false);
     expect(acceptHistoryObservation({ ...good, currency: "USD" }, "2026-10-08", "GBP")).toBe(false);
     expect(acceptHistoryObservation(good, "2026-10-09", "GBP")).toBe(false); // previous session returned for a holiday
     expect(acceptHistoryObservation({ ...good, price: "0" }, "2026-10-08", "GBP")).toBe(false);
