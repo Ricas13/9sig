@@ -4,6 +4,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { getEmailProvider } from "@/lib/email";
 import { loadEntitlements } from "@/lib/entitlement-service";
 import { DELIVERY_MAX_ATTEMPTS,retryDelaySeconds } from "@/domain/delivery-retry";
+import { telegramCall } from "@/lib/telegram";
 
 export async function createDeliveriesForNotification(notificationId: string) {
   const rows=await sql.unsafe("SELECT n.id,n.user_id,n.action_id FROM notifications n WHERE n.id=$1 LIMIT 1",[notificationId]);
@@ -15,7 +16,7 @@ export async function createDeliveriesForNotification(notificationId: string) {
   const connected=new Set(endpoints.map((row)=>String(row.channel)));
   for(const channel of entitlements.notificationChannels){
     if(channel==="IN_APP")continue;
-    if(channel==="DISCORD"&&!connected.has("DISCORD"))continue;
+    if((channel==="DISCORD"||channel==="TELEGRAM")&&!connected.has(channel))continue;
     const dedupe=String(notificationId)+":"+channel;
     await sql.unsafe("INSERT INTO notification_deliveries (notification_id,channel,dedupe_key) VALUES ($1,$2,$3) ON CONFLICT (dedupe_key) DO NOTHING",[notificationId,channel,dedupe]);
   }
@@ -109,6 +110,18 @@ async function processDeliveryBatch(limit:number){
     try{
       if(d.channel==="EMAIL"){
         ok=await getEmailProvider().send({to:String(d.email),subject:String(d.title),text:String(d.body)});
+      }else if(d.channel==="TELEGRAM"){
+        const endpoints=await sql.unsafe("SELECT encrypted_destination FROM notification_endpoints WHERE user_id=$1 AND channel='TELEGRAM' AND enabled=true LIMIT 1",[d.user_id]);
+        if(!endpoints[0]){
+          await sql.unsafe("UPDATE notification_deliveries SET status='CANCELLED',last_error_code='NO_ENDPOINT',updated_at=now() WHERE id=$1 AND status='SENDING'",[d.id]);
+          continue;
+        }
+        const result=await telegramCall("sendMessage",{
+          chat_id:decryptSecret(String(endpoints[0].encrypted_destination)),
+          text:String(d.title)+"\n"+String(d.body)
+        });
+        ok=result.ok;
+        retryAfterSeconds=result.retryAfterSeconds??null;
       }else if(d.channel==="DISCORD"){
         const endpoints=await sql.unsafe("SELECT encrypted_destination FROM notification_endpoints WHERE user_id=$1 AND channel='DISCORD' AND enabled=true LIMIT 1",[d.user_id]);
         if(!endpoints[0]){

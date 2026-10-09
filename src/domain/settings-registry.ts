@@ -23,7 +23,7 @@ export type SettingDefinition = {
 };
 
 export const SETTING_GROUPS = [
-  "General", "Billing (Stripe)", "Email", "Market data", "Sign-in providers", "Mobile apps", "Mobile app purchases", "Monitoring", "Security", "Launch sign-offs", "Background worker"
+  "General", "Billing (Stripe)", "Email", "Messaging (Telegram)", "Market data", "Sign-in providers", "Mobile apps", "Mobile app purchases", "Monitoring", "Security", "Launch sign-offs", "Background worker"
 ] as const;
 
 const bool = (key: string, label: string, group: string, help: string): SettingDefinition => ({ key, label, group, kind: "boolean", help });
@@ -43,6 +43,10 @@ export const SETTINGS: readonly SettingDefinition[] = [
   { key: "EMAIL_HTTP_ENDPOINT", label: "Email service address", group: "Email", kind: "url", help: "The https endpoint that accepts a JSON message." },
   { key: "EMAIL_HTTP_TOKEN", label: "Email service token", group: "Email", kind: "secret", help: "Bearer token for the email service." },
   { key: "EMAIL_FROM", label: "From address", group: "Email", kind: "text", help: "For example support@yourdomain.com. Must be an address your email service may send from." },
+
+  { key: "TELEGRAM_BOT_TOKEN", label: "Telegram bot token", group: "Messaging (Telegram)", kind: "secret", help: "Token issued by BotFather. Saved encrypted and never sent to the browser." },
+  { key: "TELEGRAM_BOT_USERNAME", label: "Telegram bot username", group: "Messaging (Telegram)", kind: "text", pattern: /^[A-Za-z][A-Za-z0-9_]{4,31}$/, patternMessage: "Use the bot username without @ (5–32 letters, digits or underscores).", help: "Bot username without @, used to connect customers safely." },
+  { key: "TELEGRAM_WEBHOOK_SECRET", label: "Telegram webhook verification secret", group: "Messaging (Telegram)", kind: "secret", help: "Generate 32+ characters of letters, digits, underscore or dash. Used to authenticate webhook requests." },
 
   { key: "MARKET_DATA_MODE", label: "Market data mode", group: "Market data", kind: "select", options: ["PROVIDER", "MANUAL"], help: "PROVIDER fetches prices from your data service. MANUAL means prices are entered by people." },
   { key: "MARKET_DATA_PROVIDER", label: "Market data provider", group: "Market data", kind: "select", options: ["http", "mock"], help: "http uses the service below. mock only works outside production." },
