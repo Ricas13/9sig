@@ -44,3 +44,18 @@ export function buildTrustedSeries(exposure: string, rows: readonly HistoryRow[]
   for (let i = 1; i < points.length; i += 1) if (points[i].at.getTime() - points[i - 1].at.getTime() > maxGap) return null;
   return { exposure, currency: rules.currency.toUpperCase(), points, source: [...providers][0] };
 }
+
+export type HistoryObservation = { price: string; currency: string; observedAt: Date; granularity?: string; priceKind?: string };
+
+/**
+ * Whether a provider answer may be stored as that day's adjusted close. It must be a daily-bar CLOSE
+ * dated exactly that day, in the line's currency, with a positive price. Anything else (an intraday
+ * quote, the previous session returned for a holiday, a different currency) is rejected, never guessed.
+ */
+export function acceptHistoryObservation(observation: HistoryObservation | null, day: string, currency: string) {
+  if (!observation) return false;
+  if (observation.priceKind !== "CLOSE" || observation.granularity !== "DAILY_BAR") return false;
+  if (observation.currency.toUpperCase() !== currency.toUpperCase()) return false;
+  if (observation.observedAt.toISOString().slice(0, 10) !== day) return false;
+  try { return new Decimal(observation.price).gt(0); } catch { return false; }
+}

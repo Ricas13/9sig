@@ -3,6 +3,7 @@ import { calculateAction } from "@/lib/action-service";
 import { createPendingDeliveries, processDeliveryBacklog } from "@/lib/notification-service";
 import { rebuildAnonymousAggregates } from "@/lib/aggregate-service";
 import { refreshMarketData } from "@/lib/market-data-worker";
+import { ingestPriceHistory } from "@/lib/price-history-ingest";
 import { enforceStrategyEntitlements } from "@/lib/entitlement-service";
 import { finishPendingAccountDeletions } from "@/lib/account-deletion";
 import { runBounded } from "@/lib/work-pool";
@@ -64,6 +65,8 @@ export async function GET(request: Request) {
     const accountDeletions = await finishPendingAccountDeletions().catch(() => ({ completed: 0, stalled: -1 }));
 
     const marketData = await refreshMarketData({ deadline: phaseEnds(0.3), concurrency: 5 });
+    // Research-only history for momentum strategies; a failure here must never block the real run.
+    await ingestPriceHistory({ deadline: phaseEnds(0.4), concurrency: 3 }).catch(() => null);
 
     // Safety net: plan changes, missed webhooks or manual edits must never leave strategies
     // running beyond what the owner's plan allows. Pausing happens before calculation.

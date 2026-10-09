@@ -80,3 +80,7 @@ Sign-in with Google and Apple; installable mobile web app and Android/iOS shell;
 - Investor-chosen weights: `userWeights` + `weight_<EXPOSURE>` settings for fixed allocation; invalid weights yield DATA_REQUIRED.
 - Semi-annual and threshold-only schedules (merged earlier).
 - Still open: spec-card sign-off (docs/strategy-specs), wiring the planner into the engine, input_schema entries for weights on the three-fund/60-40/80-20 versions.
+
+## Strategy catalogue, price history ingest
+- The hourly run now fills daily closes for the trading lines of momentum research strategies (`src/lib/price-history-ingest.ts`). It is off until an administrator turns on "Store adjusted daily history" in Admin > Settings, confirming the data service returns split- and dividend-adjusted closes and its licence allows storing them. It accepts only a daily-bar CLOSE dated that exact day; newest missing days first, 40 per line per run.
+- Not tested against a real provider: whether the provider's historical endpoint really returns adjusted closes is the operator's confirmation, not something the code can check.
