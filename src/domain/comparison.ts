@@ -19,7 +19,8 @@ export function simulateSameCashFlows(input: {
     .filter((point) => point.value.isFinite() && point.value.gt(0))
     .sort((a,b) => a.date.localeCompare(b.date));
 
-  if (!points.length) return [] as CounterfactualPoint[];
+  if (!points.length || points[0].date!==input.anchorDate) return [] as CounterfactualPoint[];
+  if(new Set(points.map(point=>point.date)).size!==points.length)throw new Error("DUPLICATE_BENCHMARK_DATE");
 
   const flows = [...input.flows]
     .filter((flow) => flow.date > input.anchorDate)
