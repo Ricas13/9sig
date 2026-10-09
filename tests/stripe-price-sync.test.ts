@@ -20,6 +20,8 @@ describe("Master Admin Stripe price sync and existing subscriber safety",()=>{
  });
  it("does not allow a concurrent plan price update to be silently overwritten",()=>{
    expect(source).toContain("FOR UPDATE");
+   expect(source).toContain('String(current[0].stripe_price_id??"")!==String(row.stripe_price_id??"")');
+   expect(source).toContain("PRICE_HISTORY_CONFLICT");
    expect(source).toContain("amount_minor");
    expect(source).toContain('The plan price changed during sync');
  });

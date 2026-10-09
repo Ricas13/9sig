@@ -69,13 +69,18 @@ export async function POST(request:Request){
     // to pick up idempotently if configuration is retried.
     const updated=await sql.begin(async tx=>{
       const current=await tx.unsafe("SELECT stripe_price_id,amount_minor FROM plan_prices WHERE id=$1 FOR UPDATE",[row.id]);
-      if(!current[0]||Number(current[0].amount_minor)!==Number(row.amount_minor))return false;
+      if(!current[0]||Number(current[0].amount_minor)!==Number(row.amount_minor)||
+         String(current[0].stripe_price_id??"")!==String(row.stripe_price_id??""))return false;
       if(current[0].stripe_price_id){
         await tx.unsafe("INSERT INTO stripe_price_mappings (stripe_price_id,plan_id,currency,cadence,amount_minor) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (stripe_price_id) DO NOTHING",
           [current[0].stripe_price_id,row.plan_id,parsed.currency,parsed.cadence,row.amount_minor]);
       }
-      const conflict=await tx.unsafe("SELECT plan_id FROM stripe_price_mappings WHERE stripe_price_id=$1",[price.id]);
-      if(conflict[0]&&String(conflict[0].plan_id)!==String(row.plan_id))throw new Error("PRICE_OWNER_CONFLICT");
+      const conflict=await tx.unsafe("SELECT plan_id,currency,cadence,amount_minor FROM stripe_price_mappings WHERE stripe_price_id=$1",[price.id]);
+      if(conflict[0]&&(String(conflict[0].plan_id)!==String(row.plan_id)||
+         String(conflict[0].currency).toUpperCase()!==parsed.currency||
+         String(conflict[0].cadence)!==parsed.cadence||
+         Number(conflict[0].amount_minor)!==Number(row.amount_minor)))
+         throw new Error("PRICE_HISTORY_CONFLICT");
       await tx.unsafe("INSERT INTO stripe_price_mappings (stripe_price_id,plan_id,currency,cadence,amount_minor) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (stripe_price_id) DO NOTHING",
         [price.id,row.plan_id,parsed.currency,parsed.cadence,row.amount_minor]);
       await tx.unsafe("UPDATE plan_prices SET stripe_price_id=$1,updated_at=now() WHERE id=$2",[price.id,row.id]);
