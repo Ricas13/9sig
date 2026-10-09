@@ -57,6 +57,16 @@ async function main(){
       );
     }
 
+    // Persist *all* research names for admin inventory without exposing any as an executable release.
+    // Published versions and engine validation remain separate review and code gates.
+    for(const research of RESEARCH_STRATEGIES){
+      await sql.unsafe(
+        "INSERT INTO strategy_definitions (key,name,family,description,engine,enabled,proprietary,supported_regions,supported_wrappers) "+
+        "VALUES ($1,$2,'RESEARCH', $3,$4,false,false,'[]'::jsonb,'[]'::jsonb) ON CONFLICT (key) DO NOTHING",
+        [research.key,research.name,research.rules,research.engine]
+      );
+    }
+
     await sql.unsafe("INSERT INTO benchmarks (key,name,economic_exposure,description) VALUES ('global-equity','Global Equity','GLOBAL_EQUITY','Broad global equity benchmark') ON CONFLICT (key) DO NOTHING");
     // Names only, never fake index history. Market comparisons require licensed total-return series.
     for(const [ticker,name] of [["vti","Vanguard Total Stock Market ETF"],["spy","SPDR S&P 500 ETF Trust"],["qqq","Invesco QQQ Trust"]]){

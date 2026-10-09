@@ -99,6 +99,46 @@ export const RESEARCH_STRATEGIES: readonly StrategyProfile[] = [
     research:["https://www.paulmerriman.com/"],risks:["Many sleeves and dealing costs"]
   },
   {
+    key:"income-sig",name:"Income Sig (Jason Kelly)",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    rules:"Official quarterly Income Sig leveraged allocation and surplus-skimming methodology; exact weights, reserve management and all reset rules must be verified from the author's materials.",
+    research:["https://jasonkelly.com/"],risks:["Daily-reset leverage","Proprietary licensed rules","High downside risk"]
+  },
+  {
+    key:"two-funds-for-life",name:"Two Funds for Life (Paul Merriman)",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    rules:"Merriman's two-fund lifetime allocation between S&P 500 and small-cap value; age adjustments, instrument rules and rebalancing need source-specific testing.",
+    research:["https://www.paulmerriman.com/"],risks:["Style and size tilt","Fund universe and tax wrapper restrictions"]
+  },
+  {
+    key:"bernstein-no-brainer",name:"Bernstein No-Brainer Portfolio",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    rules:"William Bernstein inspired diversified US and international stock sleeves and short government bonds; verify published weights and dates before release.",
+    research:["https://www.bogleheads.org/wiki/Lazy_portfolios"],risks:["Equity risk","Regional duration, currency and instrument fidelity"]
+  },
+  {
+    key:"larry-portfolio",name:"Larry Portfolio",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    rules:"Larry Swedroe's factor-oriented equity and fixed-income model; multiple named historical variants require strict identification.",
+    research:["https://portfoliocharts.com/portfolios/"],risks:["Small/value factor implementation","Duration exposure","Fidelity of available ETFs"]
+  },
+  {
+    key:"pinwheel",name:"Pinwheel Portfolio",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    rules:"Portfolio Charts Pinwheel multi-asset reference; verify the entire original asset allocation and international fund translation.",
+    research:["https://portfoliocharts.com/portfolios/"],risks:["Multi-asset rebalancing and tax","Home-country exposure mapping"]
+  },
+  {
+    key:"trinity",name:"Trinity Portfolio (Meb Faber)",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    rules:"A named Trinity Portfolio version must specify allocation, momentum timing and cash rules; do not blend static and tactical implementations.",
+    research:["https://mebfaber.com/"],risks:["Timing implementation differences","Model data/licensing requirements"]
+  },
+  {
+    key:"trend-200d",name:"200-Day Moving Average Trend",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    rules:"A versioned 200-day closing-price trend-following method; universe, signal-day convention, defensive asset, and adjusted-price policy must be fixed and verified.",
+    research:["https://mebfaber.com/"],risks:["Whipsaw","Corporate actions and trading calendars","False signals on unadjusted quotes"]
+  },
+  {
+    key:"risk-parity",name:"Risk Parity (rules-based reference)",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    rules:"Risk-parity is a method family rather than one fixed allocation: publish a specific public methodology with lookback windows, covariance settings and rebalance rules.",
+    research:["https://portfoliocharts.com/portfolios/"],risks:["Leverage and covariance instability","Ambiguous reference implementation"]
+  },
+  {
     key:"dual-momentum",name:"Global Dual Momentum",engine:"MOMENTUM_ROTATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
     rules:"Compare specified equity assets over a versioned 12-month lookback; select the relative winner only if its absolute return exceeds the explicitly configured defensive hurdle, otherwise hold defensive assets. Review monthly. Exact universes, signals, lookback, end-of-month convention and defensive asset MUST be explicit.",
     research:["https://www.optimalmomentum.com/global-equities-momentum/"],risks:["Whipsaws","Look-ahead bias","Missing historical data must block trades"]
