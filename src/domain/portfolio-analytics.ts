@@ -114,3 +114,21 @@ export function rankOnCommonHistory(series:StrategySeries[]) {
   }).filter(x=>x.summary?.flowAdjustedReturnPct!=null)
     .sort((a,b)=>Number(b.summary!.flowAdjustedReturnPct)-Number(a.summary!.flowAdjustedReturnPct));
 }
+
+/** A common 100-base index removes effects of contributions from comparisons. */
+export function growthIndex(values:Valuation[],flows:DatedFlow[]):Valuation[] {
+  const points=normaliseValuations(values);
+  if(!points.length)return [];
+  let index=new Decimal(100);
+  const out:Valuation[]=[{date:points[0].date,value:"100"}];
+  for(let i=1;i<points.length;i++) {
+    const previous=new Decimal(points[i-1].value);
+    if(previous.lte(0))return [];
+    const external=sumFlows(flows,points[i-1].date,points[i].date);
+    const adjusted=new Decimal(points[i].value).minus(external);
+    if(adjusted.lt(0))return [];
+    index=index.mul(adjusted.div(previous));
+    out.push({date:points[i].date,value:index.toString()});
+  }
+  return out;
+}
