@@ -63,7 +63,9 @@ describe("curated strategy market eligibility",()=>{
       {riskAssets:["US_EQUITY_3X_LONG"]},
       {riskAssets:["US_EQUITY_3X_LONG"],defensiveAsset:""},
       {riskAssets:["US_EQUITY_3X_LONG",null],defensiveAsset:"LONG_TREASURY_3X_LONG"},
-      {riskAssets:[],defensiveAsset:"LONG_TREASURY_3X_LONG"}
+      {riskAssets:[],defensiveAsset:"LONG_TREASURY_3X_LONG"},
+      {riskAssets:["US_EQUITY_3X_LONG","US_EQUITY_3X_LONG"],defensiveAsset:"LONG_TREASURY_3X_LONG"},
+      {riskAssets:["US_EQUITY_3X_LONG"],defensiveAsset:"US_EQUITY_3X_LONG"}
     ]) {
       const result=assessStrategyMarket("MOMENTUM_ROTATION",config,candidates,choice,asOf);
       expect(result.available,JSON.stringify(config)).toBe(false);
