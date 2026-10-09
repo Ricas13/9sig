@@ -31,7 +31,9 @@ async function resolvePlanId(subscription: Stripe.Subscription) {
   const priceId=subscription.items.data[0]?.price.id;
   if(priceId){
     const byPrice=await sql.unsafe(
-      "SELECT DISTINCT p.id FROM plan_prices pp JOIN plans p ON p.id=pp.plan_id WHERE pp.stripe_price_id=$1 LIMIT 2",
+      "SELECT DISTINCT p.id FROM plans p WHERE p.id IN ("+
+      "SELECT m.plan_id FROM stripe_price_mappings m WHERE m.stripe_price_id=$1 "+
+      "UNION SELECT pp.plan_id FROM plan_prices pp WHERE pp.stripe_price_id=$1) LIMIT 2",
       [priceId]
     );
     if(byPrice.length>1)throw new Error("AMBIGUOUS_STRIPE_PRICE");
