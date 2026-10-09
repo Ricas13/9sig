@@ -66,12 +66,14 @@ describe.skipIf(!url)("price history ingest", () => {
   it("rejects unadjusted closes despite operator licensing flag",async()=>{
     const before=await count();
     process.env.MARKET_DATA_HISTORY_ADJUSTED_LICENSED="true";
-    const result=await ingestPriceHistory({provider:provider(Object.fromEntries(
-      Array.from({length:60},(_,i)=>{
-        const date=new Date(Date.now()-i*86400_000).toISOString().slice(0,10);
-        return [date,{corporateActionsAdjusted:false}];
+    const unadjustedProvider={
+      ...provider(),historicalPrice:async (_symbol:string,at:Date)=>({
+        price:"101",currency:"GBP",observedAt:at,provider:"fake",
+        granularity:"DAILY_BAR" as const,priceKind:"CLOSE" as const,
+        corporateActionsAdjusted:false
       })
-    ))});
+    };
+    const result=await ingestPriceHistory({provider:unadjustedProvider});
     expect(result.rejected).toBeGreaterThan(0);
     expect(await count()).toBe(before);
   });
