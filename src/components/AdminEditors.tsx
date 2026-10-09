@@ -100,11 +100,14 @@ export function StrategyVersionManager(){
       config:String(f.get("config")).trim()?json(String(f.get("config")),{}):undefined,
       disclosure:f.get("disclosure")||undefined,releaseNotes:f.get("releaseNotes")||undefined
     });
+    else if(action==="ATTEST")await submit({
+      action,versionId:f.get("versionId"),specCard:String(f.get("specCard")),goldenTests:String(f.get("goldenTests")),notes:String(f.get("attestNotes")||"")
+    });
     else await submit({action,versionId:f.get("versionId")});
   }catch{setError("Draft configuration must be valid JSON.");}}}>
     <h3>Manage strategy release</h3><div className="form-grid">
       <Field className="field full" label="Version UUID"><input name="versionId" required/></Field>
-      <Field label="Action"><select name="action"><option>UPDATE_DRAFT</option><option>PUBLISH</option><option>RETIRE</option></select></Field>
+      <Field label="Action"><select name="action"><option>UPDATE_DRAFT</option><option>ATTEST</option><option>PUBLISH</option><option>RETIRE</option></select></Field>
       <Field label="Engine override (draft only)"><select name="engineKey"><option value="">Keep current</option><option>VALUE_TARGET</option><option>FIXED_ALLOCATION</option></select></Field>
       <Field label="Effective from (draft only)"><input name="effectiveFrom" type="date"/></Field>
       <Field label="Effective to (draft only)"><input name="effectiveTo" type="date"/></Field>
@@ -113,6 +116,9 @@ export function StrategyVersionManager(){
       <Field className="field full" label="Config JSON (blank = keep current)"><textarea name="config" rows={6}/></Field>
       <Field className="field full" label="Release notes (blank = keep current)"><textarea name="releaseNotes" rows={2}/></Field>
       <Field className="field full" label="Disclosure (blank = keep current)"><textarea name="disclosure" rows={2}/></Field>
+      <Field label="Signed-off spec card (attest only)"><input name="specCard" placeholder="docs/strategy-specs/hfea.md"/></Field>
+      <Field label="Golden tests (attest only)"><input name="goldenTests" placeholder="tests/golden/hfea.test.ts"/></Field>
+      <Field className="field full" label="Attestation notes (attest only)"><textarea name="attestNotes" rows={2}/></Field>
     </div><button className="button primary" style={{marginTop:16}}>Apply release action</button>{(error||message)&&<div className={error?"error":"success"}>{error||message}</div>}
   </form>;
 }

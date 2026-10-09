@@ -71,6 +71,9 @@ The checked items in that file are unchanged and accurate. Unchecked items:
 
 Sign-in with Google and Apple; installable mobile web app and Android/iOS shell; App Store / Google Play subscriptions alongside Stripe; admin settings screen and first-run setup; operational alerts; accessibility checks. Each is described in its pull request; none has been tested against the live external service it depends on.
 
+## Strategy catalogue, Phase 4 gate (attestations)
+- Publishing a version through the admin route now requires a recorded attestation (spec card path under `docs/strategy-specs/` and where the golden tests live) via the new `ATTEST` action; table `strategy_version_attestations` (migration 0025). The attestation records who signed and when; it does not verify the card itself, a person must.
+- Momentum engines remain research-only (not in the customer-publishable allowlist).
 ## Strategy catalogue, Phase 1 (engineering)
 - Typed exposure registry: `src/domain/strategy/exposures.ts`, catalogue coverage tested.
 - Ordered-legs rebalance planner: `src/domain/strategy/rebalance-plan.ts`, hand-computed golden tests. Not yet wired into the engine's step-by-step action flow (the engine still proposes one leg per recalculation).
