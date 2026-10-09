@@ -75,7 +75,8 @@ export function assessStrategyMarket(
   if (engine === "MOMENTUM_ROTATION" &&
       (!Array.isArray(config.riskAssets) || config.riskAssets.length === 0 ||
        config.riskAssets.some((asset) => typeof asset !== "string" || !asset.trim()) ||
-       typeof config.defensiveAsset !== "string" || !config.defensiveAsset.trim())) {
+       typeof config.defensiveAsset !== "string" || !config.defensiveAsset.trim() ||
+       new Set([...config.riskAssets, config.defensiveAsset]).size !== config.riskAssets.length + 1)) {
     return { available: false, positions: [], missingExposures: ["Unverified strategy rules"], supportedMarkets: [] };
   }
   const required = requiredPositions(engine, config);
