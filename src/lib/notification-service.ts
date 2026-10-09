@@ -14,14 +14,25 @@ export async function createDeliveriesForNotification(notificationId: string) {
   // user who never connected a webhook would only retry to exhaustion and dead-letter.
   const endpoints=await sql.unsafe("SELECT channel FROM notification_endpoints WHERE user_id=$1 AND enabled=true",[n.user_id]);
   const connected=new Set(endpoints.map((row)=>String(row.channel)));
-  for(const channel of entitlements.notificationChannels){
-    if(channel==="IN_APP")continue;
-    if((channel==="DISCORD"||channel==="TELEGRAM")&&!connected.has(channel))continue;
-    const dedupe=String(notificationId)+":"+channel;
-    await sql.unsafe("INSERT INTO notification_deliveries (notification_id,channel,dedupe_key) VALUES ($1,$2,$3) ON CONFLICT (dedupe_key) DO NOTHING",[notificationId,channel,dedupe]);
-  }
-  // Processed, even when no channel applied (in-app only): it must never be selected again.
-  await sql.unsafe("UPDATE notifications SET deliveries_created_at=now() WHERE id=$1 AND deliveries_created_at IS NULL",[notificationId]);
+  // The owning account may be deleted after the initial lookup but before queue insertion.
+  // Hold a short row lock while creating children and marking the notification handled: this
+  // prevents a concurrent account/notification cascade from producing an FK failure and
+  // serialises overlapping workers. All inserts and the processed marker commit together.
+  await sql.begin(async tx=>{
+    const live=await tx.unsafe("SELECT id FROM notifications WHERE id=$1 FOR UPDATE",[notificationId]);
+    if(!live[0])return;
+    for(const channel of entitlements.notificationChannels){
+      if(channel==="IN_APP")continue;
+      if((channel==="DISCORD"||channel==="TELEGRAM")&&!connected.has(channel))continue;
+      const dedupe=String(notificationId)+":"+channel;
+      await tx.unsafe(
+        "INSERT INTO notification_deliveries (notification_id,channel,dedupe_key) VALUES ($1,$2,$3) ON CONFLICT (dedupe_key) DO NOTHING",
+        [notificationId,channel,dedupe]
+      );
+    }
+    // Even in-app-only notices must be marked handled to avoid an infinite worker backlog.
+    await tx.unsafe("UPDATE notifications SET deliveries_created_at=now() WHERE id=$1 AND deliveries_created_at IS NULL",[notificationId]);
+  });
 }
 
 // Creates deliveries for notifications that have not been through the worker yet, oldest first.
