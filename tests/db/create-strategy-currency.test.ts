@@ -47,6 +47,22 @@ describe.skipIf(!url)("strategy creation normalises currency",()=>{
     expect(ledger.map((r)=>String(r.currency))).toEqual(["GBP"]);
   });
 
+  it("rejects unsupported markets atomically without creating an account, strategy, or cash ledger",async()=>{
+    const id=await user("unsupported");
+    // AQ has no approved local exchange or account mapping in the curated catalogue.
+    // A failure is not permission to substitute an unrelated US or UK ticker.
+    await expect(createStrategy(id,"AQ",input("GBP"))).rejects.toMatchObject({
+      code:"STRATEGY_MARKET_UNAVAILABLE"
+    });
+    const rows=await sql!.unsafe(
+      "SELECT (SELECT count(*)::int FROM accounts WHERE user_id=$1) AS accounts,"+
+      "(SELECT count(*)::int FROM strategy_instances WHERE user_id=$1) AS strategies,"+
+      "(SELECT count(*)::int FROM ledger_events l JOIN strategy_instances i ON i.id=l.strategy_instance_id WHERE i.user_id=$1) AS ledger",
+      [id]
+    );
+    expect(rows[0]).toMatchObject({accounts:0,strategies:0,ledger:0});
+  });
+
   it("rejects something that is not a three-letter code",async()=>{
     const id=await user("bad");
     await expect(createStrategy(id,"GB",input("1$3"))).rejects.toThrow("INVALID_CURRENCY");
