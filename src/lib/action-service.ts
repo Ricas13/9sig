@@ -12,6 +12,7 @@ import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/co
 import { actionRecalculationDisposition, type ActionStatus } from "@/domain/actions";
 import { actionFingerprintMaterial } from "@/domain/action-fingerprint";
 import { validatedEffectivePrice } from "@/domain/manual-override";
+import { loadTrustedHistory } from "@/lib/trusted-history-loader";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
 type CalculationScenario={
@@ -159,7 +160,11 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
     :await sql.unsafe("SELECT COALESCE(sum(l.cash_amount),0) AS amount FROM ledger_events l WHERE l.strategy_instance_id=$1 AND l.event_type='CONTRIBUTION' AND l.occurred_at>$2 AND NOT EXISTS (SELECT 1 FROM ledger_events c WHERE c.correction_of_event_id=l.id)",[strategyInstanceId,lastReview]);
   const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0)).plus(new Decimal(scenario?.contributionDelta??0));
   const engine=getStrategyEngine(calculationEngineKey);
-  let proposal=engine.calculate({strategyInstanceId,strategyVersionId:calculationVersionId,now:new Date(),baseCurrency:String(instance.currency),cash:effectiveCash,exposures:engineExposures,contributionsSinceReview,state,config,settings,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
+  // Momentum research engines read licensed price history; every other engine ignores it.
+  const momentumUniverse=calculationEngineKey==="MOMENTUM_ROTATION"&&Array.isArray(config.riskAssets)&&typeof config.defensiveAsset==="string"
+    ?[...(config.riskAssets as unknown[]).map(String),String(config.defensiveAsset)]:null;
+  const trustedHistory=momentumUniverse?await loadTrustedHistory(momentumUniverse,String(instance.currency),Number(config.lookbackMonths)||12):undefined;
+  let proposal=engine.calculate({strategyInstanceId,trustedHistory,strategyVersionId:calculationVersionId,now:new Date(),baseCurrency:String(instance.currency),cash:effectiveCash,exposures:engineExposures,contributionsSinceReview,state,config,settings,reviewDue,nextReviewAt:dueAt,dataHealth:{status:dataStatus,message:dataMessage}});
 
   let tradingLineId:string|null=null;
   let executionTicker:string|null=null;
