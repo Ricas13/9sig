@@ -119,30 +119,51 @@ export async function PATCH(request:Request){
     if(p.action==="TOGGLE_DEFINITION"){
       if(p.strategyKey!=="9sig"&&!RESEARCH_STRATEGIES.some(profile=>profile.key===p.strategyKey))
         return Response.json({error:"Only built-in strategies can be managed."},{status:400});
-      const existing=await sql.unsafe(
-        "SELECT d.id,d.enabled,v.engine_key,v.config FROM strategy_definitions d "+
-        "LEFT JOIN LATERAL (SELECT engine_key,config FROM strategy_versions WHERE strategy_definition_id=d.id "+
-        "AND lifecycle_status='PUBLISHED' AND effective_from<=current_date "+
-        "AND (effective_to IS NULL OR effective_to>=current_date) ORDER BY effective_from DESC LIMIT 1) v ON true "+
-        "WHERE d.key=$1",[p.strategyKey]);
-      if(!existing[0])return Response.json({error:"Strategy is not installed in the database."},{status:404});
-      if(p.enabled){
-        const row=existing[0];
-        if(!row.engine_key)return Response.json({error:"Publish and verify this strategy before enabling it."},{status:409});
-        const markets=assessStrategyMarket(String(row.engine_key),(row.config??{}) as Record<string,unknown>,
-          verifiedCandidates(await sql.unsafe(VERIFIED_MARKET_MAPPINGS_SQL)),
-          {country:"GB",wrapper:"ISA",currency:"GBP"},new Date().toISOString().slice(0,10));
-        if(!markets.supportedMarkets.length)return Response.json({error:"No fully verified country/account implementation is configured yet."},{status:409});
-      }
-      if(p.enabled){
-        try{
-          const row=existing[0];
-          assertCuratedRules(p.strategyKey,String(row.engine_key),row.config,[]);
-        }catch{return Response.json({error:"Strategy rules differ from the reviewed built-in profile. A code-reviewed release is required."},{status:409});}
-      }
-      await sql.unsafe("UPDATE strategy_definitions SET enabled=$2,updated_at=now() WHERE id=$1",[existing[0].id,p.enabled]);
-      await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy-definition.toggled','strategy_definition',$2,$3::jsonb)",[admin.id,p.strategyKey,JSON.stringify({enabled:p.enabled})]);
-      return Response.json({ok:true,enabled:p.enabled});
+      // Serialize the definition toggle with PUBLISH/RETIRE (same definition lock).
+      // Otherwise an operator can enable a version while someone else retires it.
+      const enabled=await sql.begin(async tx=>{
+        const definitions=await tx.unsafe(
+          "SELECT id FROM strategy_definitions WHERE key=$1 FOR UPDATE",[p.strategyKey]
+        );
+        if(!definitions[0])throw new LifecycleConflict("Strategy is not installed in the database.",404);
+        if(p.enabled){
+          const releases=await tx.unsafe(
+            "SELECT v.id,v.engine_key,v.config,v.input_schema,a.strategy_version_id AS attestation_id "+
+            "FROM strategy_versions v LEFT JOIN strategy_version_attestations a ON a.strategy_version_id=v.id "+
+            "WHERE v.strategy_definition_id=$1 AND v.lifecycle_status='PUBLISHED' "+
+            "AND v.effective_from<=current_date AND (v.effective_to IS NULL OR v.effective_to>=current_date) "+
+            "ORDER BY v.effective_from DESC,v.published_at DESC NULLS LAST LIMIT 1 FOR UPDATE OF v",
+            [definitions[0].id]
+          );
+          const release=releases[0];
+          if(!release)throw new LifecycleConflict("Publish and verify this strategy before enabling it.",409);
+          if(!release.attestation_id)
+            throw new LifecycleConflict("A published strategy needs a recorded independent methodology and golden-test sign-off before activation.",409);
+          try{
+            assertCustomerPublishableEngine(String(release.engine_key));
+            assertCuratedRules(p.strategyKey,String(release.engine_key),
+              release.config,release.input_schema);
+          }catch{
+            throw new LifecycleConflict("The release does not match the built-in reviewed strategy method.",409);
+          }
+          const market=assessStrategyMarket(String(release.engine_key),
+            (release.config??{}) as Record<string,unknown>,
+            verifiedCandidates(await tx.unsafe(VERIFIED_MARKET_MAPPINGS_SQL)),
+            {country:"GB",wrapper:"ISA",currency:"GBP"},new Date().toISOString().slice(0,10));
+          if(!market.supportedMarkets.length)
+            throw new LifecycleConflict("No complete configured country/account instrument mapping is available.",409);
+          // These are technical enablement prerequisites, NOT evidence that the
+          // broker permits purchases or that data/licensing/legal gates have passed.
+        }
+        await tx.unsafe("UPDATE strategy_definitions SET enabled=$2,updated_at=now() WHERE id=$1",
+          [definitions[0].id,p.enabled]);
+        await tx.unsafe(
+          "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy-definition.toggled','strategy_definition',$2,$3::jsonb)",
+          [admin.id,p.strategyKey,JSON.stringify({enabled:p.enabled})]
+        );
+        return p.enabled;
+      });
+      return Response.json({ok:true,enabled});
     }
     const result=await sql.begin(async(tx)=>{
       // Lock the definition first, then the version, always in that order. Every lifecycle change
