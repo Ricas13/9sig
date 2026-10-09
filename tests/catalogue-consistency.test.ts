@@ -65,3 +65,20 @@ describe("investor-chosen weights in the catalogue",()=>{
   expect(()=>validateInstanceSettings(fields,{weight_BROAD_EQUITY:"1.5"})).toThrow("INVALID_STRATEGY_INPUT:weight_BROAD_EQUITY");
  });
 });
+
+import {getExposure} from "@/domain/strategy/exposures";
+describe("leveraged strategies carry a leverage disclosure",()=>{
+ it("any catalogue strategy holding a leveraged exposure explains daily reset and volatility decay",()=>{
+  for(const s of RESEARCH_STRATEGIES){
+   const allocations=(s.config as {allocations?:Array<{exposure:string}>}|undefined)?.allocations??[];
+   if(!allocations.some((a)=>(getExposure(a.exposure)?.leverage??1)>1))continue;
+   expect(s.disclosure,s.key).toBeTruthy();
+   expect(s.disclosure,s.key).toMatch(/reset/i);
+   expect(s.disclosure,s.key).toMatch(/volatility decay/i);
+  }
+ });
+ it("the seed stores the catalogue disclosure rather than the generic one for those strategies",()=>{
+  const seed=readFileSync("scripts/seed.ts","utf8");
+  expect(seed).toContain("preset.disclosure");
+ });
+});

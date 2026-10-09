@@ -41,12 +41,13 @@ async function main(){
       let config:object={};
       if(key==="9sig")config={targetExposure:"NASDAQ_100_3X_LONG",initialTargetRatio:"0.60",targetRate:"0.09",contributionTargetRatio:"0.50",maxCashUse:"0.90",tolerance:"0.01",reviewFrequency:"QUARTERLY",reviewCutoffLocal:"16:00",businessDayConvention:"PREVIOUS",marketHolidays:[]};
       let inputSchema:object[]=[];
-      if(engine==="FIXED_ALLOCATION"){const preset=RESEARCH_STRATEGIES.find((p)=>p.key===key);if(!preset?.config)throw new Error("Missing reference configuration for "+key);config=preset.config;inputSchema=preset.inputSchema??[];}
+      let disclosure="Rule calculator for a user-selected strategy. Not a suitability recommendation.";
+      if(engine==="FIXED_ALLOCATION"){const preset=RESEARCH_STRATEGIES.find((p)=>p.key===key);if(!preset?.config)throw new Error("Missing reference configuration for "+key);config=preset.config;inputSchema=preset.inputSchema??[];if(preset.disclosure)disclosure=preset.disclosure;}
 
       const lifecycle=key==="9sig"?"PUBLISHED":"DRAFT";
       await sql.unsafe(
         "INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,upgrade_policy,input_schema,config,disclosure,published_at) VALUES ($1,'1.0','2026-01-01',$2,$3,'OPTIONAL',$6::text::jsonb,$4::text::jsonb,$5,CASE WHEN $3='PUBLISHED' THEN now() ELSE NULL END) ON CONFLICT (strategy_definition_id,version) DO UPDATE SET engine_key=EXCLUDED.engine_key,lifecycle_status=EXCLUDED.lifecycle_status,input_schema=EXCLUDED.input_schema,config=EXCLUDED.config,disclosure=EXCLUDED.disclosure,published_at=CASE WHEN EXCLUDED.lifecycle_status='PUBLISHED' THEN COALESCE(strategy_versions.published_at,now()) ELSE strategy_versions.published_at END",
-        [id,engine,lifecycle,JSON.stringify(config),"Rule calculator for a user-selected strategy. Not a suitability recommendation.",JSON.stringify(inputSchema)]
+        [id,engine,lifecycle,JSON.stringify(config),disclosure,JSON.stringify(inputSchema)]
       );
     }
 

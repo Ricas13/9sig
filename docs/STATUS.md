@@ -44,7 +44,7 @@ The checked items in that file are unchanged and accurate. Unchecked items:
 | Advanced custom strategy editor | Open (Phase 7) |
 | Golden-case regression against primary-source examples | Open for every strategy except what `tests/value-target.test.ts` and `tests/fixed-allocation.test.ts` cover with self-computed values; independent expected values are still needed |
 | Per-version release attestations; widen the publishable allowlist | Open (Phase 4). The allowlist is still per engine |
-| Strategy-specific disclosures (leverage, volatility decay) | Open |
+| Strategy-specific disclosures (leverage, volatility decay) | Fixed for the leveraged catalogue entry (HFEA): the catalogue carries a leverage disclosure that the seed stores, with a test that any leveraged strategy has one. Wording still needs legal review |
 | Verify exposure, currency, wrapper, fractional trading and purchasability by region and broker | Open (Phase 2). No instrument mappings are seeded |
 | Commercial data and licensing rights | Needs people |
 | User-acceptance tests for every supported strategy | Open |
@@ -62,7 +62,7 @@ The checked items in that file are unchanged and accurate. Unchecked items:
 | Metrics, traces, structured redacted logs, uptime probes | Partly: operational alerts and `/api/cron/health` exist. Structured logging and traces are open |
 | Encrypted off-site backups and a tested restore | Scripted (`scripts/backup-postgres.sh`, `scripts/restore-drill.sh`); the real run needs people |
 | CDN/WAF, rate limiting, CSP, penetration review | Partly: rate limits on sign-in, register and reset. Open: CSP, WAF, penetration review |
-| Staged rollout and rollback runbook | Open |
+| Staged rollout and rollback runbook | Written (`docs/ROLLOUT_AND_ROLLBACK.md`); never rehearsed on a real host, which needs a person |
 | Independent UK review (FCA perimeter, promotions, consumer terms, GDPR, data licensing, tax presentation) | Needs people |
 | Company ownership, support mailbox, policies, continuity | Needs people |
 | Make all journeys work without a quote provider (manual-data variant) | Partly: the manual mode and provenance exist; end-to-end manual-data tests for each strategy are open |

@@ -9,6 +9,8 @@ export type StrategyProfile = {
   engine: "FIXED_ALLOCATION" | "VALUE_TARGET" | "MOMENTUM_ROTATION" | "CUSTOM_PENDING";
   launchState: "DRAFT_REQUIRES_VERIFICATION";
   config?: Record<string, unknown>;
+  /** Shown to the investor with the strategy; required whenever it holds a leveraged exposure. */
+  disclosure?: string;
   /** Fields an investor fills in when starting the strategy (stored on the strategy version). */
   inputSchema?: Array<Record<string, unknown>>;
   rules: string;
@@ -37,9 +39,12 @@ const userWeights = (config: ReturnType<typeof fixed>) => ({
     help: "Weights across all holdings must total exactly 1 (100%)."
   }))
 });
+export const LEVERAGE_DISCLOSURE =
+  "This strategy holds leveraged products that reset their leverage every day. Because of that reset, returns over longer periods can differ sharply from the stated multiple of the index, and losses can compound in volatile or falling markets (volatility decay). They can fall a great deal in a short time and are unsuitable for many investors. Rules-based calculation only, not individual investment advice; past performance is not a guide to the future.";
+
 export const RESEARCH_STRATEGIES: readonly StrategyProfile[] = [
   {
-    key:"hfea",name:"Hedgefundie Excellent Adventure (classic)",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    key:"hfea",name:"Hedgefundie Excellent Adventure (classic)",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",disclosure:LEVERAGE_DISCLOSURE,
     config:fixed([["US_EQUITY_3X_LONG","0.55"],["LONG_TREASURY_3X_LONG","0.45"]],"QUARTERLY"),
     rules:"Target 55% 3x S&P 500 (UPRO) and 45% 3x long-duration US Treasuries (TMF); rebalance on quarter reviews. TQQQ is NOT the original HFEA stock leg.",
     research:["https://www.reddit.com/r/LETFs/comments/r25c3n/","https://www.reddit.com/r/LETFs/comments/pkkoao/"],
