@@ -47,7 +47,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
           "AND (tl.effective_to IS NULL OR tl.effective_to>=current_date) "+
           "AND (EXISTS(SELECT 1 FROM ledger_events le WHERE le.strategy_instance_id=$2 AND le.instrument_id=tl.instrument_id) "+
           "OR EXISTS(SELECT 1 FROM regional_instrument_mappings m "+
-          "WHERE m.trading_line_id=tl.id AND m.enabled=true AND m.country=a.country "+
+          "WHERE m.trading_line_id=tl.id AND m.enabled=true AND m.fidelity='EXACT' AND m.country=a.country "+
           "AND m.wrapper=a.wrapper AND (m.broker IS NULL OR upper(m.broker)=upper(COALESCE(a.broker_name,''))))) "+
           "ORDER BY o.observed_at DESC NULLS LAST,tl.id LIMIT 2",
           [instrumentId,id]

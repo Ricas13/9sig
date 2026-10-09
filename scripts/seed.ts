@@ -24,6 +24,9 @@ async function main(){
       ["9sig","9Sig","SIGNAL_VALUE_TARGET","Rules-based value target strategy","VALUE_TARGET",true,true],
       ["hfea","HFEA","FIXED_ALLOCATION","Leveraged fixed-allocation strategy","FIXED_ALLOCATION",false,false],
       ["golden-butterfly","Golden Butterfly","FIXED_ALLOCATION","Diversified fixed-allocation strategy","FIXED_ALLOCATION",false,false],
+      ["three-fund","Three-Fund Portfolio","FIXED_ALLOCATION","Fixed-allocation strategy with investor-chosen weights","FIXED_ALLOCATION",false,false],
+      ["60-40","60/40 Portfolio","FIXED_ALLOCATION","Fixed-allocation strategy with investor-chosen weights","FIXED_ALLOCATION",false,false],
+      ["80-20","80/20 Portfolio","FIXED_ALLOCATION","Fixed-allocation strategy with investor-chosen weights","FIXED_ALLOCATION",false,false],
       ["dual-momentum","Dual Momentum","MOMENTUM","Momentum rotation strategy","MOMENTUM_ROTATION",false,false]
     ] as const;
 
@@ -37,12 +40,13 @@ async function main(){
 
       let config:object={};
       if(key==="9sig")config={targetExposure:"NASDAQ_100_3X_LONG",initialTargetRatio:"0.60",targetRate:"0.09",contributionTargetRatio:"0.50",maxCashUse:"0.90",tolerance:"0.01",reviewFrequency:"QUARTERLY",reviewCutoffLocal:"16:00",businessDayConvention:"PREVIOUS",marketHolidays:[]};
-      if(key==="hfea"||key==="golden-butterfly"){const preset=RESEARCH_STRATEGIES.find((p)=>p.key===key);if(!preset?.config)throw new Error("Missing reference configuration for "+key);config=preset.config;}
+      let inputSchema:object[]=[];
+      if(engine==="FIXED_ALLOCATION"){const preset=RESEARCH_STRATEGIES.find((p)=>p.key===key);if(!preset?.config)throw new Error("Missing reference configuration for "+key);config=preset.config;inputSchema=preset.inputSchema??[];}
 
       const lifecycle=key==="9sig"?"PUBLISHED":"DRAFT";
       await sql.unsafe(
-        "INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,upgrade_policy,input_schema,config,disclosure,published_at) VALUES ($1,'1.0','2026-01-01',$2,$3,'OPTIONAL','[]'::jsonb,$4::text::jsonb,$5,CASE WHEN $3='PUBLISHED' THEN now() ELSE NULL END) ON CONFLICT (strategy_definition_id,version) DO UPDATE SET engine_key=EXCLUDED.engine_key,lifecycle_status=EXCLUDED.lifecycle_status,config=EXCLUDED.config,disclosure=EXCLUDED.disclosure,published_at=CASE WHEN EXCLUDED.lifecycle_status='PUBLISHED' THEN COALESCE(strategy_versions.published_at,now()) ELSE strategy_versions.published_at END",
-        [id,engine,lifecycle,JSON.stringify(config),"Rule calculator for a user-selected strategy. Not a suitability recommendation."]
+        "INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,upgrade_policy,input_schema,config,disclosure,published_at) VALUES ($1,'1.0','2026-01-01',$2,$3,'OPTIONAL',$6::text::jsonb,$4::text::jsonb,$5,CASE WHEN $3='PUBLISHED' THEN now() ELSE NULL END) ON CONFLICT (strategy_definition_id,version) DO UPDATE SET engine_key=EXCLUDED.engine_key,lifecycle_status=EXCLUDED.lifecycle_status,input_schema=EXCLUDED.input_schema,config=EXCLUDED.config,disclosure=EXCLUDED.disclosure,published_at=CASE WHEN EXCLUDED.lifecycle_status='PUBLISHED' THEN COALESCE(strategy_versions.published_at,now()) ELSE strategy_versions.published_at END",
+        [id,engine,lifecycle,JSON.stringify(config),"Rule calculator for a user-selected strategy. Not a suitability recommendation.",JSON.stringify(inputSchema)]
       );
     }
 

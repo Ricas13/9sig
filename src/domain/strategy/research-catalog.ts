@@ -9,6 +9,8 @@ export type StrategyProfile = {
   engine: "FIXED_ALLOCATION" | "VALUE_TARGET" | "MOMENTUM_ROTATION" | "CUSTOM_PENDING";
   launchState: "DRAFT_REQUIRES_VERIFICATION";
   config?: Record<string, unknown>;
+  /** Fields an investor fills in when starting the strategy (stored on the strategy version). */
+  inputSchema?: Array<Record<string, unknown>>;
   rules: string;
   research: string[];
   risks: string[];
@@ -17,6 +19,23 @@ const fixed = (allocations: [string,string][], frequency:"MONTHLY"|"QUARTERLY"|"
   allocations: allocations.map(([exposure,weight])=>({exposure,weight})),
   reviewFrequency:frequency,
   rebalanceThreshold:"0.00"
+});
+/**
+ * Strategies with no canonical split let the investor choose the weights: one number field per
+ * exposure, defaulting to the illustrative weight. The engine still requires the total to be 100%.
+ */
+const userWeights = (config: ReturnType<typeof fixed>) => ({
+  config: { ...config, userWeights: true },
+  inputSchema: config.allocations.map((a) => ({
+    key: "weight_" + a.exposure,
+    label: "Target weight for " + a.exposure.toLowerCase().replace(/_/g, " ") + " (0 to 1)",
+    type: "number",
+    required: true,
+    default: a.weight,
+    min: "0.01",
+    max: "1",
+    help: "Weights across all holdings must total exactly 1 (100%)."
+  }))
 });
 export const RESEARCH_STRATEGIES: readonly StrategyProfile[] = [
   {
@@ -49,19 +68,19 @@ export const RESEARCH_STRATEGIES: readonly StrategyProfile[] = [
   },
   {
     key:"three-fund",name:"Three-Fund Portfolio",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
-    config:fixed([["DOMESTIC_EQUITY","0.40"],["INTERNATIONAL_EQUITY","0.40"],["AGGREGATE_BONDS","0.20"]],"ANNUAL"),
+    ...userWeights(fixed([["DOMESTIC_EQUITY","0.40"],["INTERNATIONAL_EQUITY","0.40"],["AGGREGATE_BONDS","0.20"]],"ANNUAL")),
     rules:"Illustrative weights only. Domestic/international equity and bond targets are USER SETTINGS, not a universal 40/40/20 rule.",
     research:["https://www.bogleheads.org/wiki/Three-fund_portfolio"],risks:["Home bias","Bond duration and currency"]
   },
   {
     key:"60-40",name:"60/40 Portfolio",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
-    config:fixed([["BROAD_EQUITY","0.60"],["AGGREGATE_BONDS","0.40"]],"ANNUAL"),
+    ...userWeights(fixed([["BROAD_EQUITY","0.60"],["AGGREGATE_BONDS","0.40"]],"ANNUAL")),
     rules:"60% diversified equities and 40% bonds; review annually with user-customisable drift thresholds.",
     research:["https://www.bogleheads.org/wiki/Asset_allocation"],risks:["Stock-bond correlations can change"]
   },
   {
     key:"80-20",name:"80/20 Portfolio",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
-    config:fixed([["BROAD_EQUITY","0.80"],["AGGREGATE_BONDS","0.20"]],"ANNUAL"),
+    ...userWeights(fixed([["BROAD_EQUITY","0.80"],["AGGREGATE_BONDS","0.20"]],"ANNUAL")),
     rules:"80% diversified equities and 20% bonds; review annually.",
     research:["https://www.bogleheads.org/wiki/Asset_allocation"],risks:["High equity drawdown potential"]
   },

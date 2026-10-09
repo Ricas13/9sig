@@ -76,7 +76,7 @@ Sign-in with Google and Apple; installable mobile web app and Android/iOS shell;
 - Momentum engines remain research-only (not in the customer-publishable allowlist).
 ## Strategy catalogue, Phase 1 (engineering)
 - Typed exposure registry: `src/domain/strategy/exposures.ts`, catalogue coverage tested.
-- Ordered-legs rebalance planner: `src/domain/strategy/rebalance-plan.ts`, hand-computed golden tests. Not yet wired into the engine's step-by-step action flow (the engine still proposes one leg per recalculation).
+- Ordered-legs rebalance planner: `src/domain/strategy/rebalance-plan.ts`, hand-computed golden tests. The fixed-allocation engine now shows the whole plan as "Full plan, step n" rows; it still proposes only the first step and recalculates from the actual fill.
 - Investor-chosen weights: `userWeights` + `weight_<EXPOSURE>` settings for fixed allocation; invalid weights yield DATA_REQUIRED.
 - Semi-annual and threshold-only schedules (merged earlier).
 - Still open: spec-card sign-off (docs/strategy-specs), wiring the planner into the engine, input_schema entries for weights on the three-fund/60-40/80-20 versions.
@@ -84,3 +84,5 @@ Sign-in with Google and Apple; installable mobile web app and Android/iOS shell;
 ## Strategy catalogue, price history ingest
 - The hourly run now fills daily closes for the trading lines of momentum research strategies (`src/lib/price-history-ingest.ts`). It is off until an administrator turns on "Store adjusted daily history" in Admin > Settings, confirming the data service returns split- and dividend-adjusted closes and its licence allows storing them. It accepts only a daily-bar CLOSE dated that exact day; newest missing days first, 40 per line per run.
 - Not tested against a real provider: whether the provider's historical endpoint really returns adjusted closes is the operator's confirmation, not something the code can check.
+- Three-fund, 60/40 and 80/20 are seeded as disabled drafts with `weight_<EXPOSURE>` fields; starting one with weights that do not total 100% is refused.
+- Still open: spec-card sign-off (docs/strategy-specs).
