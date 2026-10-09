@@ -70,3 +70,10 @@ The checked items in that file are unchanged and accurate. Unchecked items:
 ## Not in the original documents but now built
 
 Sign-in with Google and Apple; installable mobile web app and Android/iOS shell; App Store / Google Play subscriptions alongside Stripe; admin settings screen and first-run setup; operational alerts; accessibility checks. Each is described in its pull request; none has been tested against the live external service it depends on.
+
+## Strategy catalogue, Phase 1 (engineering)
+- Typed exposure registry: `src/domain/strategy/exposures.ts`, catalogue coverage tested.
+- Ordered-legs rebalance planner: `src/domain/strategy/rebalance-plan.ts`, hand-computed golden tests. Not yet wired into the engine's step-by-step action flow (the engine still proposes one leg per recalculation).
+- Investor-chosen weights: `userWeights` + `weight_<EXPOSURE>` settings for fixed allocation; invalid weights yield DATA_REQUIRED.
+- Semi-annual and threshold-only schedules (merged earlier).
+- Still open: spec-card sign-off (docs/strategy-specs), wiring the planner into the engine, input_schema entries for weights on the three-fund/60-40/80-20 versions.
