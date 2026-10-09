@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {rebaseIndexedWindow} from "@/domain/chart-window";
+import {rebaseIndexedWindow,periodCutoffIso} from "@/domain/chart-window";
 
 describe("selected-period benchmark comparison",()=>{
  it("starts actual, model and benchmarks at 100 on the selected first valuation",()=>{
@@ -31,5 +31,22 @@ describe("selected-period benchmark comparison",()=>{
   expect(rows[1].model).toBeCloseTo(110);
   expect(raw[0].model).toBe(100);
   expect(rebaseIndexedWindow([])).toEqual([]);
+ });
+});
+
+describe("calendar-aligned chart date filter",()=>{
+ it("clamps month-end lookbacks rather than silently rolling February into March",()=>{
+  expect(periodCutoffIso("1M","2026-03-31")).toBe("2026-02-28");
+  expect(periodCutoffIso("1M","2024-03-31")).toBe("2024-02-29");
+  expect(periodCutoffIso("3M","2026-05-31")).toBe("2026-02-28");
+ });
+ it("handles YTD, trailing years and daily/week filters",()=>{
+  expect(periodCutoffIso("YTD","2026-10-09")).toBe("2026-01-01");
+  expect(periodCutoffIso("1Y","2026-10-09")).toBe("2025-10-09");
+  expect(periodCutoffIso("5Y","2026-10-09")).toBe("2021-10-09");
+  expect(periodCutoffIso("1D","2026-01-01")).toBe("2025-12-31");
+  expect(periodCutoffIso("1W","2026-01-05")).toBe("2025-12-29");
+  expect(periodCutoffIso("CUSTOM","2026-10-09")).toBeNull();
+  expect(periodCutoffIso("MAX","2026-10-09")).toBeNull();
  });
 });

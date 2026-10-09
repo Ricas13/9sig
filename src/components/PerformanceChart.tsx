@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useId, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { rebaseIndexedWindow } from "@/domain/chart-window";
+import { rebaseIndexedWindow, periodCutoffIso } from "@/domain/chart-window";
 
 type Point={
   date:string;
@@ -16,18 +16,6 @@ const frames=["1M","3M","6M","YTD","1Y","3Y","5Y","MAX"];
 const fullFrames=["1D","1W","1M","3M","6M","YTD","1Y","3Y","5Y","ALL","CUSTOM"];
 const comparisonColors=["var(--chart-comparison-1)","var(--chart-comparison-2)","var(--chart-comparison-3)","var(--chart-comparison-4)","var(--chart-comparison-5)","var(--chart-comparison-6)"];
 
-function cutoff(frame:string,lastDate:string) {
-  if(frame==="ALL"||frame==="MAX"||frame==="CUSTOM")return null;
-  const latest=new Date(lastDate+"T12:00:00Z");
-  if(frame==="YTD")return new Date(Date.UTC(latest.getUTCFullYear(),0,1));
-  if(frame==="1D"||frame==="1W"){
-    const d=new Date(latest);
-    d.setUTCDate(d.getUTCDate()-(frame==="1D"?1:7));
-    return d;
-  }
-  const months=frame==="1M"?1:frame==="3M"?3:frame==="6M"?6:frame==="1Y"?12:frame==="3Y"?36:60;
-  const d=new Date(latest); d.setUTCMonth(d.getUTCMonth()-months); return d;
-}
 
 function compact(value:number){
   return new Intl.NumberFormat("en-GB",{notation:"compact",maximumFractionDigits:1}).format(value);
@@ -73,7 +61,7 @@ export function PerformanceChart({
   },[]);
 
   const filtered=useMemo(()=>{
-    const min=cutoff(frame,latestDate)?.toISOString().slice(0,10)??null;
+    const min=periodCutoffIso(frame,latestDate);
     return data.filter(point=>(frame!=="CUSTOM"||(!customStart||point.date>=customStart)&&(!customEnd||point.date<=customEnd))&&
       (frame==="CUSTOM"||!min||point.date>=min));
   },[data,frame,latestDate,customStart,customEnd]);
