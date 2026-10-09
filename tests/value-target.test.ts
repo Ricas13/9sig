@@ -22,7 +22,7 @@ describe("value-target engine",()=>{
     expect(first.amount?.toFixed(2)).toBe("3600.00");
     const second=valueTargetEngine.calculate({...ctx,cash:new Decimal("400"),
       exposures:[{economicExposure:"NASDAQ_100_3X_LONG",value:new Decimal("3600")} ]});
-    expect(second.explanation.find(x=>x.label==="Review target")?.value).toBe("6000.00");
+    expect(second.explanation.find(x=>x.label==="Initial target")?.value).toBe("6000.00");
     expect(second.amount?.toFixed(2)).toBe("360.00");
   });
   it("freezes an existing 9Sig quarterly growth target until all partial fills are confirmed",()=>{
