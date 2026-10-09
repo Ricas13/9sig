@@ -13,6 +13,8 @@ import { actionRecalculationDisposition, type ActionStatus } from "@/domain/acti
 import { actionFingerprintMaterial } from "@/domain/action-fingerprint";
 import { validatedEffectivePrice } from "@/domain/manual-override";
 import { loadTrustedHistory } from "@/lib/trusted-history-loader";
+import { assessStrategyMarket, StrategyMarketUnavailableError } from "@/domain/strategy/market-eligibility";
+import { VERIFIED_MARKET_MAPPINGS_SQL, verifiedCandidates } from "@/lib/verified-market-mappings";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
 type CalculationScenario={
@@ -408,7 +410,7 @@ export async function previewStrategySwitchScenario(
   if(String(ownership[0].strategy_definition_id)===String(target.definition_id))throw new Error("STRATEGY_ALREADY_SELECTED");
 
   const linkedAccounts=await sql.unsafe(
-    "SELECT a.country,a.wrapper FROM strategy_accounts sa JOIN accounts a ON a.id=sa.account_id WHERE sa.strategy_instance_id=$1 ORDER BY sa.created_at",
+    "SELECT a.country,a.wrapper,a.currency,a.broker_name FROM strategy_accounts sa JOIN accounts a ON a.id=sa.account_id WHERE sa.strategy_instance_id=$1 ORDER BY sa.created_at",
     [strategyInstanceId]
   );
   const regions=Array.isArray(target.supported_regions)?target.supported_regions.map(String):[];
@@ -418,6 +420,12 @@ export async function previewStrategySwitchScenario(
     if(wrappers.length&&!wrappers.includes(String(account.wrapper)))throw new Error("STRATEGY_NOT_SUPPORTED_FOR_WRAPPER");
   }
 
+  const candidates=verifiedCandidates(await sql.unsafe(VERIFIED_MARKET_MAPPINGS_SQL));
+  for(const account of linkedAccounts){
+    const choice={country:String(account.country),wrapper:String(account.wrapper),currency:String(account.currency).toUpperCase(),broker:account.broker_name?String(account.broker_name):null};
+    const market=assessStrategyMarket(String(target.engine_key),(target.config??{}) as Record<string,unknown>,candidates,choice,new Date().toISOString().slice(0,10));
+    if(!market.available)throw new StrategyMarketUnavailableError(market,choice);
+  }
   const engine=getStrategyEngine(String(target.engine_key));
   const config=(target.config??{}) as Record<string,unknown>;
   engine.validateConfig(config);

@@ -5,6 +5,8 @@ import { getStrategyEngine } from "@/domain/strategy/registry";
 import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/config";
 import { assertCanCreateStrategy, assertStrategyFeatureAccess, buildEntitlementSnapshot } from "@/domain/entitlements";
 import { recalculateAfterMutation } from "@/lib/action-service";
+import { assessStrategyMarket, StrategyMarketUnavailableError } from "@/domain/strategy/market-eligibility";
+import { VERIFIED_MARKET_MAPPINGS_SQL, verifiedCandidates } from "@/lib/verified-market-mappings";
 
 export async function switchStrategy(
   userId:string,
@@ -76,6 +78,13 @@ export async function switchStrategy(
     for(const account of accounts){
       if(regions.length&&!regions.includes(String(account.country)))throw new Error("STRATEGY_NOT_SUPPORTED_IN_REGION");
       if(wrappers.length&&!wrappers.includes(String(account.wrapper)))throw new Error("STRATEGY_NOT_SUPPORTED_FOR_WRAPPER");
+    }
+
+    const approvedMappings=verifiedCandidates(await tx.unsafe(VERIFIED_MARKET_MAPPINGS_SQL));
+    for(const account of accounts){
+      const choice={country:String(account.country),wrapper:String(account.wrapper),currency:String(account.currency).toUpperCase(),broker:account.broker_name?String(account.broker_name):null};
+      const market=assessStrategyMarket(String(target.engine_key),(target.config??{}) as Record<string,unknown>,approvedMappings,choice,new Date().toISOString().slice(0,10));
+      if(!market.available)throw new StrategyMarketUnavailableError(market,choice);
     }
 
     const engine=getStrategyEngine(String(target.engine_key));
