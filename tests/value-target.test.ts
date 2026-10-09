@@ -36,6 +36,25 @@ describe("value-target engine",()=>{
     expect(settled.actionType).toBe("HOLD");
     expect(settled.nextState.targetValue).toBe("6540");
   });
+  it("adds only NEW contributions to an in-progress quarterly target",()=>{
+    const ctx={...base,state:{targetValue:"6000",reviewTargetValue:"7040",
+      reviewContributionsSnapshot:"1000"},cash:new Decimal("3000"),
+      contributionsSinceReview:new Decimal("1400"),
+      exposures:[{economicExposure:"NASDAQ_100_3X_LONG",value:new Decimal("6300")}]};
+    const result=valueTargetEngine.calculate(ctx);
+    // An extra 400 of contributions adds 200, not an extra 9% growth increment.
+    expect(result.nextState.targetValue).toBe("7240");
+    expect(result.nextState.reviewContributionsSnapshot).toBe("1400");
+    expect(result.amount?.toFixed(2)).toBe("940.00");
+  });
+  it("treats further cash added during the first review as part of the initial allocation",()=>{
+    const ctx={...base,state:{reviewTargetValue:"6000",reviewContributionsSnapshot:"10000"},
+      cash:new Decimal("5000"),contributionsSinceReview:new Decimal("11000"),
+      exposures:[]};
+    const result=valueTargetEngine.calculate(ctx);
+    expect(result.nextState.targetValue).toBe("6600");
+    expect(result.amount?.toFixed(2)).toBe("4500.00");
+  });
   it("sums the same economic exposure across multiple holdings",()=>{
     const result=valueTargetEngine.calculate({
       ...base,
