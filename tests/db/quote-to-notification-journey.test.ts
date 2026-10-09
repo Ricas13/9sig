@@ -96,6 +96,28 @@ describe.skipIf(!url)("quote -> action -> notification",()=>{
     expect(notice.length).toBeGreaterThanOrEqual(0);
   });
 
+  it("rejects a future-dated broker execution without writing to the ledger, then preserves a valid fill timestamp",async()=>{
+    const {executeAction}=await import("@/lib/action-service");
+    const instance=(await sql!.unsafe("SELECT strategy_version_id FROM strategy_instances WHERE id=$1",[instanceId]))[0];
+    const action=await sql!.unsafe(
+      "INSERT INTO actions (strategy_instance_id,account_id,strategy_version_id,fingerprint,action_type,status,title,instruction,amount,currency,trading_line_id,explanation,next_state,confidence) "+
+      "VALUES ($1,$2,$3,$4,'BUY','CALCULATED','Test buy','Record broker fill',100,'GBP',$5,'[]'::jsonb,'{}'::jsonb,'HIGH') RETURNING id",
+      [instanceId,accountId,instance.strategy_version_id,"broker-fill-test-"+run,lineId]
+    );
+    const id=String(action[0].id);
+    const future=new Date(Date.now()+3600_000).toISOString();
+    await expect(executeAction(userId,id,{price:"100",quantity:"1",fee:"0",executedAt:future}))
+      .rejects.toThrow("INVALID_EXECUTION_TIMESTAMP");
+    const before=(await sql!.unsafe("SELECT count(*)::int AS n FROM ledger_events WHERE strategy_instance_id=$1 AND metadata->>'actionId'=$2",[instanceId,id]))[0];
+    expect(Number(before.n)).toBe(0);
+    const actual=new Date(Date.now()+1_000).toISOString();
+    const result=await executeAction(userId,id,{price:"100",quantity:"1",fee:"0",executedAt:actual});
+    expect(result.actualNotional).toBe("100");
+    const row=(await sql!.unsafe("SELECT occurred_at,metadata,status FROM ledger_events l JOIN actions a ON a.id=(l.metadata->>'actionId')::uuid WHERE l.strategy_instance_id=$1 AND a.id=$2",[instanceId,id]))[0];
+    expect(new Date(row.occurred_at).toISOString()).toBe(actual);
+    expect(row.metadata.executedAt).toBe(actual);
+  });
+
   it("delivers the notification by email and records it as sent",async()=>{
     const { createPendingDeliveries,processDeliveryBacklog }=await import("@/lib/notification-service");
     await createPendingDeliveries(200);
