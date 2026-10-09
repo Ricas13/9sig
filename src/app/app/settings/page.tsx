@@ -3,14 +3,18 @@ import { sql } from "@/lib/db";
 import { BillingButtons,DiscordForm,PrivacyControls,SecurityControls } from "@/components/SettingsForms";
 import { isMfaEnabled } from "@/lib/mfa";
 import { purchasesAllowedFor } from "@/domain/native-app";
+import { StorePurchase } from "@/components/StorePurchase";
+import { manageSubscriptionUrl,platformFromUserAgent,productsForPlatform,storeName } from "@/domain/store-products";
 import { headers } from "next/headers";
 
 export default async function SettingsPage(){
   const user=await requirePageUser();
   const mfaEnabled=await isMfaEnabled(user.id);
-  const canPurchase=purchasesAllowedFor((await headers()).get("user-agent"));
+  const userAgent=(await headers()).get("user-agent");
+  const canPurchase=purchasesAllowedFor(userAgent);
+  const platform=platformFromUserAgent(userAgent);
   const rows=await sql.unsafe(
-    "SELECT p.display_name,p.slug,p.max_active_strategies,s.status,s.cadence,s.current_period_end,s.stripe_subscription_id FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.user_id=$1 LIMIT 1",
+    "SELECT p.display_name,p.slug,p.max_active_strategies,s.status,s.cadence,s.current_period_end,s.stripe_subscription_id,s.source FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.user_id=$1 LIMIT 1",
     [user.id]
   );
   const plan=rows[0];
@@ -28,6 +32,13 @@ export default async function SettingsPage(){
     maxActiveStrategies:p.max_active_strategies==null?null:Number(p.max_active_strategies),
     entitlements:(p.entitlements??{}) as Record<string,unknown>
   }));
+  const billedBy=String(plan?.source??"STRIPE");
+  const storeBilled=billedBy!=="STRIPE"&&!["FREE","CANCELED"].includes(String(plan?.status??"FREE"));
+  const storeKey=platform==="ios"?process.env.REVENUECAT_APPLE_PUBLIC_KEY:platform==="android"?process.env.REVENUECAT_GOOGLE_PUBLIC_KEY:undefined;
+  const storeProducts=platform&&storeKey?productsForPlatform(
+    (await sql.unsafe("SELECT p.slug,p.display_name,pp.cadence,pp.apple_product_id,pp.google_product_id FROM plan_prices pp JOIN plans p ON p.id=pp.plan_id WHERE pp.active=true AND p.visible=true AND p.archived=false AND p.slug<>'free' ORDER BY p.sort_order,pp.cadence")) as any,
+    platform
+  ):[];
   const currentPlanSlug=String(plan?.slug??"free");
   const currentStatus=String(plan?.status??"FREE");
   const paidSubscription=Boolean(plan?.stripe_subscription_id)&&!["FREE","CANCELED"].includes(currentStatus);
@@ -38,7 +49,10 @@ export default async function SettingsPage(){
       <section id="plan" className="glass form-card settings-plan-card">
         <div className="settings-card-heading"><div><div className="eyebrow">Plan</div><h3>{plan?.display_name??"Free"}</h3></div><span className="pill good">{currentStatus.replaceAll("_"," ")}</span></div>
         {plan?.current_period_end&&paidSubscription&&<p className="help">Current billing period runs to {new Date(plan.current_period_end).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}.</p>}
-        {canPurchase?<BillingButtons prices={prices} defaultCurrency={user.baseCurrency} currentPlanSlug={currentPlanSlug} paidSubscription={paidSubscription} activeStrategyCount={activeStrategyCount} currentMaxActiveStrategies={plan?.max_active_strategies==null?null:Number(plan.max_active_strategies)}/>:<p className="help">Plans are managed on the website. Sign in there to change or cancel your subscription.</p>}
+        {storeBilled&&<p className="help">Your subscription is billed through the {storeName(billedBy)}. Change or cancel it there{platform?<> (<a href={manageSubscriptionUrl(platform)} target="_blank" rel="noreferrer">manage subscription</a>)</>:null}.</p>}
+        {!storeBilled&&!canPurchase&&platform&&storeKey&&storeProducts.length>0&&!paidSubscription?<StorePurchase apiKey={storeKey} userId={user.id} products={storeProducts} currentPlanSlug={currentPlanSlug} manageUrl={manageSubscriptionUrl(platform)}/>:null}
+        {!storeBilled&&canPurchase?<BillingButtons prices={prices} defaultCurrency={user.baseCurrency} currentPlanSlug={currentPlanSlug} paidSubscription={paidSubscription} activeStrategyCount={activeStrategyCount} currentMaxActiveStrategies={plan?.max_active_strategies==null?null:Number(plan.max_active_strategies)}/>:null}
+        {!storeBilled&&!canPurchase&&!(platform&&storeKey&&storeProducts.length>0&&!paidSubscription)&&<p className="help">{paidSubscription?"Your subscription is billed through the website. Sign in there to change or cancel it.":"Plans are managed on the website. Sign in there to subscribe, change or cancel."}</p>}
       </section>
       <section className="glass form-card">
         <div className="eyebrow">Notifications</div><h3>Discord</h3>

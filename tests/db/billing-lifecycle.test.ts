@@ -243,4 +243,14 @@ describe.skipIf(!url)("subscription payment lifecycle",()=>{
     const response=await POST(new Request("http://localhost/api/stripe/webhook",{method:"POST",headers:{"stripe-signature":"t=1,v1=bad"},body:"{}"}));
     expect(response.status).toBe(400);
   });
+  it("never replaces a live App Store subscription with a website one, and cancels the duplicate",async()=>{
+    const proId=String((await sql!.unsafe("SELECT id FROM plans WHERE slug='pro'"))[0].id);
+    await sql!.unsafe("UPDATE subscriptions SET plan_id=$2,status='ACTIVE',cadence='MONTHLY',source='APPLE',stripe_subscription_id=NULL,store_original_transaction_id='txn_'||$3 WHERE user_id=$1",[userId,proId,run]);
+    const intruder="sub_lc_store_"+run;
+    expect((await deliver("customer.subscription.created",subscription(intruder,userId))).status).toBe(200);
+    expect(stripeState.cancelled).toContain(intruder);
+    const after=(await sql!.unsafe("SELECT s.source,s.status,s.stripe_subscription_id,p.slug FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.user_id=$1",[userId]))[0];
+    expect(after).toMatchObject({source:"APPLE",status:"ACTIVE",slug:"pro",stripe_subscription_id:null});
+    await sql!.unsafe("UPDATE subscriptions SET source='STRIPE',store_original_transaction_id=NULL WHERE user_id=$1",[userId]);
+  });
 });

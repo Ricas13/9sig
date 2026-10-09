@@ -23,7 +23,7 @@ export type SettingDefinition = {
 };
 
 export const SETTING_GROUPS = [
-  "General", "Billing (Stripe)", "Email", "Market data", "Sign-in providers", "Mobile apps", "Security", "Launch sign-offs", "Background worker"
+  "General", "Billing (Stripe)", "Email", "Market data", "Sign-in providers", "Mobile apps", "Mobile app purchases", "Security", "Launch sign-offs", "Background worker"
 ] as const;
 
 const bool = (key: string, label: string, group: string, help: string): SettingDefinition => ({ key, label, group, kind: "boolean", help });
@@ -62,6 +62,11 @@ export const SETTINGS: readonly SettingDefinition[] = [
   { key: "ANDROID_SHA256_CERT_FINGERPRINTS", label: "Android signing certificate fingerprint(s)", group: "Mobile apps", kind: "text", pattern: /^([0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){31})(\s*,\s*[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){31})*$/, patternMessage: "SHA-256 fingerprints look like AB:CD:… (32 pairs). Separate several with commas.", help: "From Play Console › App integrity (use the Play App Signing key), plus your upload key while testing." },
   { key: "IOS_TEAM_ID", label: "Apple team ID", group: "Mobile apps", kind: "text", pattern: /^[A-Z0-9]{10}$/, patternMessage: "A team ID is 10 capital letters or digits.", help: "From your Apple Developer account membership page." },
   { key: "IOS_BUNDLE_ID", label: "iOS bundle ID", group: "Mobile apps", kind: "text", pattern: /^[a-zA-Z][a-zA-Z0-9-]*(\.[a-zA-Z][a-zA-Z0-9-]*)+$/, patternMessage: "Use a reverse-domain name such as com.example.wealtharr.", help: "Must match the bundle ID of the iOS app. Lets iOS open website links in the app." },
+
+  { key: "REVENUECAT_WEBHOOK_AUTH", label: "RevenueCat webhook authorization value", group: "Mobile app purchases", kind: "secret", help: "Any long random value. Enter the same value as the Authorization header of the RevenueCat webhook pointing at /api/billing/store/webhook." },
+  { key: "REVENUECAT_APPLE_PUBLIC_KEY", label: "RevenueCat public SDK key (iOS)", group: "Mobile app purchases", kind: "text", pattern: /^appl_[A-Za-z0-9]{10,}$/, patternMessage: "Starts with appl_ (RevenueCat > API keys).", help: "Public key the iOS app uses to show and start purchases. Not secret, but leave empty until iOS purchases are ready." },
+  { key: "REVENUECAT_GOOGLE_PUBLIC_KEY", label: "RevenueCat public SDK key (Android)", group: "Mobile app purchases", kind: "text", pattern: /^goog_[A-Za-z0-9]{10,}$/, patternMessage: "Starts with goog_ (RevenueCat > API keys).", help: "Public key the Android app uses to show and start purchases." },
+  bool("STORE_ALLOW_SANDBOX", "Accept test purchases (sandbox)", "Mobile app purchases", "Only for testing with TestFlight / Play test accounts. Test purchases are free to make, so leave OFF on the live site."),
 
   bool("ADMIN_MFA_REQUIRED", "Require two-step sign-in for admins", "Security", "Turn on once every admin has enabled two-step sign-in under Settings. Admins without it are kept out of admin tools."),
   { key: "CRON_SECRET", label: "Background job secret", group: "Security", kind: "secret", help: "Bearer token your scheduler sends to /api/cron/actions. At least 32 characters." },

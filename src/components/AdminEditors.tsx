@@ -137,7 +137,7 @@ export function PlanPriceEditor(){
   const {submit,message}=useAdminSubmit("/api/admin/plan-prices");
   return <form className="glass form-card" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);await submit({
     planSlug:f.get("planSlug"),currency:String(f.get("currency")).toUpperCase(),cadence:f.get("cadence"),
-    amountMinor:Math.round(Number(f.get("amount"))*100),stripePriceId:f.get("stripePriceId")||null,active:Boolean(f.get("active"))
+    amountMinor:Math.round(Number(f.get("amount"))*100),stripePriceId:f.get("stripePriceId")||null,appleProductId:f.get("appleProductId")||null,googleProductId:f.get("googleProductId")||null,active:Boolean(f.get("active"))
   });}}>
     <h3>Plan price by currency</h3><div className="form-grid">
       <div className="field"><label>Plan slug</label><input name="planSlug" placeholder="investor" required/></div>
@@ -145,6 +145,8 @@ export function PlanPriceEditor(){
       <div className="field"><label>Cadence</label><select name="cadence"><option>MONTHLY</option><option>ANNUAL</option></select></div>
       <div className="field"><label>Amount</label><input name="amount" type="number" min="0" step="0.01" required/></div>
       <div className="field full"><label>Stripe Price ID</label><input name="stripePriceId" placeholder="price_..."/></div>
+      <div className="field"><label>App Store product ID</label><input name="appleProductId" placeholder="com.example.pro.monthly"/></div>
+      <div className="field"><label>Google Play product ID</label><input name="googleProductId" placeholder="pro_monthly"/></div>
       <div className="field"><label><input name="active" type="checkbox" defaultChecked/> Active</label></div>
     </div><button className="button primary" style={{marginTop:16}}>Save price</button>{message&&<div className="success">{message}</div>}
   </form>;

@@ -36,10 +36,14 @@ describe("Stripe webhook financial safety",()=>{
   });
 
   it("lets a new subscription replace a dead stored one instead of cancelling it as a duplicate",()=>{
-    expect(source).toContain("SELECT stripe_subscription_id,stripe_customer_id,status FROM subscriptions WHERE user_id=$1 FOR UPDATE");
+    expect(source).toContain("SELECT stripe_subscription_id,stripe_customer_id,status,source FROM subscriptions WHERE user_id=$1 FOR UPDATE");
     expect(source).toContain("!isTerminalLocalStatus(rows[0].status)");
     // Ended subscriptions are settled before duplicate detection so they are never cancelled twice.
     expect(source.indexOf("isTerminalStripeStatus(canonical.status)")).toBeLessThan(source.indexOf("isTerminalLocalStatus(rows[0].status)"));
+  });
+
+  it("never replaces a live App Store / Google Play subscription with a website one",()=>{
+    expect(source).toContain('String(rows[0].source??"STRIPE")!=="STRIPE"&&!isTerminalLocalStatus(rows[0].status)');
   });
 
   it("never promotes a plan from mutable metadata",()=>{

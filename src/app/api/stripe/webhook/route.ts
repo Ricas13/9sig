@@ -112,7 +112,7 @@ export async function POST(request:Request){
         const subject=canonical??incoming;
         const userId=await resolveSubscriptionUserId(subject);
         const rows=await tx.unsafe(
-          "SELECT stripe_subscription_id,stripe_customer_id,status FROM subscriptions WHERE user_id=$1 FOR UPDATE",
+          "SELECT stripe_subscription_id,stripe_customer_id,status,source FROM subscriptions WHERE user_id=$1 FOR UPDATE",
           [userId]
         );
         if(!rows[0])throw new Error("LOCAL_BILLING_OWNER_MISSING");
@@ -135,6 +135,11 @@ export async function POST(request:Request){
           }
           return {userId:null as string|null,duplicate:null};
         }
+
+        // A live App Store / Google Play subscription already bills this user: a second one from the
+        // website must not replace it. A brand-new website subscription is cancelled as a duplicate.
+        if(String(rows[0].source??"STRIPE")!=="STRIPE"&&!isTerminalLocalStatus(rows[0].status))
+          return {userId:null as string|null,duplicate:event.type==="customer.subscription.created"?canonical.id:null};
 
         // A stored subscription that is already dead (re-subscribing after a cancellation)
         // must not block its replacement, otherwise the new paid subscription is cancelled.
