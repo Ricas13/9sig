@@ -1,8 +1,24 @@
 # Status of the audit and launch-gate items
 
+> **Current development note — PR #25, 2026-10-09:** This document includes older audit snapshots of `main`. The section immediately below supersedes their historical strategy-customisation and adjusted-price-ingestion claims. GitHub CI passing is not independent model certification, UK broker eligibility, a licensed data contract, a restore test or regulatory approval.
+
 Checked against `main` on 2026-10-09 by reading the code and running the tests (unit/integration against PostgreSQL 16, browser tests, lint, typecheck, build, dependency audit), not by trusting earlier documents. **Fixed** means the behaviour is in code and a named test fails without it. **Open** means not done. **Needs people** means no code change can finish it. Where an item is only partly done, the remainder is stated.
 
 Not covered by anything below: no test has run against live Stripe, a live email service, a real market-data provider, Google or Apple sign-in, or the app stores.
+
+## Current PR #25 implementation (not yet merged)
+
+| Capability | What can be verified in code | What still requires evidence |
+|---|---|---|
+| Curated strategy rules | Code-locked author/reference profiles; customers cannot choose arbitrary weights or create a custom strategy. 9Sig, fixed allocation and research momentum mechanics have tests. | Independent author-specific golden cases, methodology rights, full versions of many popular strategies |
+| Real broker fills and reviews | Multi-leg rebalance calculations, frozen 9Sig quarterly targets, contributions recorded once, actual-fill reconciliation and stale-action rejection; HFEA full fill-to-HOLD integration | Acceptance tests for all other implemented strategies and real exchange quotes |
+| Region and wrapper support | Fail-closed complete strategy market mapping, leverage/duration checks, broker/currency eligibility filters and a pre-switch holding compatibility guard | Operator must prove actual tradability, ISIN/ticker accuracy, ISA/SIPP eligibility and broker restrictions |
+| Corporate-action-adjusted history | Migration 0028 quarantines previously imported rows; a licensed provider must explicitly mark *each* historical CLOSE as adjusted before the momentum engine can use it | Contract rights, dividend/split correctness, real provider end-to-end testing |
+| Strategy publication | Migration 0029 invalidates draft sign-offs on direct SQL edits; API invalidates on edits; enabling a curated release requires active publication, recorded attestation, canonical rules and a complete market | Human reviewers and provenance for the attestation; database input is not independent evidence |
+| Master Admin | Encrypted providers, Stripe/webhook configuration, current/history quote checks, research release/market readiness view and audit logs | Live external service integration, operational drills and billing/recovery exercises |
+| CI | PostgreSQL on official ECR mirror avoids unauthenticated Docker Hub rate limits. Migrations, tests, build, browser and audit are enforced | Live staging, scale tests, backups, UK legal/regulatory approval |
+
+The application is **not commercially releasable** merely because code checks pass. Strategy evidence shown on the research page records configured state, not independent certification.
 
 ## Audit roadmap (`docs/WEALTHARR_AUDIT_AND_FIX_ROADMAP_2026-10-08.md`)
 
@@ -77,12 +93,12 @@ Sign-in with Google and Apple; installable mobile web app and Android/iOS shell;
 ## Strategy catalogue, Phase 1 (engineering)
 - Typed exposure registry: `src/domain/strategy/exposures.ts`, catalogue coverage tested.
 - Ordered-legs rebalance planner: `src/domain/strategy/rebalance-plan.ts`, hand-computed golden tests. The fixed-allocation engine now shows the whole plan as "Full plan, step n" rows; it still proposes only the first step and recalculates from the actual fill.
-- Investor-chosen weights: `userWeights` + `weight_<EXPOSURE>` settings for fixed allocation; invalid weights yield DATA_REQUIRED.
+- Customer-defined weights have been removed in PR #25: every published named strategy uses a code-reviewed immutable allocation and review method.
 - Semi-annual and threshold-only schedules (merged earlier).
 - Still open: spec-card sign-off (docs/strategy-specs), wiring the planner into the engine, input_schema entries for weights on the three-fund/60-40/80-20 versions.
 
 ## Strategy catalogue, price history ingest
-- The hourly run now fills daily closes for the trading lines of momentum research strategies (`src/lib/price-history-ingest.ts`). It is off until an administrator turns on "Store adjusted daily history" in Admin > Settings, confirming the data service returns split- and dividend-adjusted closes and its licence allows storing them. It accepts only a daily-bar CLOSE dated that exact day; newest missing days first, 40 per line per run.
-- Not tested against a real provider: whether the provider's historical endpoint really returns adjusted closes is the operator's confirmation, not something the code can check.
-- Three-fund, 60/40 and 80/20 are seeded as disabled drafts with `weight_<EXPOSURE>` fields; starting one with weights that do not total 100% is refused.
-- Still open: spec-card sign-off (docs/strategy-specs).
+- The hourly momentum history importer is off until Admin enables licensed adjusted storage. Every daily CLOSE must also contain an explicit `corporateActionsAdjusted:true` provider field; migration 0028 makes legacy rows ineligible until revalidated.
+- The provider adjustment flag is a technical input requirement, **not proof** that the vendor calculated distributions and split-adjustments correctly; real samples, contracts, licensing and exchange calendars still require external review.
+- Three-fund, 60/40 and 80/20 are seeded as disabled fixed-allocation drafts. Customer weight inputs are not supported.
+- The platform stores spec-card attestations, but independent human sign-off and full author-method goldens are still required.
