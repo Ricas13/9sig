@@ -216,7 +216,7 @@ export async function migrateStrategyVersion(
     const merged={...((instance.settings??{}) as Record<string,unknown>),...(suppliedSettings??{})};
     const settings=validateInstanceSettings(parseInputSchema(target.input_schema),merged);
     const before=(instance.state??{}) as Record<string,unknown>;
-    const after={...before,forceReview:true,versionMigratedAt:new Date().toISOString()};
+    const after:Record<string,unknown>={...before,forceReview:true,versionMigratedAt:new Date().toISOString()};
     // A target frozen under the old algorithm is not valid after changing
     // the method. Preserve the *committed* historical target only.
     delete after.reviewTargetValue;
