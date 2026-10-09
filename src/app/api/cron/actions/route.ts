@@ -7,6 +7,7 @@ import { enforceStrategyEntitlements } from "@/lib/entitlement-service";
 import { finishPendingAccountDeletions } from "@/lib/account-deletion";
 import { runBounded } from "@/lib/work-pool";
 import { ensureSettings } from "@/lib/settings";
+import { runOpsCheck } from "@/lib/ops-monitor";
 
 function authorized(request: Request) {
   return Boolean(process.env.CRON_SECRET) && request.headers.get("authorization") === "Bearer " + process.env.CRON_SECRET;
@@ -124,6 +125,8 @@ export async function GET(request: Request) {
       deliveriesCreated, delivered: delivery.sent, aggregates
     };
     await finishLease(lease, ok ? "SUCCESS" : "PARTIAL", summary);
+    // Tell administrators about anything that changed. Best effort: it must never fail the run.
+    await runOpsCheck().catch(() => undefined);
     return Response.json(summary, { status: ok ? 200 : 503, headers });
   } catch (error) {
     await finishLease(lease, "FAILED", { error: error instanceof Error ? error.message.slice(0, 200) : "UNKNOWN" });

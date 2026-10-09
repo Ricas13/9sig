@@ -1,4 +1,5 @@
 "use client";
+import { Field } from "@/components/Field";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -42,8 +43,8 @@ export function VerifyForm({token}:{token:string}) {
 
 export function ResetPasswordForm({token}:{token?:string}) {
   const [message,setMessage]=useState("");
-  if(!token) return <form className="stack" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);try{await fetch("/api/password-reset/request",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:f.get("email")})});setMessage("If that account exists, a reset link has been sent.");}catch{setMessage("Could not reach the server. Please check your connection and try again.");}}}><div className="field"><label>Email</label><input name="email" type="email" required/></div><button className="button primary">Send reset link</button>{message&&<div className="success">{message}</div>}</form>;
-  return <form className="stack" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);try{const r=await fetch("/api/password-reset/confirm",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token,password:f.get("password")})});const b=await r.json().catch(()=>({} as {error?:string}));setMessage(r.ok?"Password updated. You can sign in.":(b.error??"Could not update your password. Please try again."));}catch{setMessage("Could not reach the server. Please try again.");}}}><div className="field"><label>New password</label><input name="password" type="password" minLength={12} required/></div><button className="button primary">Update password</button>{message&&<div className={message.startsWith("Password updated")?"success":"error"}>{message}</div>}</form>;
+  if(!token) return <form className="stack" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);try{await fetch("/api/password-reset/request",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:f.get("email")})});setMessage("If that account exists, a reset link has been sent.");}catch{setMessage("Could not reach the server. Please check your connection and try again.");}}}><Field label="Email"><input name="email" type="email" required/></Field><button className="button primary">Send reset link</button>{message&&<div className="success">{message}</div>}</form>;
+  return <form className="stack" onSubmit={async(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);try{const r=await fetch("/api/password-reset/confirm",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token,password:f.get("password")})});const b=await r.json().catch(()=>({} as {error?:string}));setMessage(r.ok?"Password updated. You can sign in.":(b.error??"Could not update your password. Please try again."));}catch{setMessage("Could not reach the server. Please try again.");}}}><Field label="New password"><input name="password" type="password" minLength={12} required/></Field><button className="button primary">Update password</button>{message&&<div className={message.startsWith("Password updated")?"success":"error"}>{message}</div>}</form>;
 }
 
 

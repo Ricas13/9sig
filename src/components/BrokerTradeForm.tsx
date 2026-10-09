@@ -1,4 +1,5 @@
 "use client";
+import { Field } from "@/components/Field";
 import {useRef,useState} from "react";
 import {useRouter} from "next/navigation";
 
@@ -48,13 +49,13 @@ export function BrokerTradeForm({strategyId,accounts}:{strategyId:string;account
     <h3>Record a broker trade</h3>
     <p className="help">For past purchases or sales, use the price and quantity on your actual broker confirmation, not the market-price estimate above. A trade will only be accepted if its historical cash and holdings balance. Add the corresponding dated contribution first if necessary.</p>
     <div className="form-grid">
-      <div className="field"><label>Account</label><select name="accountId" required>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></div>
-      <div className="field"><label>Trade type</label><select value={side} onChange={e=>setSide(e.target.value as "BUY"|"SELL")}><option value="BUY">Buy</option><option value="SELL">Sell</option></select></div>
-      <div className="field"><label>Ticker</label><input name="ticker" placeholder="TQQQ" maxLength={24} required/></div>
-      <div className="field"><label>Exchange</label><input name="exchange" placeholder="NASDAQ or LSE" maxLength={24} required/></div>
-      <div className="field full"><label>Actual execution time with timezone offset</label><input name="executedAt" placeholder="2026-11-02T14:00:00-05:00" required/></div>
-      <div className="field"><label>Executed quantity</label><input name="quantity" inputMode="decimal" placeholder="5" required/></div>
-      <div className="field"><label>Broker fill price per unit</label><input name="unitPrice" inputMode="decimal" placeholder="100.12" value={unitPrice} onChange={event=>setUnitPrice(event.target.value)} required/></div>
+      <Field label="Account"><select name="accountId" required>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></Field>
+      <Field label="Trade type"><select value={side} onChange={e=>setSide(e.target.value as "BUY"|"SELL")}><option value="BUY">Buy</option><option value="SELL">Sell</option></select></Field>
+      <Field label="Ticker"><input name="ticker" placeholder="TQQQ" maxLength={24} required/></Field>
+      <Field label="Exchange"><input name="exchange" placeholder="NASDAQ or LSE" maxLength={24} required/></Field>
+      <Field className="field full" label="Actual execution time with timezone offset"><input name="executedAt" placeholder="2026-11-02T14:00:00-05:00" required/></Field>
+      <Field label="Executed quantity"><input name="quantity" inputMode="decimal" placeholder="5" required/></Field>
+      <Field label="Broker fill price per unit"><input name="unitPrice" inputMode="decimal" placeholder="100.12" value={unitPrice} onChange={event=>setUnitPrice(event.target.value)} required/></Field>
       <div className="field full">
         <button type="button" className="button" onClick={async event=>{
           setQuoteNotice("Looking up an indicative reference…");
@@ -82,8 +83,8 @@ export function BrokerTradeForm({strategyId,accounts}:{strategyId:string;account
         }}>Look up indicative price</button>
         {quoteNotice&&<p className="help" role="status">{quoteNotice}</p>}
       </div>
-      <div className="field"><label>Fee in account currency</label><input name="fee" inputMode="decimal" defaultValue="0" required/></div>
-      <div className="field full"><label>Note (optional)</label><input name="note" maxLength={240}/></div>
+      <Field label="Fee in account currency"><input name="fee" inputMode="decimal" defaultValue="0" required/></Field>
+      <Field className="field full" label="Note (optional)"><input name="note" maxLength={240}/></Field>
       <label className="field full"><input name="confirmed" type="checkbox" required/> I confirm this price, quantity, currency and timestamp came from my broker fill, not an indicative quote.</label>
     </div>
     <button type="submit" disabled={busy} className="button primary">{busy?"Recording…":"Record broker fill"}</button>

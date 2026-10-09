@@ -1,4 +1,5 @@
 "use client";
+import { Field } from "@/components/Field";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -46,17 +47,17 @@ export function AllocationDraftBuilder(){
   <h3>Visual allocation strategy builder</h3>
   <p className="help">Create a fixed-allocation release draft without editing JSON. First create its strategy definition above. Drafts are never automatically published.</p>
   <div className="form-grid">
-   <div className="field"><label>Existing strategy key</label><input value={strategyKey} onChange={e=>setStrategyKey(e.target.value)} required/></div>
-   <div className="field"><label>Version</label><input value={version} onChange={e=>setVersion(e.target.value)} required/></div>
-   <div className="field"><label>Effective from</label><input type="date" value={effectiveFrom} onChange={e=>setEffectiveFrom(e.target.value)} required/></div>
-   <div className="field"><label>Rebalance schedule</label><select value={frequency} onChange={e=>setFrequency(e.target.value)}><option>MONTHLY</option><option>QUARTERLY</option><option>ANNUAL</option></select></div>
-   <div className="field"><label>Drift threshold (0–1)</label><input value={threshold} onChange={e=>setThreshold(e.target.value)} inputMode="decimal"/></div>
+   <Field label="Existing strategy key"><input value={strategyKey} onChange={e=>setStrategyKey(e.target.value)} required/></Field>
+   <Field label="Version"><input value={version} onChange={e=>setVersion(e.target.value)} required/></Field>
+   <Field label="Effective from"><input type="date" value={effectiveFrom} onChange={e=>setEffectiveFrom(e.target.value)} required/></Field>
+   <Field label="Rebalance schedule"><select value={frequency} onChange={e=>setFrequency(e.target.value)}><option>MONTHLY</option><option>QUARTERLY</option><option>ANNUAL</option></select></Field>
+   <Field label="Drift threshold (0–1)"><input value={threshold} onChange={e=>setThreshold(e.target.value)} inputMode="decimal"/></Field>
   </div>
   <h4>Target allocation</h4>
   {rows.map((row,i)=><div key={i} className="form-grid" style={{marginBottom:8}}>
-   <div className="field"><label>Exposure {i+1}</label><input value={row.exposure} onChange={e=>edit(i,"exposure",e.target.value)} placeholder="BROAD_EQUITY" required/></div>
-   <div className="field"><label>Weight (0–1)</label><input value={row.weight} onChange={e=>edit(i,"weight",e.target.value)} inputMode="decimal" required/></div>
-   <div className="field"><label>Leverage</label><input value={row.leverage} onChange={e=>edit(i,"leverage",e.target.value)} inputMode="decimal" required/></div>
+   <Field label={<>Exposure {i+1}</>}><input value={row.exposure} onChange={e=>edit(i,"exposure",e.target.value)} placeholder="BROAD_EQUITY" required/></Field>
+   <Field label="Weight (0–1)"><input value={row.weight} onChange={e=>edit(i,"weight",e.target.value)} inputMode="decimal" required/></Field>
+   <Field label="Leverage"><input value={row.leverage} onChange={e=>edit(i,"leverage",e.target.value)} inputMode="decimal" required/></Field>
    <button className="button" type="button" disabled={rows.length<=2} onClick={()=>setRows(rows.filter((_,index)=>index!==i))}>Remove sleeve</button>
   </div>)}
   <p className="help">Current total: {(rows.reduce((v,row)=>v+(Number(row.weight)||0),0)*100).toFixed(2)}%</p>
