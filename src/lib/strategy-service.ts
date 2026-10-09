@@ -183,7 +183,7 @@ export async function migrateStrategyVersion(
     if(String(instance.strategy_version_id)===targetVersionId)return {changed:false,status:String(instance.status)};
 
     const targets=await tx.unsafe(
-      "SELECT id,strategy_definition_id,engine_key,input_schema,version FROM strategy_versions WHERE id=$1 AND lifecycle_status='PUBLISHED'"+
+      "SELECT id,strategy_definition_id,engine_key,input_schema,config,version FROM strategy_versions WHERE id=$1 AND lifecycle_status='PUBLISHED'"+
       " AND effective_from<=current_date AND (effective_to IS NULL OR effective_to>=current_date) LIMIT 1",
       [targetVersionId]
     );
@@ -191,10 +191,37 @@ export async function migrateStrategyVersion(
     if(!target||String(target.strategy_definition_id)!==String(instance.strategy_definition_id))throw new Error("INVALID_TARGET_VERSION");
     if(String(target.engine_key)!==String(instance.current_engine))throw new Error("ENGINE_MIGRATION_NOT_SUPPORTED");
 
+    // The proposed version can introduce new exposures or change leverage.
+    // Check ALL linked accounts with the new immutable code-reviewed rules before
+    // superseding actions or committing the version change.
+    const linked=await tx.unsafe(
+      "SELECT a.country,a.wrapper,a.currency,a.broker_name FROM strategy_accounts sa "+
+      "JOIN accounts a ON a.id=sa.account_id WHERE sa.strategy_instance_id=$1",
+      [instanceId]
+    );
+    if(!linked.length)throw new Error("STRATEGY_ACCOUNT_MISSING");
+    const mappings=verifiedCandidates(await tx.unsafe(VERIFIED_MARKET_MAPPINGS_SQL));
+    for(const account of linked){
+      const choice={
+        country:String(account.country),wrapper:String(account.wrapper),
+        currency:String(account.currency).toUpperCase(),
+        broker:account.broker_name?String(account.broker_name):null
+      };
+      const market=assessStrategyMarket(String(target.engine_key),
+        (target.config??{}) as Record<string,unknown>,mappings,choice,
+        new Date().toISOString().slice(0,10));
+      if(!market.available)throw new StrategyMarketUnavailableError(market,choice);
+    }
+
     const merged={...((instance.settings??{}) as Record<string,unknown>),...(suppliedSettings??{})};
     const settings=validateInstanceSettings(parseInputSchema(target.input_schema),merged);
     const before=(instance.state??{}) as Record<string,unknown>;
     const after={...before,forceReview:true,versionMigratedAt:new Date().toISOString()};
+    // A target frozen under the old algorithm is not valid after changing
+    // the method. Preserve the *committed* historical target only.
+    delete after.reviewTargetValue;
+    delete after.reviewContributionsSnapshot;
+    delete after.lastCalculatedAt;
 
     await tx.unsafe(
       "UPDATE actions SET status='SUPERSEDED',cancelled_at=COALESCE(cancelled_at,now()),updated_at=now() WHERE strategy_instance_id=$1 AND status IN ('CALCULATED','NOTIFIED','ACKNOWLEDGED')",
