@@ -74,7 +74,6 @@ export const SETTINGS: readonly SettingDefinition[] = [
   { key: "OPS_ALERT_EXTRA_EMAIL", label: "Also send alerts to", group: "Monitoring", kind: "text", pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, patternMessage: "Enter one email address.", help: "Optional extra recipient, for example a shared on-call mailbox. Administrators always receive alerts." },
 
   bool("ADMIN_MFA_REQUIRED", "Require two-step sign-in for admins", "Security", "Turn on once every admin has enabled two-step sign-in under Settings. Admins without it are kept out of admin tools."),
-  { key: "CRON_SECRET", label: "Background job secret", group: "Security", kind: "secret", help: "Bearer token your scheduler sends to /api/cron/actions. At least 32 characters." },
 
   bool("BACKUPS_RESTORE_VERIFIED", "A backup restore has been tested", "Launch sign-offs", "Confirm only after running the restore drill and keeping its report."),
   bool("UK_REGULATORY_SIGNOFF_VERIFIED", "Legal and regulatory review done", "Launch sign-offs", "Confirm only with documented advice for where you operate."),
