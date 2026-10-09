@@ -150,7 +150,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
   const lastReview=scenario?.resetTimeline?new Date():state.lastReviewAt?new Date(String(state.lastReviewAt)):new Date(instance.started_at);
   const reviewTimezone=String(config.reviewTimezone??instance.user_timezone??"UTC");
   const holidayDates=Array.isArray(config.marketHolidays)?config.marketHolidays.filter((v):v is string=>typeof v==="string"):[];
-  const convention=config.businessDayConvention==="NEXT"?"NEXT":"PREVIOUS";
+  const convention: "PREVIOUS"|"NEXT"=config.businessDayConvention==="NEXT"?"NEXT":"PREVIOUS";
   const scheduleInput={
     lastReviewAt:lastReview,
     timeZone:reviewTimezone,
