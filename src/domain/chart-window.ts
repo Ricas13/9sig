@@ -12,7 +12,7 @@ const factor=(base:number|undefined,value:number|undefined)=>{
  * Never pretend a series beginning AFTER the selected period is comparable:
  * its opening value must exist on the first actual chart observation.
  */
-export function rebaseIndexedWindow<T extends IndexedChartPoint>(points:T[]):T[]{
+export function rebaseIndexedWindow(points:IndexedChartPoint[]):IndexedChartPoint[]{
  if(!points.length)return [];
  const anchor=points[0];
  const sourceKeys=Object.keys(anchor.benchmarkValues??{});
