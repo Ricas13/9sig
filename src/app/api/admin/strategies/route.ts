@@ -5,6 +5,7 @@ import { sql } from "@/lib/db";
 import { supportedEngineKeys, validateEngineConfig, assertCustomerPublishableEngine } from "@/domain/strategy/registry";
 import { parseInputSchema } from "@/domain/strategy/config";
 import { authFailure } from "@/lib/api-auth";
+import { RESEARCH_STRATEGIES } from "@/domain/strategy/research-catalog";
 
 const definitionSchema=z.object({
   key:z.string().min(1),name:z.string().min(1),family:z.string().min(1),description:z.string(),
@@ -46,6 +47,8 @@ export async function PUT(request:Request){
     const admin=await requireAdmin();
     const p=definitionSchema.parse(await request.json());
     assertEngine(p.engine);
+    const approved=RESEARCH_STRATEGIES.find(profile=>profile.key===p.key);
+    if(p.key!=="9sig"&&(!approved||approved.engine!==p.engine))return Response.json({error:"Only built-in, code-reviewed strategies can be managed."},{status:400});
     parseInputSchema(p.requiredInputs);
     await sql.unsafe(
       "INSERT INTO strategy_definitions (key,name,family,description,engine,enabled,proprietary,default_benchmark_key,supported_regions,supported_wrappers,required_inputs)"+
@@ -68,9 +71,13 @@ export async function POST(request:Request){
     assertSameOrigin(request);
     const admin=await requireAdmin();
     const p=versionSchema.parse(await request.json());
+    const approved=RESEARCH_STRATEGIES.find(profile=>profile.key===p.strategyKey);
+    if(p.strategyKey!=="9sig"&&(!approved||approved.engine==="RESEARCH_PENDING"))return Response.json({error:"Strategy rules have not yet been implemented."},{status:400});
     const defs=await sql.unsafe("SELECT id,engine,required_inputs FROM strategy_definitions WHERE key=$1 LIMIT 1",[p.strategyKey]);
     if(!defs[0])return Response.json({error:"Strategy not found."},{status:404});
     const engineKey=p.engineKey??String(defs[0].engine);
+    if(engineKey!==(p.strategyKey==="9sig"?"VALUE_TARGET":approved?.engine))return Response.json({error:"A built-in strategy cannot switch calculation engines."},{status:400});
+    if(p.config.userWeights===true)return Response.json({error:"Custom allocation weights are not supported."},{status:400});
     const inputSchema=p.inputSchema??(Array.isArray(defs[0].required_inputs)?defs[0].required_inputs:[]);
     assertEngine(engineKey);
     validateEngineConfig(engineKey,p.config);
@@ -119,6 +126,7 @@ export async function PATCH(request:Request){
       if(p.action==="UPDATE_DRAFT"){
         if(String(current.lifecycle_status)!=="DRAFT")throw new LifecycleConflict("Published strategy versions are immutable. Create a new version instead.",409);
         const engineKey=p.engineKey??String(current.engine_key);
+        if(p.config?.userWeights===true)throw new LifecycleConflict("Custom allocation weights are not supported.",400);
         const config=p.config??((current.config??{}) as Record<string,unknown>);
         const inputSchema=p.inputSchema??(Array.isArray(current.input_schema)?current.input_schema:[]);
         assertEngine(engineKey);validateEngineConfig(engineKey,config);parseInputSchema(inputSchema);
@@ -145,6 +153,7 @@ export async function PATCH(request:Request){
         if(String(current.lifecycle_status)!=="DRAFT")throw new LifecycleConflict("Only a draft version can be published.",409);
         assertEngine(String(current.engine_key));
         assertCustomerPublishableEngine(String(current.engine_key));
+        if((current.config as Record<string,unknown> | null)?.userWeights===true)throw new LifecycleConflict("Custom allocation versions cannot be published.",409);
         const attested=await tx.unsafe("SELECT 1 FROM strategy_version_attestations WHERE strategy_version_id=$1",[p.versionId]);
         if(!attested[0])throw new LifecycleConflict("Record the specification sign-off and golden tests for this version before publishing it.",409);
         validateEngineConfig(String(current.engine_key),(current.config??{}) as Record<string,unknown>);

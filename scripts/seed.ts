@@ -18,21 +18,27 @@ async function main(){
 
     await seedPlan("free","Free",0,0,0,1,{features:["history","reconciliation","resume","community"],notificationChannels:[]},0);
     await seedPlan("investor","Investor",999,9900,1742,3,{features:["history","reconciliation","resume","community","analytics","comparisons"],notificationChannels:["EMAIL","DISCORD"]},10);
-    await seedPlan("pro","Pro",2999,29900,1692,null,{features:["history","reconciliation","resume","community","analytics","comparisons","what_if","advanced_imports","custom_strategies","multi_account"],notificationChannels:["EMAIL","DISCORD"]},20);
+    await seedPlan("pro","Pro",2999,29900,1692,null,{features:["history","reconciliation","resume","community","analytics","comparisons","what_if","advanced_imports","multi_account"],notificationChannels:["EMAIL","DISCORD"]},20);
 
     const definitions=[
       ["9sig","9Sig","SIGNAL_VALUE_TARGET","Rules-based value target strategy","VALUE_TARGET",true,true],
       ["hfea","HFEA","FIXED_ALLOCATION","Leveraged fixed-allocation strategy","FIXED_ALLOCATION",false,false],
       ["golden-butterfly","Golden Butterfly","FIXED_ALLOCATION","Diversified fixed-allocation strategy","FIXED_ALLOCATION",false,false],
-      ["three-fund","Three-Fund Portfolio","FIXED_ALLOCATION","Fixed-allocation strategy with investor-chosen weights","FIXED_ALLOCATION",false,false],
-      ["60-40","60/40 Portfolio","FIXED_ALLOCATION","Fixed-allocation strategy with investor-chosen weights","FIXED_ALLOCATION",false,false],
-      ["80-20","80/20 Portfolio","FIXED_ALLOCATION","Fixed-allocation strategy with investor-chosen weights","FIXED_ALLOCATION",false,false],
+      ["three-fund","Three-Fund Portfolio — 40/40/20 model","FIXED_ALLOCATION","Named fixed-allocation strategy","FIXED_ALLOCATION",false,false],
+      ["60-40","60/40 Portfolio","FIXED_ALLOCATION","Named fixed-allocation strategy","FIXED_ALLOCATION",false,false],
+      ["80-20","80/20 Portfolio","FIXED_ALLOCATION","Named fixed-allocation strategy","FIXED_ALLOCATION",false,false],
+      ["permanent-portfolio","Permanent Portfolio","FIXED_ALLOCATION","Four equal asset sleeves","FIXED_ALLOCATION",false,false],
+      ["all-weather","All Weather (reference)","FIXED_ALLOCATION","Published unlevered reference approximation","FIXED_ALLOCATION",false,false],
+      ["buffett-90-10","Buffett 90/10 Portfolio","FIXED_ALLOCATION","Fixed 90/10 reference model","FIXED_ALLOCATION",false,false],
+      ["gtaa-ivy","GTAA / Ivy","MOMENTUM","Research pending","MOMENTUM_ROTATION",false,false],
+      ["paa","Protective Asset Allocation","MOMENTUM","Research pending","MOMENTUM_ROTATION",false,false],
+      ["vaa","Vigilant Asset Allocation","MOMENTUM","Research pending","MOMENTUM_ROTATION",false,false],
       ["dual-momentum","Dual Momentum","MOMENTUM","Momentum rotation strategy","MOMENTUM_ROTATION",false,false]
     ] as const;
 
     for(const item of definitions){
       const [key,name,family,description,engine,proprietary,enabled]=item;
-      const defQuery="INSERT INTO strategy_definitions (key,name,family,description,engine,proprietary,enabled,supported_regions,supported_wrappers) VALUES ($1,$2,$3,$4,$5,$6,$7,'[\"GB\",\"US\",\"EU\"]'::jsonb,'[\"ISA\",\"SIPP\",\"TAXABLE\"]'::jsonb) ON CONFLICT (key) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,engine=EXCLUDED.engine,proprietary=EXCLUDED.proprietary,enabled=EXCLUDED.enabled,updated_at=now() RETURNING id";
+      const defQuery="INSERT INTO strategy_definitions (key,name,family,description,engine,proprietary,enabled,supported_regions,supported_wrappers) VALUES ($1,$2,$3,$4,$5,$6,$7,'[]'::jsonb,'[]'::jsonb) ON CONFLICT (key) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,engine=EXCLUDED.engine,proprietary=EXCLUDED.proprietary,enabled=strategy_definitions.enabled,updated_at=now() RETURNING id";
       const rows=await sql.unsafe(defQuery,[key,name,family,description,engine,proprietary,enabled]);
       const id=rows[0].id;
 
@@ -46,7 +52,7 @@ async function main(){
 
       const lifecycle=key==="9sig"?"PUBLISHED":"DRAFT";
       await sql.unsafe(
-        "INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,upgrade_policy,input_schema,config,disclosure,published_at) VALUES ($1,'1.0','2026-01-01',$2,$3,'OPTIONAL',$6::text::jsonb,$4::text::jsonb,$5,CASE WHEN $3='PUBLISHED' THEN now() ELSE NULL END) ON CONFLICT (strategy_definition_id,version) DO UPDATE SET engine_key=EXCLUDED.engine_key,lifecycle_status=EXCLUDED.lifecycle_status,input_schema=EXCLUDED.input_schema,config=EXCLUDED.config,disclosure=EXCLUDED.disclosure,published_at=CASE WHEN EXCLUDED.lifecycle_status='PUBLISHED' THEN COALESCE(strategy_versions.published_at,now()) ELSE strategy_versions.published_at END",
+        "INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,upgrade_policy,input_schema,config,disclosure,published_at) VALUES ($1,'1.0','2026-01-01',$2,$3,'OPTIONAL',$6::text::jsonb,$4::text::jsonb,$5,CASE WHEN $3='PUBLISHED' THEN now() ELSE NULL END) ON CONFLICT (strategy_definition_id,version) DO UPDATE SET engine_key=EXCLUDED.engine_key,input_schema=EXCLUDED.input_schema,config=EXCLUDED.config,disclosure=EXCLUDED.disclosure WHERE strategy_versions.lifecycle_status='DRAFT' AND EXCLUDED.lifecycle_status='DRAFT'",
         [id,engine,lifecycle,JSON.stringify(config),disclosure,JSON.stringify(inputSchema)]
       );
     }
