@@ -95,6 +95,20 @@ describe.skipIf(!url)("strategy version lifecycle",()=>{
     expect((await patch({action:"PUBLISH",versionId:id})).status).toBe(200);
   });
 
+  it("database-level draft edits invalidate attestations even when the API is bypassed",async()=>{
+    const id=await draft("1.06","2031-01-16");
+    const before=await sql!.unsafe("SELECT strategy_version_id FROM strategy_version_attestations WHERE strategy_version_id=$1",[id]);
+    expect(before).toHaveLength(1);
+    await sql!.unsafe("UPDATE strategy_versions SET release_notes='Research methodology clarified' WHERE id=$1",[id]);
+    const after=await sql!.unsafe("SELECT strategy_version_id FROM strategy_version_attestations WHERE strategy_version_id=$1",[id]);
+    expect(after).toHaveLength(0);
+    expect((await patch({action:"PUBLISH",versionId:id})).status).toBe(409);
+    expect((await patch({action:"ATTEST",versionId:id,specCard:"docs/strategy-specs/test-card.md",goldenTests:"tests/value-target.test.ts"})).status).toBe(200);
+    expect((await patch({action:"PUBLISH",versionId:id})).status).toBe(200);
+    const publishedApproval=await sql!.unsafe("SELECT strategy_version_id FROM strategy_version_attestations WHERE strategy_version_id=$1",[id]);
+    expect(publishedApproval).toHaveLength(1);
+  });
+
   it("will not edit a published version through the API",async()=>{
     const id=await draft("1.1","2031-02-01");
     await patch({action:"PUBLISH",versionId:id});
