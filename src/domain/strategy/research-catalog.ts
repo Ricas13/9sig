@@ -6,7 +6,7 @@
 export type StrategyProfile = {
   key: string;
   name: string;
-  engine: "FIXED_ALLOCATION" | "VALUE_TARGET" | "MOMENTUM_ROTATION" | "CUSTOM_PENDING";
+  engine: "FIXED_ALLOCATION" | "VALUE_TARGET" | "MOMENTUM_ROTATION" | "RESEARCH_PENDING";
   launchState: "DRAFT_REQUIRES_VERIFICATION";
   config?: Record<string, unknown>;
   /** Shown to the investor with the strategy; required whenever it holds a leveraged exposure. */
@@ -21,23 +21,6 @@ const fixed = (allocations: [string,string][], frequency:"MONTHLY"|"QUARTERLY"|"
   allocations: allocations.map(([exposure,weight])=>({exposure,weight})),
   reviewFrequency:frequency,
   rebalanceThreshold:"0.00"
-});
-/**
- * Strategies with no canonical split let the investor choose the weights: one number field per
- * exposure, defaulting to the illustrative weight. The engine still requires the total to be 100%.
- */
-const userWeights = (config: ReturnType<typeof fixed>) => ({
-  config: { ...config, userWeights: true },
-  inputSchema: config.allocations.map((a) => ({
-    key: "weight_" + a.exposure,
-    label: "Target weight for " + a.exposure.toLowerCase().replace(/_/g, " ") + " (0 to 1)",
-    type: "number",
-    required: true,
-    default: a.weight,
-    min: "0.01",
-    max: "1",
-    help: "Weights across all holdings must total exactly 1 (100%)."
-  }))
 });
 export const LEVERAGE_DISCLOSURE =
   "This strategy holds leveraged products that reset their leverage every day. Because of that reset, returns over longer periods can differ sharply from the stated multiple of the index, and losses can compound in volatile or falling markets (volatility decay). They can fall a great deal in a short time and are unsuitable for many investors. Rules-based calculation only, not individual investment advice; past performance is not a guide to the future.";
@@ -72,22 +55,48 @@ export const RESEARCH_STRATEGIES: readonly StrategyProfile[] = [
     risks:["Commodities and tax-wrapper availability","Allocation differs from true risk parity"]
   },
   {
-    key:"three-fund",name:"Three-Fund Portfolio",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
-    ...userWeights(fixed([["DOMESTIC_EQUITY","0.40"],["INTERNATIONAL_EQUITY","0.40"],["AGGREGATE_BONDS","0.20"]],"ANNUAL")),
-    rules:"Illustrative weights only. Domestic/international equity and bond targets are USER SETTINGS, not a universal 40/40/20 rule.",
+    key:"three-fund",name:"Three-Fund Portfolio — 40/40/20 model",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    config:fixed([["DOMESTIC_EQUITY","0.40"],["INTERNATIONAL_EQUITY","0.40"],["AGGREGATE_BONDS","0.20"]],"ANNUAL"),
+    rules:"A fixed 40/40/20 three-fund reference model; this is not a universal Bogleheads allocation. Other splits require separate named versions.",
     research:["https://www.bogleheads.org/wiki/Three-fund_portfolio"],risks:["Home bias","Bond duration and currency"]
   },
   {
     key:"60-40",name:"60/40 Portfolio",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
-    ...userWeights(fixed([["BROAD_EQUITY","0.60"],["AGGREGATE_BONDS","0.40"]],"ANNUAL")),
-    rules:"60% diversified equities and 40% bonds; review annually with user-customisable drift thresholds.",
+    config:fixed([["BROAD_EQUITY","0.60"],["AGGREGATE_BONDS","0.40"]],"ANNUAL"),
+    rules:"Fixed 60% diversified equities and 40% bonds; annual calendar review. Alternative rebalancing thresholds are separately versioned models.",
     research:["https://www.bogleheads.org/wiki/Asset_allocation"],risks:["Stock-bond correlations can change"]
   },
   {
     key:"80-20",name:"80/20 Portfolio",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
-    ...userWeights(fixed([["BROAD_EQUITY","0.80"],["AGGREGATE_BONDS","0.20"]],"ANNUAL")),
+    config:fixed([["BROAD_EQUITY","0.80"],["AGGREGATE_BONDS","0.20"]],"ANNUAL"),
     rules:"80% diversified equities and 20% bonds; review annually.",
     research:["https://www.bogleheads.org/wiki/Asset_allocation"],risks:["High equity drawdown potential"]
+  },
+  {
+    key:"buffett-90-10",name:"Buffett 90/10 Portfolio",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    config:fixed([["US_LARGE_CAP","0.90"],["SHORT_TREASURY","0.10"]],"ANNUAL"),
+    rules:"90% low-cost S&P 500 exposure and 10% short-term US government bonds. Annual rebalance is this model's convention, not a Buffett-mandated schedule.",
+    research:["https://www.berkshirehathaway.com/letters/2013ltr.pdf"],risks:["US-equity concentration","Bond maturity and regional instrument fidelity"]
+  },
+  {
+    key:"coffeehouse",name:"Coffeehouse Portfolio",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    rules:"Bill Schultheis' factor-tilted equities, REIT and bond sleeves require complete verification before calculations.",
+    research:["https://portfoliocharts.com/portfolios/coffeehouse-portfolio/"],risks:["Factor and REIT matching across jurisdictions"]
+  },
+  {
+    key:"core-four",name:"Core Four Portfolio",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    rules:"Rick Ferri-inspired diversified equity, bond and property sleeves need an exact named profile and validation.",
+    research:["https://www.bogleheads.org/wiki/Lazy_portfolios"],risks:["Implementation variants","REIT sleeve availability"]
+  },
+  {
+    key:"swensen",name:"Swensen Lazy Portfolio",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    rules:"Swensen-inspired public-market portfolio; do not confuse it with the Yale endowment's actual allocations.",
+    research:["https://portfoliocharts.com/portfolios/"],risks:["Emerging markets, REIT and bond equivalence"]
+  },
+  {
+    key:"merriman-ultimate",name:"Merriman Ultimate Buy-and-Hold",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    rules:"Paul Merriman multi-factor asset sleeves need complete versioned weights, exchange instruments and tests.",
+    research:["https://www.paulmerriman.com/"],risks:["Many sleeves and dealing costs"]
   },
   {
     key:"dual-momentum",name:"Global Dual Momentum",engine:"MOMENTUM_ROTATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
@@ -111,7 +120,7 @@ export const RESEARCH_STRATEGIES: readonly StrategyProfile[] = [
     research:["https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3002624"],risks:["Whipsaw","Trading-calendar precision"]
   },
   ...(["3sig","6sig"] as const).map(key=>({
-    key,name:key.toUpperCase()+" (research pending)",engine:"CUSTOM_PENDING" as const,launchState:"DRAFT_REQUIRES_VERIFICATION" as const,
+    key,name:key.toUpperCase()+" (research pending)",engine:"RESEARCH_PENDING" as const,launchState:"DRAFT_REQUIRES_VERIFICATION" as const,
     rules:"Do not infer "+key+" parameters by renaming the 9Sig engine. Verify the source book's target growth, signal frequency, bands, cash management and reset rules before publication.",
     research:["https://jasonkelly.com/2017/01/how-my-signal-system-works/","https://jasonkelly.com/books/3sig/","https://jasonkelly.com/"], risks:["Proprietary method ambiguity","Version-specific interpretation"]
   }))
