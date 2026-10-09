@@ -11,7 +11,7 @@ import {
  */
 const BENCHMARKS=["vti","spy","qqq"] as const;
 export type BenchmarkHistory = {key:string;label:string;currency:string;points:Valuation[]};
-type BenchmarkRow={key:string;date:unknown;value:unknown;currency:unknown;return_basis:unknown};
+type BenchmarkRow={key:string;date:unknown;value:unknown;currency:unknown;return_basis:unknown;licensed:unknown};
 type StrategyRow={id:unknown;name:unknown;currency:unknown;status:unknown};
 type ValueRow={strategy_instance_id:unknown;date:unknown;value:unknown};
 type FlowRow={strategy_instance_id:unknown;date:unknown;cash_amount:unknown};
@@ -21,7 +21,7 @@ export async function loadWorkspaceAnalytics(userId:string) {
     sql.unsafe("SELECT i.id,i.name,i.status,a.currency FROM strategy_instances i JOIN accounts a ON a.id=i.account_id WHERE i.user_id=$1 AND i.status IN ('ACTIVE','PAUSED') ORDER BY i.created_at",[userId]),
     sql.unsafe("SELECT p.strategy_instance_id,p.date,p.value FROM performance_series p JOIN strategy_instances i ON i.id=p.strategy_instance_id WHERE i.user_id=$1 AND i.status IN ('ACTIVE','PAUSED') AND p.series_type='USER_VALUE' ORDER BY p.date",[userId]),
     sql.unsafe("SELECT l.strategy_instance_id,l.occurred_at::date AS date,l.cash_amount FROM ledger_events l JOIN strategy_instances i ON i.id=l.strategy_instance_id WHERE i.user_id=$1 AND i.status IN ('ACTIVE','PAUSED') AND l.event_type IN ('CONTRIBUTION','WITHDRAWAL') AND NOT EXISTS (SELECT 1 FROM ledger_events c WHERE c.correction_of_event_id=l.id) ORDER BY l.occurred_at",[userId]),
-    sql.unsafe("SELECT lower(b.key) AS key,bp.date,bp.value,bp.metadata->>'currency' AS currency,bp.metadata->>'returnBasis' AS return_basis FROM benchmark_performance bp JOIN benchmarks b ON b.id=bp.benchmark_id WHERE lower(b.key) IN ('vti','spy','qqq') ORDER BY b.key,bp.date")
+    sql.unsafe("SELECT lower(b.key) AS key,bp.date,bp.value,bp.metadata->>'currency' AS currency,bp.metadata->>'returnBasis' AS return_basis,bp.metadata->>'licensed' AS licensed FROM benchmark_performance bp JOIN benchmarks b ON b.id=bp.benchmark_id WHERE lower(b.key) IN ('vti','spy','qqq') ORDER BY b.key,bp.date")
   ]);
   const strategyRows=strategiesRaw as unknown as StrategyRow[];
   const valueRows=valuesRaw as unknown as ValueRow[];
@@ -35,7 +35,7 @@ export async function loadWorkspaceAnalytics(userId:string) {
   const availableBenchmarks:BenchmarkHistory[]=[];
   for(const key of BENCHMARKS) {
     const rows=benchmarkRows.filter(r=>r.key===key);
-    if(!rows.length || rows.some(row=>row.return_basis!=="TOTAL_RETURN"||!row.currency||
+    if(!rows.length || rows.some(row=>row.return_basis!=="TOTAL_RETURN"||row.licensed!=="true"||!row.currency||
       String(row.currency).length!==3))continue;
     const currencies=new Set(rows.map(row=>String(row.currency).toUpperCase()));
     if(currencies.size!==1)continue;
