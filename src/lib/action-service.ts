@@ -740,7 +740,8 @@ export async function executeAction(
             actionId,
             proposedAmount:String(action.amount),
             actualNotional:validated.grossNotional.toString(),
-            partial:Boolean(execution.partial)
+            partial:Boolean(execution.partial),
+            executedAt:brokerExecutedAt.toISOString()
           }),
           brokerExecutedAt.toISOString()
         

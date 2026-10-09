@@ -96,6 +96,15 @@ describe.skipIf(!url)("quote -> action -> notification",()=>{
     expect(notice.length).toBeGreaterThanOrEqual(0);
   });
 
+  it("delivers the notification by email and records it as sent",async()=>{
+    const { createPendingDeliveries,processDeliveryBacklog }=await import("@/lib/notification-service");
+    await createPendingDeliveries(200);
+    await processDeliveryBacklog({budgetMs:10_000,batch:100});
+    const mine=await sql!.unsafe("SELECT d.channel,d.status FROM notification_deliveries d JOIN notifications n ON n.id=d.notification_id WHERE n.user_id=$1",[userId]);
+    expect(mine.length).toBeGreaterThanOrEqual(1);
+    expect(mine.map((d)=>d.channel+":"+d.status)).toEqual(expect.arrayContaining(["EMAIL:SENT"]));
+    expect(mine.map((d)=>d.channel)).toContain("EMAIL");
+  });
   it("rejects a future-dated broker execution without writing to the ledger, then preserves a valid fill timestamp",async()=>{
     const {executeAction}=await import("@/lib/action-service");
     const instance=(await sql!.unsafe("SELECT strategy_version_id FROM strategy_instances WHERE id=$1",[instanceId]))[0];
@@ -118,13 +127,5 @@ describe.skipIf(!url)("quote -> action -> notification",()=>{
     expect(row.metadata.executedAt).toBe(actual);
   });
 
-  it("delivers the notification by email and records it as sent",async()=>{
-    const { createPendingDeliveries,processDeliveryBacklog }=await import("@/lib/notification-service");
-    await createPendingDeliveries(200);
-    await processDeliveryBacklog({budgetMs:10_000,batch:100});
-    const mine=await sql!.unsafe("SELECT d.channel,d.status FROM notification_deliveries d JOIN notifications n ON n.id=d.notification_id WHERE n.user_id=$1",[userId]);
-    expect(mine.length).toBeGreaterThanOrEqual(1);
-    expect(mine.map((d)=>d.channel+":"+d.status)).toEqual(expect.arrayContaining(["EMAIL:SENT"]));
-    expect(mine.map((d)=>d.channel)).toContain("EMAIL");
-  });
+
 });
