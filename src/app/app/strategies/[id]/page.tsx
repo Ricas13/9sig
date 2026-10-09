@@ -102,7 +102,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     "WHERE sa.strategy_instance_id=$1 AND tl.effective_from<=current_date "+
     "AND (tl.effective_to IS NULL OR tl.effective_to>=current_date) AND ("+
     " EXISTS(SELECT 1 FROM ledger_events le WHERE le.strategy_instance_id=$1 AND le.instrument_id=i.id) "+
-    " OR EXISTS(SELECT 1 FROM regional_instrument_mappings m WHERE m.trading_line_id=tl.id AND m.enabled=true AND m.country=a.country "+
+    " OR EXISTS(SELECT 1 FROM regional_instrument_mappings m WHERE m.trading_line_id=tl.id AND m.enabled=true AND m.fidelity='EXACT' AND m.country=a.country "+
     " AND m.wrapper=a.wrapper AND (m.broker IS NULL OR upper(m.broker)=upper(COALESCE(a.broker_name,''))))) "+
     "ORDER BY i.id,tl.ticker,tl.id LIMIT 40",[id]
   );
