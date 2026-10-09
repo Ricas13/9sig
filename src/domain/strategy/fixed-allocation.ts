@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import { REVIEW_FREQUENCY_MONTHS } from "../schedule";
+import { planRebalance } from "./rebalance-plan";
 import type { EngineContext, ProposedAction, StrategyEngine } from "./types";
 
 type Allocation = { exposure: string; weight: string | number; leverage?: string | number };
@@ -138,6 +139,14 @@ export const fixedAllocationEngine: StrategyEngine = {
         dueAt: ctx.now
       };
     }
+
+    // Show the whole rebalance (sales first, then purchases) so the investor sees where this step leads.
+    // Only the first step is proposed; the next one is recalculated from the actual fill.
+    const legs=planRebalance({
+      rows:allocations.map((a)=>({exposure:a.exposure,current:rows.find((r)=>r.exposure===a.exposure)!.current,weight:new Decimal(String(a.weight))})),
+      cash:ctx.cash,threshold
+    });
+    legs.forEach((leg,index)=>explanation.push({label:"Full plan, step "+(index+1),value:(leg.side==="SELL"?"Sell ":"Buy ")+money(leg.amount)+" "+ctx.baseCurrency+" of "+leg.exposure,kind:"text"}));
 
     const underweight=[...rows].filter((row)=>row.delta.gt(0)).sort((a,b)=>b.delta.cmp(a.delta))[0];
     if(underweight&&ctx.cash.gt(0)){
