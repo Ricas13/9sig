@@ -48,6 +48,19 @@ async function main(){
       const id=rows[0]?.id??(await sql.unsafe("SELECT id FROM strategy_definitions WHERE key=$1",[key]))[0]?.id;
       if(!id)throw new Error("STRATEGY_SEED_LOOKUP_FAILED:"+key);
 
+      // On an earlier install these three were research-only definitions without
+      // versions. Seeding the new code-approved DRAFT must not leave their
+      // definition.engine stuck on RESEARCH_PENDING. Never mutate a definition
+      // with a published version or operator-enabled status.
+      if(["coffeehouse","core-four","swensen"].includes(key)){
+        await sql.unsafe(
+          "UPDATE strategy_definitions SET name=$2,description=$3,family='FIXED_ALLOCATION',engine='FIXED_ALLOCATION' "+
+          "WHERE id=$1 AND enabled=false AND NOT EXISTS ("+
+          " SELECT 1 FROM strategy_versions WHERE strategy_definition_id=$1 AND lifecycle_status='PUBLISHED')",
+          [id,name,description]
+        );
+      }
+
       if(engine==="MOMENTUM_ROTATION")continue;
 
       let config:object={};
