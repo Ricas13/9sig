@@ -1,4 +1,5 @@
 import { RESEARCH_STRATEGIES } from "../src/domain/strategy/research-catalog";
+import {CANONICAL_9SIG_CONFIG} from "../src/domain/strategy/curated-release";
 import postgres from "postgres";
 
 async function main(){
@@ -47,7 +48,7 @@ async function main(){
       if(engine==="MOMENTUM_ROTATION")continue;
 
       let config:object={};
-      if(key==="9sig")config={targetExposure:"NASDAQ_100_3X_LONG",initialTargetRatio:"0.60",targetRate:"0.09",contributionTargetRatio:"0.50",maxCashUse:"0.90",tolerance:"0.01",reviewFrequency:"QUARTERLY",reviewCutoffLocal:"16:00",businessDayConvention:"PREVIOUS",marketHolidays:[]};
+      if(key==="9sig")config=CANONICAL_9SIG_CONFIG;
       let inputSchema:object[]=[];
       let disclosure="Rule calculator for a user-selected strategy. Not a suitability recommendation.";
       if(engine==="FIXED_ALLOCATION"){const preset=RESEARCH_STRATEGIES.find((p)=>p.key===key);if(!preset?.config)throw new Error("Missing reference configuration for "+key);config=preset.config;inputSchema=preset.inputSchema??[];if(preset.disclosure)disclosure=preset.disclosure;}
