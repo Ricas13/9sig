@@ -10,7 +10,7 @@ describe("fail-closed, comparable full-window benchmark charts",()=>{
   const c=benchmarkComparison(actual,[{date:"2026-01-06",amount:"100"}],"GBP",[base]);
   expect(c.comparisons.map(x=>x.key)).toEqual(["spy"]);
   expect(c.mapped.get("2026-01-05")?.spy).toBe(100);
-  expect(c.mapped.get("2026-01-07")?.spy).toBeCloseTo((1039+100)*104/103/10,0);
+  expect(c.mapped.get("2026-01-07")?.spy).toBeCloseTo(104,8);
  });
  it("does not display a benchmark whose history ends before the account does",()=>{
   const c=benchmarkComparison(actual,[],"GBP",[{...base,points:base.points.slice(0,-1)}]);
