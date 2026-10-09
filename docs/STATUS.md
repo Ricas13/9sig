@@ -74,3 +74,9 @@ Sign-in with Google and Apple; installable mobile web app and Android/iOS shell;
 ## Strategy catalogue, Phase 4 gate (attestations)
 - Publishing a version through the admin route now requires a recorded attestation (spec card path under `docs/strategy-specs/` and where the golden tests live) via the new `ATTEST` action; table `strategy_version_attestations` (migration 0025). The attestation records who signed and when; it does not verify the card itself, a person must.
 - Momentum engines remain research-only (not in the customer-publishable allowlist).
+## Strategy catalogue, Phase 1 (engineering)
+- Typed exposure registry: `src/domain/strategy/exposures.ts`, catalogue coverage tested.
+- Ordered-legs rebalance planner: `src/domain/strategy/rebalance-plan.ts`, hand-computed golden tests. Not yet wired into the engine's step-by-step action flow (the engine still proposes one leg per recalculation).
+- Investor-chosen weights: `userWeights` + `weight_<EXPOSURE>` settings for fixed allocation; invalid weights yield DATA_REQUIRED.
+- Semi-annual and threshold-only schedules (merged earlier).
+- Still open: spec-card sign-off (docs/strategy-specs), wiring the planner into the engine, input_schema entries for weights on the three-fund/60-40/80-20 versions.
