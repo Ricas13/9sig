@@ -44,9 +44,9 @@ export const SETTINGS: readonly SettingDefinition[] = [
   { key: "EMAIL_HTTP_TOKEN", label: "Email service token", group: "Email", kind: "secret", help: "Bearer token for the email service." },
   { key: "EMAIL_FROM", label: "From address", group: "Email", kind: "text", help: "For example support@yourdomain.com. Must be an address your email service may send from." },
 
-  { key: "TELEGRAM_BOT_TOKEN", label: "Telegram bot token", group: "Messaging (Telegram)", kind: "secret", help: "Token issued by BotFather. Saved encrypted and never sent to the browser." },
+  { key: "TELEGRAM_BOT_TOKEN", label: "Telegram bot token", group: "Messaging (Telegram)", kind: "secret", pattern: /^\d{5,15}:[A-Za-z0-9_-]{20,150}$/, patternMessage: "Paste a BotFather token, e.g. 123456789:long-token.", help: "Token issued by BotFather. Saved encrypted and never sent to the browser." },
   { key: "TELEGRAM_BOT_USERNAME", label: "Telegram bot username", group: "Messaging (Telegram)", kind: "text", pattern: /^[A-Za-z][A-Za-z0-9_]{4,31}$/, patternMessage: "Use the bot username without @ (5–32 letters, digits or underscores).", help: "Bot username without @, used to connect customers safely." },
-  { key: "TELEGRAM_WEBHOOK_SECRET", label: "Telegram webhook verification secret", group: "Messaging (Telegram)", kind: "secret", help: "Generate 32+ characters of letters, digits, underscore or dash. Used to authenticate webhook requests." },
+  { key: "TELEGRAM_WEBHOOK_SECRET", label: "Telegram webhook verification secret", group: "Messaging (Telegram)", kind: "secret", pattern: /^[A-Za-z0-9_-]{32,128}$/, patternMessage: "Use 32–128 letters, digits, underscores or hyphens.", help: "Generate 32+ characters of letters, digits, underscore or dash. Used to authenticate webhook requests." },
 
   { key: "MARKET_DATA_MODE", label: "Market data mode", group: "Market data", kind: "select", options: ["PROVIDER", "MANUAL"], help: "PROVIDER fetches prices from your data service. MANUAL means prices are entered by people." },
   { key: "MARKET_DATA_PROVIDER", label: "Market data provider", group: "Market data", kind: "select", options: ["http", "mock"], help: "http uses the service below. mock only works outside production." },
