@@ -19,6 +19,7 @@ import { nextCalendarQuarterDueAt } from "@/domain/schedule";
 import { buildStrategyAlert } from "@/domain/strategy-alert";
 import { validatedFillTime } from "@/domain/execution-time";
 import { postActionReviewState } from "@/domain/strategy/review-completion";
+import { assessLinkedMarkets } from "@/domain/strategy/linked-market-eligibility";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
 type CalculationScenario={
@@ -168,6 +169,24 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
     :await sql.unsafe("SELECT COALESCE(sum(l.cash_amount),0) AS amount FROM ledger_events l WHERE l.strategy_instance_id=$1 AND l.event_type='CONTRIBUTION' AND l.occurred_at>$2 AND NOT EXISTS (SELECT 1 FROM ledger_events c WHERE c.correction_of_event_id=l.id)",[strategyInstanceId,lastReview]);
   const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0)).plus(new Decimal(scenario?.contributionDelta??0));
   const engine=getStrategyEngine(calculationEngineKey);
+  // Do not start a partial implementation. The next leg alone may map (e.g. SPY3 in a
+  // UK ISA), while another mandatory leg has no faithful equivalent (TMF duration).
+  // Only complete verified implementations are eligible for action instructions.
+  if(dataStatus==="CURRENT"){
+    const candidateMappings=verifiedCandidates(await sql.unsafe(VERIFIED_MARKET_MAPPINGS_SQL));
+    const market=assessLinkedMarkets(calculationEngineKey,config,candidateMappings,
+      accounts.map(account=>({
+        country:String(account.country),wrapper:String(account.wrapper),
+        currency:String(account.currency),broker:account.broker_name?String(account.broker_name):null
+      })),new Date().toISOString().slice(0,10));
+    if(!market.available){
+      dataStatus="MISSING";
+      dataMessage="This strategy cannot be implemented in your linked accounts with the currently verified trading lines. "+
+        "Missing or ambiguous exposures: "+market.missingExposures.join(", ")+". "+
+        (market.supportedMarkets.length?"Verified markets: "+market.supportedMarkets.join(", ")+".":
+          "No fully verified market implementation is available yet.");
+    }
+  }
   // Momentum research engines read licensed price history; every other engine ignores it.
   const momentumUniverse=calculationEngineKey==="MOMENTUM_ROTATION"&&Array.isArray(config.riskAssets)&&typeof config.defensiveAsset==="string"
     ?[...(config.riskAssets as unknown[]).map(String),String(config.defensiveAsset)]:null;
