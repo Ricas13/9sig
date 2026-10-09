@@ -6,6 +6,8 @@ import { supportedEngineKeys, validateEngineConfig, assertCustomerPublishableEng
 import { parseInputSchema } from "@/domain/strategy/config";
 import { authFailure } from "@/lib/api-auth";
 import { RESEARCH_STRATEGIES } from "@/domain/strategy/research-catalog";
+import { assessStrategyMarket } from "@/domain/strategy/market-eligibility";
+import { VERIFIED_MARKET_MAPPINGS_SQL, verifiedCandidates } from "@/lib/verified-market-mappings";
 
 const definitionSchema=z.object({
   key:z.string().min(1),name:z.string().min(1),family:z.string().min(1),description:z.string(),
@@ -34,7 +36,8 @@ const patchSchema=z.discriminatedUnion("action",[
     goldenTests:z.string().min(3).max(300),notes:z.string().max(1000).default("")
   }),
   z.object({action:z.literal("PUBLISH"),versionId:z.string().uuid()}),
-  z.object({action:z.literal("RETIRE"),versionId:z.string().uuid()})
+  z.object({action:z.literal("RETIRE"),versionId:z.string().uuid()}),
+  z.object({action:z.literal("TOGGLE_DEFINITION"),strategyKey:z.string().min(1),enabled:z.boolean()})
 ]);
 
 function assertEngine(key:string){
@@ -109,6 +112,28 @@ export async function PATCH(request:Request){
     assertSameOrigin(request);
     const admin=await requireAdmin();
     const p=patchSchema.parse(await request.json());
+    if(p.action==="TOGGLE_DEFINITION"){
+      if(p.strategyKey!=="9sig"&&!RESEARCH_STRATEGIES.some(profile=>profile.key===p.strategyKey))
+        return Response.json({error:"Only built-in strategies can be managed."},{status:400});
+      const existing=await sql.unsafe(
+        "SELECT d.id,d.enabled,v.engine_key,v.config FROM strategy_definitions d "+
+        "LEFT JOIN LATERAL (SELECT engine_key,config FROM strategy_versions WHERE strategy_definition_id=d.id "+
+        "AND lifecycle_status='PUBLISHED' AND effective_from<=current_date "+
+        "AND (effective_to IS NULL OR effective_to>=current_date) ORDER BY effective_from DESC LIMIT 1) v ON true "+
+        "WHERE d.key=$1",[p.strategyKey]);
+      if(!existing[0])return Response.json({error:"Strategy is not installed in the database."},{status:404});
+      if(p.enabled){
+        const row=existing[0];
+        if(!row.engine_key)return Response.json({error:"Publish and verify this strategy before enabling it."},{status:409});
+        const markets=assessStrategyMarket(String(row.engine_key),(row.config??{}) as Record<string,unknown>,
+          verifiedCandidates(await sql.unsafe(VERIFIED_MARKET_MAPPINGS_SQL)),
+          {country:"GB",wrapper:"ISA",currency:"GBP"},new Date().toISOString().slice(0,10));
+        if(!markets.supportedMarkets.length)return Response.json({error:"No fully verified country/account implementation is configured yet."},{status:409});
+      }
+      await sql.unsafe("UPDATE strategy_definitions SET enabled=$2,updated_at=now() WHERE id=$1",[existing[0].id,p.enabled]);
+      await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy-definition.toggled','strategy_definition',$2,$3::jsonb)",[admin.id,p.strategyKey,JSON.stringify({enabled:p.enabled})]);
+      return Response.json({ok:true,enabled:p.enabled});
+    }
     const result=await sql.begin(async(tx)=>{
       // Lock the definition first, then the version, always in that order. Every lifecycle change
       // for one strategy is serialised, so state read below is still true when it is written.

@@ -1,5 +1,6 @@
 import { sql } from "@/lib/db";
 import { RESEARCH_STRATEGIES } from "@/domain/strategy/research-catalog";
+import { CuratedStrategyToggle } from "@/components/CuratedStrategyToggle";
 import { ModelPerformanceEditor, StrategyVersionManager } from "@/components/AdminEditors";
 
 export default async function StrategiesAdmin() {
@@ -19,8 +20,8 @@ export default async function StrategiesAdmin() {
     </div></div>
 
     <div className="table-wrap" tabIndex={0} role="region" aria-label="Scrollable table"><table>
-      <thead><tr><th>Strategy</th><th>Family</th><th>Default engine</th><th>Enabled</th><th>Proprietary</th></tr></thead>
-      <tbody>{definitions.map((s:any)=><tr key={s.key}><td>{s.name}</td><td>{s.family}</td><td>{s.engine}</td><td>{s.enabled?"Yes":"No"}</td><td>{s.proprietary?"Yes":"No"}</td></tr>)}</tbody>
+      <thead><tr><th>Strategy</th><th>Family</th><th>Default engine</th><th>Enabled</th><th>Proprietary</th><th>Catalogue availability</th></tr></thead>
+      <tbody>{definitions.map((s:any)=><tr key={s.key}><td>{s.name}</td><td>{s.family}</td><td>{s.engine}</td><td>{s.enabled?"Yes":"No"}</td><td>{s.proprietary?"Yes":"No"}</td><td><CuratedStrategyToggle strategyKey={String(s.key)} enabled={Boolean(s.enabled)} /></td></tr>)}</tbody>
     </table></div>
 
     <div className="table-wrap" tabIndex={0} role="region" aria-label="Scrollable table" style={{marginTop:16}}><table>
