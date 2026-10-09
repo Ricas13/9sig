@@ -85,19 +85,30 @@ export const RESEARCH_STRATEGIES: readonly StrategyProfile[] = [
     research:["https://www.berkshirehathaway.com/letters/2013ltr.pdf"],risks:["US-equity concentration","Bond maturity and regional instrument fidelity"]
   },
   {
-    key:"coffeehouse",name:"Coffeehouse Portfolio",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
-    rules:"Bill Schultheis' factor-tilted equities, REIT and bond sleeves require complete verification before calculations.",
-    research:["https://portfoliocharts.com/portfolios/coffeehouse-portfolio/"],risks:["Factor and REIT matching across jurisdictions"]
+    key:"coffeehouse",name:"Coffeehouse Portfolio — US seven-fund reference",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    config:fixed([["US_LARGE_CAP","0.10"],["US_LARGE_CAP_VALUE","0.10"],["US_SMALL_CAP_BLEND","0.10"],
+      ["US_SMALL_CAP_VALUE","0.10"],["DEVELOPED_EX_US_LARGE_CAP","0.10"],
+      ["US_INTERMEDIATE_TREASURY","0.40"],["US_REITS","0.10"]],"ANNUAL"),
+    rules:"Bill Schultheis seven-fund US reference: 10% each in large blend/value, small blend/value, developed ex-US and US REITs, plus 40% US intermediate Treasuries. Annual review is an explicit platform convention, not an author-mandated universal rule.",
+    research:["https://portfoliocharts.com/portfolios/coffeehouse-portfolio/"],
+    risks:["UK fund equivalence and value-factor fidelity","US REIT tax/availability","Intermediate Treasury duration"]
   },
   {
-    key:"core-four",name:"Core Four Portfolio",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
-    rules:"Rick Ferri-inspired diversified equity, bond and property sleeves need an exact named profile and validation.",
-    research:["https://www.bogleheads.org/wiki/Lazy_portfolios"],risks:["Implementation variants","REIT sleeve availability"]
+    key:"core-four",name:"Core Four — classic US reference",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    config:fixed([["US_LARGE_CAP","0.48"],["DEVELOPED_EX_US_LARGE_CAP","0.24"],
+      ["US_INTERMEDIATE_TREASURY","0.20"],["US_REITS","0.08"]],"ANNUAL"),
+    rules:"Rick Ferri Classic Core Four reference as illustrated by Portfolio Charts: 48% US large cap, 24% developed ex-US large cap, 20% US intermediate Treasury and 8% US REITs. Some Core Four variants use aggregate bonds; this model does not silently substitute them.",
+    research:["https://portfoliocharts.com/portfolios/core-four-portfolio/","https://core-4.com/"],
+    risks:["Different Core Four variants have different bond universes","UK fund eligibility, currencies and REIT coverage"]
   },
   {
-    key:"swensen",name:"Swensen Lazy Portfolio",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
-    rules:"Swensen-inspired public-market portfolio; do not confuse it with the Yale endowment's actual allocations.",
-    research:["https://portfoliocharts.com/portfolios/"],risks:["Emerging markets, REIT and bond equivalence"]
+    key:"swensen",name:"Swensen Lazy Portfolio — six-asset US reference",engine:"FIXED_ALLOCATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    config:fixed([["US_TOTAL_EQUITY","0.30"],["DEVELOPED_EX_US_LARGE_CAP","0.15"],
+      ["EMERGING_MARKETS_EQUITY","0.05"],["US_REITS","0.20"],
+      ["US_INTERMEDIATE_TREASURY","0.15"],["US_TIPS","0.15"]],"ANNUAL"),
+    rules:"David Swensen's individual-investor six-asset reference: 30% US equity, 15% developed foreign, 5% emerging, 20% US REITs, 15% US Treasuries and 15% US TIPS. This is not Yale endowment allocation; exact Treasury-duration implementation must be independently approved.",
+    research:["https://www.bogleheads.org/blog/2021/01/02/david-swensens-portfolio-from-unconventional-success-2020-update/"],
+    risks:["Interest-rate and inflation-linked Treasury risk","Emerging markets","US REIT and UK wrapper availability"]
   },
   {
     key:"merriman-ultimate",name:"Merriman Ultimate Buy-and-Hold",engine:"RESEARCH_PENDING",launchState:"DRAFT_REQUIRES_VERIFICATION",
