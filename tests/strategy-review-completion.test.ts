@@ -13,6 +13,24 @@ describe("review lifecycle follows verified fills, not target projection",()=>{
   expect(postActionReviewState({...proposal,actionType:"SELL"},original,now).lastReviewAt)
     .toBe(original.lastReviewAt);
  });
+ it("locks a value-target review without applying its quarterly growth rate more than once",()=>{
+  const result=postActionReviewState({
+    actionType:"BUY",nextState:{targetValue:"6540",lastCalculatedAt:now.toISOString()}
+  },{targetValue:"6000",lastReviewAt:original.lastReviewAt},now);
+  expect(result.targetValue).toBe("6000");
+  expect(result.reviewTargetValue).toBe("6540");
+  expect(result.forceReview).toBe(true);
+  const second=postActionReviewState({
+    actionType:"SELL",nextState:{targetValue:"6540"}
+  },result,now);
+  expect(second.reviewTargetValue).toBe("6540");
+  const closed=postActionReviewState({
+    actionType:"HOLD",nextState:{...second,targetValue:"6540"}
+  },second,now);
+  expect(closed.targetValue).toBe("6540");
+  expect(closed).not.toHaveProperty("reviewTargetValue");
+  expect(closed.lastReviewAt).toBe(now.toISOString());
+ });
  it("keeps a multi-leg rebalance open until all actual broker quantities are reconciled",()=>{
   expect(postActionReviewState({...proposal,actionType:"REBALANCE"},original,now).forceReview).toBe(true);
  });

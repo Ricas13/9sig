@@ -805,6 +805,12 @@ export async function executeAction(
     }
 
     if(partial){
+      // Even a partial fill must lock the review's original target before the
+      // post-fill recalculation. Otherwise 9Sig grows it again on the next trade.
+      await tx.unsafe(
+        "UPDATE strategy_states SET state=$1::jsonb,calculated_at=now(),confidence=$2 WHERE strategy_instance_id=$3",
+        [JSON.stringify(action.next_state??{}),action.confidence,action.strategy_instance_id]
+      );
       await tx.unsafe(
         "UPDATE actions SET status='PARTIALLY_EXECUTED',executed_at=now(),updated_at=now() WHERE id=$1",
         [actionId]

@@ -15,6 +15,27 @@ describe("value-target engine",()=>{
     expect(result.actionType).toBe("BUY");
     expect(result.amount?.toFixed(2)).toBe("2400.00");
   });
+  it("freezes the initial target through a multi-fill investment instead of resetting it after fees",()=>{
+    const ctx={...base,cash:new Decimal("4000"),exposures:[],
+      state:{forceReview:true,reviewTargetValue:"6000"}};
+    const first=valueTargetEngine.calculate(ctx);
+    expect(first.amount?.toFixed(2)).toBe("3600.00");
+    const second=valueTargetEngine.calculate({...ctx,cash:new Decimal("400"),
+      exposures:[{economicExposure:"NASDAQ_100_3X_LONG",value:new Decimal("3600")} ]});
+    expect(second.explanation.find(x=>x.label==="Review target")?.value).toBe("6000.00");
+    expect(second.amount?.toFixed(2)).toBe("360.00");
+  });
+  it("freezes an existing 9Sig quarterly growth target until all partial fills are confirmed",()=>{
+    const state={targetValue:"6000",reviewTargetValue:"6540",forceReview:true};
+    const ctx={...base,state,cash:new Decimal("3000"),contributionsSinceReview:new Decimal("0"),
+      exposures:[{economicExposure:"NASDAQ_100_3X_LONG",value:new Decimal("6300")}]};
+    const result=valueTargetEngine.calculate(ctx);
+    expect(result.explanation.find(x=>x.label==="Review target")?.value).toBe("6540.00");
+    expect(result.amount?.toFixed(2)).toBe("240.00");
+    const settled=valueTargetEngine.calculate({...ctx,exposures:[{economicExposure:"NASDAQ_100_3X_LONG",value:new Decimal("6540")}],cash:new Decimal("2760")});
+    expect(settled.actionType).toBe("HOLD");
+    expect(settled.nextState.targetValue).toBe("6540");
+  });
   it("sums the same economic exposure across multiple holdings",()=>{
     const result=valueTargetEngine.calculate({
       ...base,
