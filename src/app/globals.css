@@ -1496,3 +1496,5 @@ html[data-theme="light"] .app-shell > .sidebar { background:rgba(255,255,255,.94
 .chart-date-range input{max-width:155px;min-width:0;border-radius:9px;border:1px solid var(--line);padding:6px;background:var(--surface);color:var(--text)}
 @media(max-width:900px){.analytics-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.analytics-stats{grid-template-columns:1fr 1fr}.analytics-stats .kpi{padding:12px}.leaderboard-row{padding:10px}}
+
+.initial-order-list{display:grid;gap:8px;margin:14px 0}.initial-order{display:flex;justify-content:space-between;gap:15px;align-items:center;padding:14px 16px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.025)}.initial-order>div{display:grid;gap:5px}.initial-order small{color:var(--muted)}

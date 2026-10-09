@@ -9,6 +9,9 @@ import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { benchmarkComparison, loadWorkspaceAnalytics } from "@/lib/workspace-analytics";
 import { growthIndex, summarizeObservedPerformance } from "@/domain/portfolio-analytics";
+import { initialAllocationPlan } from "@/domain/initial-allocation";
+import { assessStrategyMarket } from "@/domain/strategy/market-eligibility";
+import { VERIFIED_MARKET_MAPPINGS_SQL, verifiedCandidates } from "@/lib/verified-market-mappings";
 import { HistoricalQuoteLookup } from "@/components/HistoricalQuoteLookup";
 import { BrokerTradeForm } from "@/components/BrokerTradeForm";
 import { ManualPriceForm } from "@/components/ManualPriceForm";
@@ -239,6 +242,19 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
   const plainReason=action?plainEnglishActionReason({actionType:String(action.action_type),instruction:String(action.instruction??"")}):null;
   const recovery=action?actionRecoveryGuidance({actionType:String(action.action_type),instruction:String(action.instruction??"")}):null;
   const ruleRows=strategyRuleRows(String(s.engine),(s.config??{}) as Record<string,unknown>);
+  let firstAllocation:ReturnType<typeof initialAllocationPlan>=null;
+  if(String(s.onboarding_mode)==="START_NEW"&&accountOptions.length===1&&isActive){
+    const cashRows=await sql.unsafe("SELECT COALESCE(sum(l.cash_amount-l.fee_amount),0) AS cash, "+
+      "count(*) FILTER (WHERE l.event_type IN ('BUY','SELL'))::int AS trades FROM ledger_events l "+
+      "WHERE l.strategy_instance_id=$1 AND NOT EXISTS (SELECT 1 FROM ledger_events c WHERE c.correction_of_event_id=l.id)",[id]);
+    if(Number(cashRows[0]?.trades??0)===0&&Number(cashRows[0]?.cash??0)>0){
+      const choice={country:String(s.country),wrapper:String(s.wrapper),currency:String(s.currency),broker:s.broker_name?String(s.broker_name):null};
+      const eligible=assessStrategyMarket(String(s.engine),(s.config??{}) as Record<string,unknown>,
+        verifiedCandidates(await sql.unsafe(VERIFIED_MARKET_MAPPINGS_SQL)),choice,new Date().toISOString().slice(0,10));
+      if(eligible.available)firstAllocation=initialAllocationPlan(String(s.engine),(s.config??{}) as Record<string,unknown>,
+        String(cashRows[0].cash),String(s.currency),eligible.positions);
+    }
+  }
   const canSeeTechnicalConfig=user.role==="ADMIN"||!Boolean(s.proprietary);
 
   return <>
@@ -332,6 +348,21 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
       </div>:<p className="help">We need two reliable dated portfolio valuations before we can calculate returns or drawdowns. Past broker performance is not guessed when you resume a strategy.</p>}
       {trackSummary&&<p className="help">Best observed session: {signedPct(trackSummary.bestObservedSessionPct)} · Worst observed session: {signedPct(trackSummary.worstObservedSessionPct)} · Current observed drawdown: {signedPct(trackSummary.currentDrawdownPct)}. Sparse data may miss intraday declines.</p>}
     </section>
+
+    {firstAllocation&&<section className="glass workspace-analytics" aria-label="Your starting allocation">
+      <div className="section-head"><div><div className="eyebrow">Starting this strategy</div><h2>Your first purchases</h2>
+        <p>This is the fixed allocation from your selected strategy, automatically mapped to verified {String(s.wrapper)} instruments. Prices and share quantities are confirmed using your broker.</p></div></div>
+      <div className="initial-order-list">{firstAllocation.orders.map(order=><div className="initial-order" key={order.exposure}>
+        <div><strong>{order.ticker}</strong><small>{order.exchange} · {order.weight}% allocation</small></div>
+        <strong>{money(Number(order.amount),firstAllocation.currency)}</strong>
+      </div>)}
+      {Number(firstAllocation.cashReserve)>0&&<div className="initial-order">
+        <div><strong>Cash reserve</strong><small>Retained under this strategy's published rules</small></div>
+        <strong>{money(Number(firstAllocation.cashReserve),firstAllocation.currency)}</strong>
+      </div>}</div>
+      <p className="help">Amounts are before dealing fees and subject to market moves. After trading, record the real timestamp, quantity, execution price and fees so your portfolio and next review are accurate.</p>
+      <a className="button primary compact" href="#portfolio-update">Record my purchases <ArrowRight size={14}/></a>
+    </section>}
 
     <div className="strategy-shortcuts">
       <details className="glass quick-drawer" id="portfolio-update">
