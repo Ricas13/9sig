@@ -56,6 +56,21 @@ describe("curated strategy market eligibility",()=>{
     expect(assessStrategyMarket("FIXED_ALLOCATION",hfea,restricted,{country:"US",wrapper:"TAXABLE",currency:"USD"},asOf).available).toBe(false);
     expect(assessStrategyMarket("FIXED_ALLOCATION",hfea,restricted,{country:"US",wrapper:"TAXABLE",currency:"USD",broker:"Broker A"},asOf).available).toBe(true);
   });
+  it("fails closed when a research momentum universe omits or corrupts a required leg",()=>{
+    const choice={country:"US",wrapper:"TAXABLE",currency:"USD"};
+    const candidates=[m("US_EQUITY_3X_LONG","UPRO"),m("LONG_TREASURY_3X_LONG","TMF")];
+    for (const config of [
+      {riskAssets:["US_EQUITY_3X_LONG"]},
+      {riskAssets:["US_EQUITY_3X_LONG"],defensiveAsset:""},
+      {riskAssets:["US_EQUITY_3X_LONG",null],defensiveAsset:"LONG_TREASURY_3X_LONG"},
+      {riskAssets:[],defensiveAsset:"LONG_TREASURY_3X_LONG"}
+    ]) {
+      const result=assessStrategyMarket("MOMENTUM_ROTATION",config,candidates,choice,asOf);
+      expect(result.available,JSON.stringify(config)).toBe(false);
+      expect(result.supportedMarkets).toEqual([]);
+      expect(result.positions).toEqual([]);
+    }
+  });
   it("does not mark an undefined strategy engine or incomplete allocation config available",()=>{
     expect(assessStrategyMarket("CUSTOM",{},us,{country:"US",wrapper:"TAXABLE",currency:"USD"},asOf).available).toBe(false);
     expect(assessStrategyMarket("FIXED_ALLOCATION",{allocations:[{weight:"1"}]},us,{country:"US",wrapper:"TAXABLE",currency:"USD"},asOf).available).toBe(false);
