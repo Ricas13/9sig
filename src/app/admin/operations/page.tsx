@@ -2,16 +2,18 @@ import { sql } from "@/lib/db";
 import { RetryDeliveries } from "@/components/RetryDeliveries";
 import { IntegrationTests } from "@/components/IntegrationTests";
 import { checkCommercialLaunch } from "@/domain/commercial-launch";
+import { ensureSettings } from "@/lib/settings";
 export const dynamic="force-dynamic";
 const explanations:Record<string,string>={
  stripe_live:"Enter the Stripe key in Admin › Settings › Billing. It is stored encrypted and never shown again.",
  stripe_webhook:"Register /api/stripe/webhook with Stripe and enter the signing secret in Admin › Settings › Billing. Webhook events below show actual processing results.",
  email:"Enter the email service details in Admin › Settings › Email; use a supported transactional provider.",
  market_data_mode:"Connect a quote provider offering live prices, historical intraday observations, currencies and adjusted data.",
- worker_auth:"Generate the job secret in Admin › Settings › Security and run the private scheduler. Review last execution and failures below.",
+ worker_auth:"Set the same CRON_SECRET in the app and scheduler through private Docker Compose configuration. Review execution and failures below.",
  backup_operator_attestation:"Configure encrypted offsite backups and demonstrate a restore before attesting success."
 };
 export default async function OperationsPage(){
+ await ensureSettings(true);
  const checks=checkCommercialLaunch(process.env);
  const [jobs,delivery,webhooks]=await Promise.all([
   sql.unsafe("SELECT DISTINCT ON (worker_key) worker_key,status,started_at,finished_at FROM worker_runs ORDER BY worker_key,started_at DESC LIMIT 50"),

@@ -1,12 +1,13 @@
 import { checkCommercialLaunch } from "@/domain/commercial-launch";
 import { sql } from "@/lib/db";
+import { ensureSettings } from "@/lib/settings";
 export const dynamic="force-dynamic";
 const descriptions:Record<string,{title:string;where:string}>={
  application_url:{title:"Public HTTPS URL",where:"Set the public web address in Admin › Settings › General."},
  database:{title:"Production PostgreSQL",where:"Provision PostgreSQL, set DATABASE_URL through your host's secret manager and test a restore."},
  auth_secret:{title:"Authentication secret",where:"Generate an independent cryptographic AUTH_SECRET in your secret manager."},
  encryption:{title:"Encryption key",where:"Generate and securely store a 32-byte APP_ENCRYPTION_KEY; do not rotate without a migration plan."},
- worker_auth:{title:"Scheduled worker authentication",where:"Generate the background job secret in Admin › Settings › Security, then schedule the authenticated /api/cron/actions endpoint with it."},
+ worker_auth:{title:"Scheduled worker authentication",where:"Set matching CRON_SECRET values in the app and scheduler through private Docker Compose configuration; the setting cannot be changed from the web UI."},
  stripe_live:{title:"Stripe Live",where:"Enter the Stripe key in Admin › Settings › Billing; manage plans and Stripe price IDs on the Plans page."},
  stripe_webhook:{title:"Stripe webhook signing",where:"Create the Stripe webhook, then enter its signing secret in Admin › Settings › Billing."},
  email:{title:"Transactional email",where:"Enter the email service details in Admin › Settings › Email."},
@@ -17,6 +18,7 @@ const descriptions:Record<string,{title:string;where:string}>={
  admin_mfa:{title:"Administrator two-step sign-in",where:"Every admin turns on two-step sign-in under Settings, then switch on the admin requirement in Admin › Settings › Security."}
 };
 export default async function LaunchPage(){
+ await ensureSettings(true);
  const checks=checkCommercialLaunch(process.env);
  const passing=checks.filter(x=>x.passed).length;
  const [workers,prices,mappings]=await Promise.all([

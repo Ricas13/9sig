@@ -2,7 +2,7 @@
 import {useState} from "react";
 export function IntegrationTests(){
  const [symbol,setSymbol]=useState("TQQQ");
- const [historyDate,setHistoryDate]=useState("2026-10-08");
+ const [historyDate,setHistoryDate]=useState("");
  const [historyCurrency,setHistoryCurrency]=useState("USD");
  const [busy,setBusy]=useState("");
  const [results,setResults]=useState<Record<string,string>>({});
@@ -41,7 +41,7 @@ export function IntegrationTests(){
     <div className="field"><label htmlFor="test-history-currency">Expected currency</label>
       <input id="test-history-currency" value={historyCurrency} maxLength={3}
         onChange={e=>setHistoryCurrency(e.target.value.toUpperCase())}/></div>
-    <p className="help">Choose a real past trading day for the symbol. Passing checks the returned bar format only, not data licensing or complete history.</p>
+    <p className="help">Choose a real past trading day for the symbol (no date is preselected). Passing checks the returned bar format only, not data licensing or complete history.</p>
   </div>}
   {results[service]&&<p role="status" className="help">{results[service]}</p>}
  </div>)}

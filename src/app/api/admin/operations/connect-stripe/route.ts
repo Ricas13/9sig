@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import {requireAdmin} from "@/lib/session";
 import {assertSameOrigin,consumeRateLimit} from "@/lib/security";
-import {saveSettings} from "@/lib/settings";
+import {saveSettings,ensureSettings} from "@/lib/settings";
 import {sql} from "@/lib/db";
 import {authFailure} from "@/lib/api-auth";
 
@@ -21,6 +21,8 @@ export async function POST(request:Request){
   assertSameOrigin(request);
   const admin=await requireAdmin();
   await consumeRateLimit("admin-stripe-setup:"+admin.id,3,60*60);
+  // Admin-stored encrypted credentials are authoritative over deployment defaults.
+  await ensureSettings(true);
   const key=process.env.STRIPE_SECRET_KEY;
   const appUrl=process.env.NEXT_PUBLIC_APP_URL;
   if(!key||!/^((sk|rk)_(test|live)_)/.test(key)||!appUrl)
