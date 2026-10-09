@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LayoutDashboard, Layers3, Bell, Settings, Shield, Plus, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-export function AppShell({ children, isAdmin=false }: { children:React.ReactNode; isAdmin?:boolean }) {
+export function AppShell({ children, isAdmin=false, strategyTabs=[] }: { children:React.ReactNode; isAdmin?:boolean; strategyTabs?:Array<{id:string;name:string}> }) {
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">Skip to main content</a>
     <aside className="sidebar">
@@ -22,6 +22,7 @@ export function AppShell({ children, isAdmin=false }: { children:React.ReactNode
         <div className="topbar-status"><span className="status-dot"/>Your strategies are being tracked</div>
         <div className="topbar-actions"><ThemeToggle/><Link href="/app/strategies/new" className="button primary compact"><Plus size={16}/>Add strategy</Link></div>
       </div>
+      {strategyTabs.length>0&&<nav className="strategy-tab-nav" aria-label="Your strategy tabs"><Link href="/app" className="strategy-tab-link">Main</Link>{strategyTabs.map(strategy=><Link key={strategy.id} href={"/app/strategies/"+strategy.id} className="strategy-tab-link">{strategy.name}</Link>)}</nav>}
       <div className="app-content">{children}</div>
     </main>
   </div>;
