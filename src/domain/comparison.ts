@@ -28,6 +28,10 @@ export function simulateSameCashFlows(input: {
     .filter((flow) => flow.amount.isFinite() && !flow.amount.eq(0))
     .sort((a,b) => a.date.localeCompare(b.date));
 
+  // Flow timing is a financial fact: never apply a deposit at a later index close.
+  // If no price exists on that date, comparisons are unavailable until source coverage improves.
+  const marketDays=new Set(points.map(point=>point.date));
+  if(flows.some(flow=>!marketDays.has(flow.date)))return [] as CounterfactualPoint[];
   let units = anchorValue.div(points[0].value);
   let flowIndex = 0;
   const result: CounterfactualPoint[] = [];

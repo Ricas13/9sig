@@ -36,6 +36,13 @@ describe("same-cash-flow comparison",()=>{
       anchorDate:"2026-01-05",anchorValue:"1000",flows:[]})).toThrow("DUPLICATE_BENCHMARK_DATE");
   });
 
+  it("fails closed if a contribution day has no benchmark close, rather than pricing it in hindsight",()=>{
+    expect(simulateSameCashFlows({
+      index:[{date:"2026-01-05",value:"100"},{date:"2026-01-07",value:"200"}],
+      anchorDate:"2026-01-05",anchorValue:"1000",
+      flows:[{date:"2026-01-06",amount:"500"}]
+    })).toEqual([]);
+  });
   it("handles withdrawals as negative external cash flows",()=>{
     const result=simulateSameCashFlows({
       index:[{date:"2026-01-01",value:"100"},{date:"2026-02-01",value:"100"}],
