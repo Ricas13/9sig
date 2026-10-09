@@ -37,6 +37,7 @@ describe.skipIf(!url)("strategy version lifecycle",()=>{
       "INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,input_schema,config) VALUES ($1,$2,$3,'VALUE_TARGET','DRAFT','[]'::jsonb,$4::text::jsonb) RETURNING id",
       [definitionId,version,effectiveFrom,JSON.stringify(config)]
     );
+    await sql!.unsafe("INSERT INTO strategy_version_attestations (strategy_version_id,spec_card,golden_tests,attested_by) VALUES ($1,'docs/strategy-specs/test-card.md','tests/value-target.test.ts',$2)",[rows[0].id,adminId]);
     return String(rows[0].id);
   }
   const row=async(id:string)=>(await sql!.unsafe("SELECT lifecycle_status,config,effective_from::text AS effective_from FROM strategy_versions WHERE id=$1",[id]))[0];
@@ -60,6 +61,18 @@ describe.skipIf(!url)("strategy version lifecycle",()=>{
     await sql.unsafe("DELETE FROM audit_events WHERE actor_user_id=$1",[adminId]);
     await sql.unsafe("DELETE FROM users WHERE id=$1",[adminId]);
     await sql.end();
+  });
+
+  it("refuses to publish a version nobody has attested, and accepts it once the sign-off is recorded",async()=>{
+    const rows=await sql!.unsafe("INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,input_schema,config) VALUES ($1,'9.9','2036-01-01','VALUE_TARGET','DRAFT','[]'::jsonb,$2::text::jsonb) RETURNING id",[definitionId,JSON.stringify(CONFIG)]);
+    const id=String(rows[0].id);
+    const blocked=await patch({action:"PUBLISH",versionId:id});
+    expect(blocked.status).toBe(409);
+    expect(blocked.json.error).toContain("sign-off");
+    expect((await patch({action:"ATTEST",versionId:id,specCard:"../../etc/passwd",goldenTests:"tests/x.test.ts"})).status).toBe(400);
+    expect((await patch({action:"ATTEST",versionId:id,specCard:"docs/strategy-specs/example.md",goldenTests:"tests/x.test.ts"})).status).toBe(200);
+    expect((await patch({action:"PUBLISH",versionId:id})).status).toBe(200);
+    expect((await row(id)).lifecycle_status).toBe("PUBLISHED");
   });
 
   it("publishes a draft and refuses to publish it twice",async()=>{
@@ -132,6 +145,7 @@ describe.skipIf(!url)("strategy version lifecycle",()=>{
       [enabled[0].id,JSON.stringify(CONFIG)]
     );
     const id=String(rows[0].id);
+    await sql!.unsafe("INSERT INTO strategy_version_attestations (strategy_version_id,spec_card,golden_tests,attested_by) VALUES ($1,'docs/strategy-specs/test-card.md','tests/value-target.test.ts',$2)",[id,adminId]);
     await patch({action:"PUBLISH",versionId:id});
     const attempt=await patch({action:"RETIRE",versionId:id});
     expect(attempt.status).toBe(409);

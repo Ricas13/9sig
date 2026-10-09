@@ -27,6 +27,11 @@ const patchSchema=z.discriminatedUnion("action",[
     config:z.record(z.string(),z.unknown()).optional(),disclosure:z.string().optional(),
     releaseNotes:z.string().optional(),upgradePolicy:z.enum(["OPTIONAL","RECOMMENDED","REQUIRED"]).optional()
   }),
+  z.object({
+    action:z.literal("ATTEST"),versionId:z.string().uuid(),
+    specCard:z.string().regex(/^docs\/strategy-specs\/[a-z0-9-]+\.md$/),
+    goldenTests:z.string().min(3).max(300),notes:z.string().max(1000).default("")
+  }),
   z.object({action:z.literal("PUBLISH"),versionId:z.string().uuid()}),
   z.object({action:z.literal("RETIRE"),versionId:z.string().uuid()})
 ]);
@@ -126,10 +131,22 @@ export async function PATCH(request:Request){
         return "DRAFT";
       }
 
+      if(p.action==="ATTEST"){
+        if(String(current.lifecycle_status)!=="DRAFT")throw new LifecycleConflict("Only a draft version can be attested.",409);
+        await tx.unsafe(
+          "INSERT INTO strategy_version_attestations (strategy_version_id,spec_card,golden_tests,notes,attested_by) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (strategy_version_id) DO UPDATE SET spec_card=EXCLUDED.spec_card,golden_tests=EXCLUDED.golden_tests,notes=EXCLUDED.notes,attested_by=EXCLUDED.attested_by,attested_at=now()",
+          [p.versionId,p.specCard,p.goldenTests,p.notes,admin.id]
+        );
+        await tx.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy-version.attested','strategy_version',$2,$3::jsonb)",[admin.id,p.versionId,JSON.stringify({specCard:p.specCard})]);
+        return "DRAFT";
+      }
+
       if(p.action==="PUBLISH"){
         if(String(current.lifecycle_status)!=="DRAFT")throw new LifecycleConflict("Only a draft version can be published.",409);
         assertEngine(String(current.engine_key));
         assertCustomerPublishableEngine(String(current.engine_key));
+        const attested=await tx.unsafe("SELECT 1 FROM strategy_version_attestations WHERE strategy_version_id=$1",[p.versionId]);
+        if(!attested[0])throw new LifecycleConflict("Record the specification sign-off and golden tests for this version before publishing it.",409);
         validateEngineConfig(String(current.engine_key),(current.config??{}) as Record<string,unknown>);
         parseInputSchema(current.input_schema);
         const duplicate=await tx.unsafe(
