@@ -7,6 +7,8 @@ import { sql } from "@/lib/db";
 import { loadEntitlements } from "@/lib/entitlement-service";
 import { simulateSameCashFlows } from "@/domain/comparison";
 import { PerformanceChart } from "@/components/PerformanceChart";
+import { benchmarkComparison, loadWorkspaceAnalytics } from "@/lib/workspace-analytics";
+import { growthIndex, summarizeObservedPerformance } from "@/domain/portfolio-analytics";
 import { HistoricalQuoteLookup } from "@/components/HistoricalQuoteLookup";
 import { BrokerTradeForm } from "@/components/BrokerTradeForm";
 import { ManualPriceForm } from "@/components/ManualPriceForm";
@@ -211,6 +213,16 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     if(!byDate.has(marker.date))byDate.set(marker.date,{date:marker.date});
   }
   const chartData=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  const trackedFlows=externalFlows.map((row:any)=>({date:String(row.date).slice(0,10),amount:String(row.cash_amount)}));
+  const trackSummary=summarizeObservedPerformance(actualPoints,trackedFlows);
+  const workspace=await loadWorkspaceAnalytics(user.id);
+  const trackedIndex=growthIndex(actualPoints,trackedFlows);
+  const benchmark=benchmarkComparison(actualPoints,trackedFlows,String(s.currency),workspace.benchmarks);
+  const mainChart=new Map<string,{date:string;actual?:number;benchmarkValues?:Record<string,number>}>();
+  for(const point of trackedIndex)mainChart.set(point.date,{date:point.date,actual:Number(point.value)});
+  for(const [date,values] of benchmark.mapped){const row=mainChart.get(date);if(row)row.benchmarkValues=values;}
+  const performanceOverview=[...mainChart.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  const signedPct=(v:number|null|undefined)=>v==null?"—":new Intl.NumberFormat("en-GB",{style:"percent",maximumFractionDigits:2}).format(v/100);
   const contributions=await sql.unsafe("SELECT l.id,l.occurred_at,l.cash_amount,l.provenance,l.confidence FROM ledger_events l WHERE l.strategy_instance_id=$1 AND l.event_type='CONTRIBUTION' AND NOT EXISTS (SELECT 1 FROM ledger_events c WHERE c.correction_of_event_id=l.id) ORDER BY l.occurred_at DESC LIMIT 8",[id]);
   const reconciliations=await sql.unsafe("SELECT occurred_at,expected_value,broker_reported_value,difference,reason FROM reconciliations WHERE strategy_instance_id=$1 ORDER BY occurred_at DESC LIMIT 5",[id]);
   const cashEvents=await sql.unsafe("SELECT l.id,l.occurred_at,l.event_type,l.cash_amount,l.fee_amount,l.metadata FROM ledger_events l WHERE l.strategy_instance_id=$1 AND l.event_type IN ('WITHDRAWAL','DIVIDEND','DISTRIBUTION','INTEREST','FEE','TAX') AND NOT EXISTS (SELECT 1 FROM ledger_events c WHERE c.correction_of_event_id=l.id) ORDER BY l.occurred_at DESC,l.created_at DESC LIMIT 12",[id]);
@@ -304,6 +316,22 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
     </div>}
 
     {hasVersionUpdate&&<div id="strategy-update"><StrategyVersionUpgrade id={id} currentVersion={String(s.version)} targetVersionId={String(s.latest_version_id)} targetVersion={String(s.latest_version)} releaseNotes={s.latest_release_notes?String(s.latest_release_notes):null} upgradePolicy={String(s.latest_upgrade_policy??"OPTIONAL")} inputSchema={Array.isArray(s.latest_input_schema)?s.latest_input_schema:[]} currentSettings={(s.settings??{}) as Record<string,unknown>} currentConfig={(s.config??{}) as Record<string,unknown>} targetConfig={(s.latest_config??{}) as Record<string,unknown>}/></div>}
+
+    <section className="glass workspace-analytics" aria-label="Strategy performance comparison">
+      <div className="section-head"><div><div className="eyebrow">Your investment performance</div><h2>Progress and benchmarks</h2>
+        <p>Measured since the first recorded portfolio value. Contributions and withdrawals are not counted as profit.</p></div></div>
+      <div className="analytics-stats">
+        <div className="kpi"><span>Profit / loss since tracking began</span><strong>{trackSummary?money(Number(trackSummary.profitSinceStart),String(s.currency)):"—"}</strong></div>
+        <div className="kpi"><span>Flow-adjusted return (estimate)</span><strong>{signedPct(trackSummary?.flowAdjustedReturnPct)}</strong></div>
+        <div className="kpi"><span>Observed maximum drawdown</span><strong>{signedPct(trackSummary?.observedMaxDrawdownPct)}</strong></div>
+        <div className="kpi"><span>Last observed session P/L</span><strong>{trackSummary?.lastObservedSessionPnl!=null?money(Number(trackSummary.lastObservedSessionPnl),String(s.currency)):"—"}</strong></div>
+      </div>
+      {performanceOverview.length>=2?<div className="chart-card">
+        <PerformanceChart data={performanceOverview} comparisons={benchmark.comparisons} indexed actualLabel={String(s.strategy_name)}/>
+        {benchmark.missing.length>0&&<p className="help comparison-warning">VTI / SPY / QQQ still missing verified, same-currency total-return history for: {benchmark.missing.join(", ")}. Unavailable benchmarks are not estimated.</p>}
+      </div>:<p className="help">We need two reliable dated portfolio valuations before we can calculate returns or drawdowns. Past broker performance is not guessed when you resume a strategy.</p>}
+      {trackSummary&&<p className="help">Best observed session: {signedPct(trackSummary.bestObservedSessionPct)} · Worst observed session: {signedPct(trackSummary.worstObservedSessionPct)} · Current observed drawdown: {signedPct(trackSummary.currentDrawdownPct)}. Sparse data may miss intraday declines.</p>}
+    </section>
 
     <div className="strategy-shortcuts">
       <details className="glass quick-drawer" id="portfolio-update">
