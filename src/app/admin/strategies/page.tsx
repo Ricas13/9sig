@@ -18,12 +18,12 @@ export default async function StrategiesAdmin() {
       <p>Create metadata freely; change rules through draft → publish → retire releases so existing users never change silently.</p>
     </div></div>
 
-    <div className="table-wrap"><table>
+    <div className="table-wrap" tabIndex={0} role="region" aria-label="Scrollable table"><table>
       <thead><tr><th>Strategy</th><th>Family</th><th>Default engine</th><th>Enabled</th><th>Proprietary</th></tr></thead>
       <tbody>{definitions.map((s:any)=><tr key={s.key}><td>{s.name}</td><td>{s.family}</td><td>{s.engine}</td><td>{s.enabled?"Yes":"No"}</td><td>{s.proprietary?"Yes":"No"}</td></tr>)}</tbody>
     </table></div>
 
-    <div className="table-wrap" style={{marginTop:16}}><table>
+    <div className="table-wrap" tabIndex={0} role="region" aria-label="Scrollable table" style={{marginTop:16}}><table>
       <thead><tr><th>Strategy</th><th>Version</th><th>UUID</th><th>Engine snapshot</th><th>Status</th><th>Upgrade</th><th>Effective</th></tr></thead>
       <tbody>{versions.map((v:any)=><tr key={v.version_id}><td>{v.name}</td><td>{v.version}</td><td>{v.version_id}</td><td>{v.engine_key}</td><td>{v.lifecycle_status}</td><td>{v.upgrade_policy}</td><td>{String(v.effective_from).slice(0,10)}{v.effective_to?" → "+String(v.effective_to).slice(0,10):""}</td></tr>)}</tbody>
     </table></div>
