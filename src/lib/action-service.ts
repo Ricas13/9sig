@@ -15,6 +15,7 @@ import { validatedEffectivePrice } from "@/domain/manual-override";
 import { loadTrustedHistory } from "@/lib/trusted-history-loader";
 import { assessStrategyMarket, StrategyMarketUnavailableError } from "@/domain/strategy/market-eligibility";
 import { VERIFIED_MARKET_MAPPINGS_SQL, verifiedCandidates } from "@/lib/verified-market-mappings";
+import { buildStrategyAlert } from "@/domain/strategy-alert";
 import { validatedFillTime } from "@/domain/execution-time";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
@@ -351,7 +352,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
       : {...proposal.nextState,lastReviewAt:new Date().toISOString(),forceReview:false}
     : proposal.nextState;
   const totalValue=exposurePositions.reduce((sum,p)=>sum.plus(p.value),effectiveCash);
-  return {instance,proposal,totalValue,dataStatus,fingerprint,reviewKey,nextState,tradingLineId,executionAccountId};
+  return {instance,proposal,totalValue,dataStatus,fingerprint,reviewKey,nextState,tradingLineId,executionAccountId,executionTicker};
 }
 
 export async function previewCashScenario(
@@ -565,7 +566,7 @@ export async function calculateAction(strategyInstanceId:string){
     await tx.unsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[strategyInstanceId]);
 
     const calculation=await buildActionCalculation(strategyInstanceId);
-    const {instance,proposal,totalValue,dataStatus,fingerprint,reviewKey,nextState,tradingLineId,executionAccountId}=calculation;
+    const {instance,proposal,totalValue,dataStatus,fingerprint,reviewKey,nextState,tradingLineId,executionAccountId,executionTicker}=calculation;
     if(dataStatus==="CURRENT")await tx.unsafe("INSERT INTO performance_series (strategy_instance_id,series_type,date,value,metadata) VALUES ($1,'USER_VALUE',current_date,$2,$3::jsonb) ON CONFLICT (strategy_instance_id,series_type,date) DO UPDATE SET value=EXCLUDED.value,metadata=EXCLUDED.metadata",[strategyInstanceId,totalValue.toString(),JSON.stringify({source:"ledger+market"})]);
     const existing=await tx.unsafe(
       "SELECT id,status FROM actions WHERE strategy_instance_id=$1 AND fingerprint=$2 FOR UPDATE",
@@ -599,9 +600,16 @@ export async function calculateAction(strategyInstanceId:string){
     if(shouldNotify&&proposal.actionType!=="NO_ACTION"){
       // Keep the *alert* stable, not an obsolete execution quantity. An
       // in-flight or delivered alert always points to the latest revision.
-      const noticeTitle=proposal.actionType==="DATA_REQUIRED"?"Strategy data needs attention":"Strategy review ready";
-      const brand=process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Wealtharr";
-      const noticeBody=`Open your ${brand} dashboard for the latest calculated amounts and current data. Do not trade from an old notification.`;
+      const message=buildStrategyAlert({
+        actionType:proposal.actionType,
+        amount:proposal.amount?.toString()??null,
+        currency:proposal.currency??null,
+        ticker:executionTicker??proposal.economicExposure??null,
+        calculatedAt:new Date(),
+        brand:process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Wealtharr"
+      });
+      const noticeTitle=message.title;
+      const noticeBody=message.body;
       await tx.unsafe(
         "INSERT INTO notifications (user_id,action_id,type,title,body,review_key) "+
         "VALUES ($1,$2,'ACTION',$3,$4,$5) "+
