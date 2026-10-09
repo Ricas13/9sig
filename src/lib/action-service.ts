@@ -18,6 +18,7 @@ import { VERIFIED_MARKET_MAPPINGS_SQL, verifiedCandidates } from "@/lib/verified
 import { nextCalendarQuarterDueAt } from "@/domain/schedule";
 import { buildStrategyAlert } from "@/domain/strategy-alert";
 import { validatedFillTime } from "@/domain/execution-time";
+import { postActionReviewState } from "@/domain/strategy/review-completion";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
 type CalculationScenario={
@@ -348,12 +349,10 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
   const notificationClass=proposal.actionType==="DATA_REQUIRED"?"DATA_REQUIRED":"REVIEW";
   const reviewKey=crypto.createHash("sha256")
     .update(strategyInstanceId+"|"+lastReview.toISOString()+"|"+notificationClass).digest("hex");
-  const reviewAction=["BUY","SELL","REBALANCE","HOLD"].includes(proposal.actionType);
-  const nextState=reviewAction
-    ? proposal.completesReview===false
-      ? {...state,forceReview:true}
-      : {...proposal.nextState,lastReviewAt:new Date().toISOString(),forceReview:false}
-    : proposal.nextState;
+  // An estimated BUY/SELL is never proof that target weights were achieved.
+  // Keep this cycle due until the broker's real fills and fees are recorded and
+  // the engine recalculates. A HOLD acknowledgement can then close the review.
+  const nextState=postActionReviewState(proposal,state,new Date());
   const totalValue=exposurePositions.reduce((sum,p)=>sum.plus(p.value),effectiveCash);
   return {instance,proposal,totalValue,dataStatus,fingerprint,reviewKey,nextState,tradingLineId,executionAccountId,executionTicker};
 }
