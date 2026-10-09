@@ -18,7 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        # Mirror of the official Postgres image. Avoid Docker Hub unauthenticated rate limits
+        # on ephemeral GitHub runners (toomanyrequests before tests even start).
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: strategyos
           POSTGRES_PASSWORD: strategyos
