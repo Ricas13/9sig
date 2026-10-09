@@ -34,3 +34,34 @@ describe("strategy catalogue consistency",()=>{
   }
  });
 });
+
+import {parseInputSchema,validateInstanceSettings} from "@/domain/strategy/config";
+import {effectiveAllocations} from "@/domain/strategy/fixed-allocation";
+
+describe("investor-chosen weights in the catalogue",()=>{
+ const chosen=RESEARCH_STRATEGIES.filter((s)=>(s.config as {userWeights?:boolean}|undefined)?.userWeights===true);
+
+ it("exactly the strategies without a canonical split let the investor choose",()=>{
+  expect(chosen.map((s)=>s.key).sort()).toEqual(["60-40","80-20","three-fund"]);
+ });
+
+ it("each exposure has one number field whose default reproduces the illustrative weight",()=>{
+  for(const s of chosen){
+   const fields=parseInputSchema(s.inputSchema);
+   const allocations=(s.config as {allocations:Array<{exposure:string;weight:string}>}).allocations;
+   expect(fields.map((f)=>f.key),s.key).toEqual(allocations.map((a)=>"weight_"+a.exposure));
+   const settings=validateInstanceSettings(fields,{});
+   expect(effectiveAllocations(s.config!,settings)?.map((a)=>String(Number(a.weight))),s.key).toEqual(allocations.map((a)=>String(Number(a.weight))));
+  }
+ });
+
+ it("the investor can change the split, but not to one that fails to total 100%",()=>{
+  const sixty=RESEARCH_STRATEGIES.find((s)=>s.key==="60-40")!;
+  const fields=parseInputSchema(sixty.inputSchema);
+  const ok=validateInstanceSettings(fields,{weight_BROAD_EQUITY:"0.7",weight_AGGREGATE_BONDS:"0.3"});
+  expect(effectiveAllocations(sixty.config!,ok)).not.toBeNull();
+  const bad=validateInstanceSettings(fields,{weight_BROAD_EQUITY:"0.7",weight_AGGREGATE_BONDS:"0.4"});
+  expect(effectiveAllocations(sixty.config!,bad)).toBeNull();
+  expect(()=>validateInstanceSettings(fields,{weight_BROAD_EQUITY:"1.5"})).toThrow("INVALID_STRATEGY_INPUT:weight_BROAD_EQUITY");
+ });
+});

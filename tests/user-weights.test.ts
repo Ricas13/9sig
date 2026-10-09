@@ -48,3 +48,20 @@ describe("investor-chosen weights", () => {
     expect(() => fixedAllocationEngine.validateConfig({ ...config, userWeights: "yes" })).toThrow("INVALID_FIXED_ALLOCATION_USER_WEIGHTS");
   });
 });
+
+describe("full plan shown with the next step", () => {
+  it("lists every leg, sales before purchases, while proposing only the first", () => {
+    // 10000 held as 6000/2500/1500 against 50/30/20 targets: sell 1000 domestic, buy 500 + 500.
+    const result = fixedAllocationEngine.calculate(ctx({ weight_DOMESTIC_EQUITY: "0.5", weight_INTERNATIONAL_EQUITY: "0.3" }, {
+      exposures: [
+        { economicExposure: "DOMESTIC_EQUITY", value: new Decimal(6000) },
+        { economicExposure: "INTERNATIONAL_EQUITY", value: new Decimal(2500) },
+        { economicExposure: "AGGREGATE_BONDS", value: new Decimal(1500) }
+      ]
+    }));
+    expect(result.actionType).toBe("SELL");
+    expect(result.amount?.toFixed(2)).toBe("1000.00");
+    const plan = result.explanation.filter((row) => row.label.startsWith("Full plan")).map((row) => row.value);
+    expect(plan).toEqual(["Sell 1000.00 GBP of DOMESTIC_EQUITY", "Buy 500.00 GBP of INTERNATIONAL_EQUITY", "Buy 500.00 GBP of AGGREGATE_BONDS"]);
+  });
+});

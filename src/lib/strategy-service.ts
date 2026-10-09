@@ -2,6 +2,7 @@ import "server-only";
 import Decimal from "decimal.js";
 import { sql } from "@/lib/db";
 import { assertCanCreateStrategy, assertStrategyFeatureAccess, buildEntitlementSnapshot } from "@/domain/entitlements";
+import { effectiveAllocations } from "@/domain/strategy/fixed-allocation";
 import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/config";
 import { serializeExecutionConstraints } from "@/domain/execution";
 import { normalizeContributionPlan } from "@/domain/contribution-plan";
@@ -107,6 +108,9 @@ export async function createStrategy(userId: string, country: string, rawInput: 
       Array.isArray(definition.input_schema)&&definition.input_schema.length?definition.input_schema:definition.required_inputs
     );
     const settings=validateInstanceSettings(inputSchema,input.settings);
+    // Investor-chosen weights must already total 100% when the strategy starts, not at first calculation.
+    if(definition.engine_key==="FIXED_ALLOCATION"&&!effectiveAllocations((definition.config??{}) as Record<string,unknown>,settings))
+      throw new Error("INVALID_STRATEGY_WEIGHTS");
     const executionConstraints=serializeExecutionConstraints(input.executionConstraints);
     const contributionPlan=normalizeContributionPlan(input.contributionPlan,new Date(),timezone);
 
