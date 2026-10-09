@@ -6,14 +6,15 @@ async function main(){
   if(!url)throw new Error("DATABASE_URL is required");
   const sql=postgres(url,{max:1,prepare:false});
   try{
-    // The seed is the one tool allowed to rewrite a published version (see migration 0014).
-    await sql.unsafe("SET app.allow_published_edit = 'on'");
+    // Seed missing initial defaults only. Every existing plan, price, instrument, strategy release
+    // and operator change belongs to Master Admin, not to the deployment script.
     async function seedPlan(slug:string,name:string,monthly:number,annual:number,discountBps:number,max:number|null,entitlements:object,sort:number){
-      const query="INSERT INTO plans (slug,display_name,description,monthly_price_minor,annual_price_minor,annual_discount_bps,billing_currency,supported_billing_currencies,max_active_strategies,entitlements,sort_order) VALUES ($1,$2,$3,$4,$5,$6,'GBP','[\"GBP\"]'::jsonb,$7,$8::text::jsonb,$9) ON CONFLICT (slug) DO UPDATE SET display_name=EXCLUDED.display_name,monthly_price_minor=EXCLUDED.monthly_price_minor,annual_price_minor=EXCLUDED.annual_price_minor,annual_discount_bps=EXCLUDED.annual_discount_bps,max_active_strategies=EXCLUDED.max_active_strategies,entitlements=EXCLUDED.entitlements,sort_order=EXCLUDED.sort_order,updated_at=now() RETURNING id";
+      const query="INSERT INTO plans (slug,display_name,description,monthly_price_minor,annual_price_minor,annual_discount_bps,billing_currency,supported_billing_currencies,max_active_strategies,entitlements,sort_order) VALUES ($1,$2,$3,$4,$5,$6,'GBP','[\"GBP\"]'::jsonb,$7,$8::text::jsonb,$9) ON CONFLICT (slug) DO NOTHING";
       const rows=await sql.unsafe(query,[slug,name,name+" plan",monthly,annual,discountBps,max,JSON.stringify(entitlements),sort]);
-      const id=rows[0].id;
-      if(monthly>0)await sql.unsafe("INSERT INTO plan_prices (plan_id,currency,cadence,amount_minor,active) VALUES ($1,'GBP','MONTHLY',$2,true) ON CONFLICT (plan_id,currency,cadence) DO UPDATE SET amount_minor=EXCLUDED.amount_minor,updated_at=now()",[id,monthly]);
-      if(annual>0)await sql.unsafe("INSERT INTO plan_prices (plan_id,currency,cadence,amount_minor,active) VALUES ($1,'GBP','ANNUAL',$2,true) ON CONFLICT (plan_id,currency,cadence) DO UPDATE SET amount_minor=EXCLUDED.amount_minor,updated_at=now()",[id,annual]);
+      const id=rows[0]?.id??(await sql.unsafe("SELECT id FROM plans WHERE slug=$1",[slug]))[0]?.id;
+      if(!id)throw new Error("PLAN_SEED_LOOKUP_FAILED:"+slug);
+      if(monthly>0)await sql.unsafe("INSERT INTO plan_prices (plan_id,currency,cadence,amount_minor,active) VALUES ($1,'GBP','MONTHLY',$2,true) ON CONFLICT (plan_id,currency,cadence) DO NOTHING",[id,monthly]);
+      if(annual>0)await sql.unsafe("INSERT INTO plan_prices (plan_id,currency,cadence,amount_minor,active) VALUES ($1,'GBP','ANNUAL',$2,true) ON CONFLICT (plan_id,currency,cadence) DO NOTHING",[id,annual]);
     }
 
     await seedPlan("free","Free",0,0,0,1,{features:["history","reconciliation","resume","community"],notificationChannels:[]},0);
@@ -38,9 +39,10 @@ async function main(){
 
     for(const item of definitions){
       const [key,name,family,description,engine,proprietary,enabled]=item;
-      const defQuery="INSERT INTO strategy_definitions (key,name,family,description,engine,proprietary,enabled,supported_regions,supported_wrappers) VALUES ($1,$2,$3,$4,$5,$6,$7,'[]'::jsonb,'[]'::jsonb) ON CONFLICT (key) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,engine=EXCLUDED.engine,proprietary=EXCLUDED.proprietary,enabled=strategy_definitions.enabled,supported_regions=EXCLUDED.supported_regions,supported_wrappers=EXCLUDED.supported_wrappers,updated_at=now() RETURNING id";
+      const defQuery="INSERT INTO strategy_definitions (key,name,family,description,engine,proprietary,enabled,supported_regions,supported_wrappers) VALUES ($1,$2,$3,$4,$5,$6,$7,'[]'::jsonb,'[]'::jsonb) ON CONFLICT (key) DO NOTHING";
       const rows=await sql.unsafe(defQuery,[key,name,family,description,engine,proprietary,enabled]);
-      const id=rows[0].id;
+      const id=rows[0]?.id??(await sql.unsafe("SELECT id FROM strategy_definitions WHERE key=$1",[key]))[0]?.id;
+      if(!id)throw new Error("STRATEGY_SEED_LOOKUP_FAILED:"+key);
 
       if(engine==="MOMENTUM_ROTATION")continue;
 
@@ -52,7 +54,7 @@ async function main(){
 
       const lifecycle=key==="9sig"?"PUBLISHED":"DRAFT";
       await sql.unsafe(
-        "INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,upgrade_policy,input_schema,config,disclosure,published_at) VALUES ($1,'1.0','2026-01-01',$2,$3,'OPTIONAL',$6::text::jsonb,$4::text::jsonb,$5,CASE WHEN $3='PUBLISHED' THEN now() ELSE NULL END) ON CONFLICT (strategy_definition_id,version) DO UPDATE SET engine_key=EXCLUDED.engine_key,input_schema=EXCLUDED.input_schema,config=EXCLUDED.config,disclosure=EXCLUDED.disclosure WHERE strategy_versions.lifecycle_status='DRAFT' AND EXCLUDED.lifecycle_status='DRAFT'",
+        "INSERT INTO strategy_versions (strategy_definition_id,version,effective_from,engine_key,lifecycle_status,upgrade_policy,input_schema,config,disclosure,published_at) VALUES ($1,'1.0','2026-01-01',$2,$3,'OPTIONAL',$6::text::jsonb,$4::text::jsonb,$5,CASE WHEN $3='PUBLISHED' THEN now() ELSE NULL END) ON CONFLICT (strategy_definition_id,version) DO NOTHING",
         [id,engine,lifecycle,JSON.stringify(config),disclosure,JSON.stringify(inputSchema)]
       );
     }
