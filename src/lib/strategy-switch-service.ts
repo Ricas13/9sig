@@ -6,6 +6,8 @@ import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/co
 import { assertCanCreateStrategy, assertStrategyFeatureAccess, buildEntitlementSnapshot } from "@/domain/entitlements";
 import { recalculateAfterMutation } from "@/lib/action-service";
 import { assessStrategyMarket, StrategyMarketUnavailableError } from "@/domain/strategy/market-eligibility";
+import { requiredPositions } from "@/domain/strategy/market-eligibility";
+import { switchPositionDiscrepancies } from "@/domain/strategy/switch-position-eligibility";
 import { VERIFIED_MARKET_MAPPINGS_SQL, verifiedCandidates } from "@/lib/verified-market-mappings";
 
 export async function switchStrategy(
@@ -119,6 +121,23 @@ export async function switchStrategy(
         cash:folded.cash.toString(),
         quantities:[...folded.quantities.entries()].filter(([,quantity])=>!quantity.eq(0)).map(([instrumentId,quantity])=>({instrumentId,quantity:quantity.toString()}))
       });
+    }
+
+    // Refuse to close the original strategy when the destination cannot manage
+    // the EXISTING positions. Otherwise the switch creates a permanently blocked
+    // new journey (unrecognised exposure) after irrevocably closing the old one.
+    const positions=snapshots.flatMap(snapshot=>snapshot.quantities);
+    if(positions.length){
+      const instrumentIds=[...new Set(positions.map(position=>position.instrumentId))];
+      const instruments=await tx.unsafe(
+        "SELECT id::text AS id,economic_exposure AS exposure,leverage::text AS leverage,direction FROM instruments WHERE id=ANY($1::uuid[])",
+        [instrumentIds]
+      );
+      const blocked=switchPositionDiscrepancies(positions,instruments.map(row=>({
+        id:String(row.id),exposure:String(row.exposure),
+        leverage:String(row.leverage),direction:String(row.direction)
+      })),requiredPositions(String(target.engine_key),config));
+      if(blocked.length)throw new Error("STRATEGY_SWITCH_REQUIRES_RECONCILIATION");
     }
 
     await tx.unsafe(
