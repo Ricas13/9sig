@@ -15,6 +15,7 @@ import { validatedEffectivePrice } from "@/domain/manual-override";
 import { loadTrustedHistory } from "@/lib/trusted-history-loader";
 import { assessStrategyMarket, StrategyMarketUnavailableError } from "@/domain/strategy/market-eligibility";
 import { VERIFIED_MARKET_MAPPINGS_SQL, verifiedCandidates } from "@/lib/verified-market-mappings";
+import { validatedFillTime } from "@/domain/execution-time";
 
 function isoDate(value: unknown) { return value instanceof Date ? value.toISOString().slice(0,10) : String(value).slice(0,10); }
 type CalculationScenario={
@@ -645,7 +646,7 @@ export async function recalculateAfterMutation(
 export async function executeAction(
   userId:string,
   actionId:string,
-  execution?:{price?:string;quantity?:string;fee?:string;partial?:boolean}
+  execution?:{price?:string;quantity?:string;fee?:string;partial?:boolean;executedAt?:string}
 ){
   const result=await sql.begin(async(tx)=>{
     const ownership=await tx.unsafe(
@@ -695,6 +696,14 @@ export async function executeAction(
         instrumentId:r.instrument_id?String(r.instrument_id):null,
         quantity:String(r.quantity)
 })),String(action.account_currency));
+      const ledgerTime=await tx.unsafe(
+        "SELECT max(occurred_at) AS latest_at FROM ledger_events WHERE strategy_instance_id=$1",
+        [action.strategy_instance_id]
+      );
+      const brokerExecutedAt=validatedFillTime(
+        execution.executedAt, new Date(action.created_at),
+        ledgerTime[0]?.latest_at?new Date(ledgerTime[0].latest_at):null
+      );
       const held=position.quantities.get(String(action.instrument_id))??new Decimal(0);
       const constraints=normalizeExecutionConstraints(strategy.execution_constraints);
       if(actionType==="SELL"&&!constraints.allowSelling)throw new Error("SELLING_DISABLED");
@@ -716,7 +725,7 @@ export async function executeAction(
       // Backstop: the signs and fee rules of a trade row are enforced right at the write.
       assertLedgerEvent({eventType:actionType,cashAmount:validated.cashAmount,feeAmount:validated.fee,instrumentId:String(action.instrument_id),quantity:validated.ledgerQuantity});
       const inserted=await tx.unsafe(
-        "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,$2,now(),$3,$4,$5,$6,$7,$8,$9,'USER_ENTERED','VERIFIED',$10::jsonb) RETURNING id",
+        "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,instrument_id,quantity,unit_price,fee_amount,provenance,confidence,metadata) VALUES ($1,$2,$11,$3,$4,$5,$6,$7,$8,$9,'USER_ENTERED','VERIFIED',$10::jsonb) RETURNING id",
         [
           action.strategy_instance_id,
           action.account_id,
@@ -732,7 +741,9 @@ export async function executeAction(
             proposedAmount:String(action.amount),
             actualNotional:validated.grossNotional.toString(),
             partial:Boolean(execution.partial)
-          })
+          }),
+          brokerExecutedAt.toISOString()
+        
         ]
       );
       actualNotional=validated.grossNotional.toString();
@@ -745,7 +756,7 @@ export async function executeAction(
           userId,
           partial?"action.partially-executed":"action.executed",
           actionId,
-          JSON.stringify({ledgerEventId:String(inserted[0].id),actualNotional,quantity:validated.quantity.toString(),fee:validated.fee.toString()})
+          JSON.stringify({ledgerEventId:String(inserted[0].id),actualNotional,quantity:validated.quantity.toString(),fee:validated.fee.toString(),executedAt:brokerExecutedAt.toISOString()})
         ]
       );
     }

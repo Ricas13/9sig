@@ -78,10 +78,13 @@ export function ExecuteAction({ action }: { action: { id: string; actionType: st
     setBusy(true);
     setError("");
     const f = new FormData(e.currentTarget);
+    const localTime=String(f.get("executedAt")||"");
+    const when=localTime?new Date(localTime):null;
+    if(when&&!Number.isFinite(when.getTime())){setBusy(false);setError("Choose a valid execution date and time.");return;}
     const response = await fetch("/api/actions/" + action.id + "/execute", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ price: f.get("price") || undefined, quantity: f.get("quantity") || undefined, fee: f.get("fee") || "0", partial:Boolean(f.get("partial")) })
+      body: JSON.stringify({ price: f.get("price") || undefined, quantity: f.get("quantity") || undefined, fee: f.get("fee") || "0", partial:Boolean(f.get("partial")),executedAt:when?.toISOString() })
     });
     const body = await response.json();
     setBusy(false);
@@ -94,6 +97,10 @@ export function ExecuteAction({ action }: { action: { id: string; actionType: st
       <input name="price" type="number" min="0" step="0.000001" placeholder="Execution price" aria-label="Actual execution price" required />
       <input name="quantity" type="number" min="0" step="0.00000001" placeholder="Actual quantity" aria-label="Actual quantity" required />
       <input name="fee" type="number" min="0" step="0.01" defaultValue="0" placeholder="Fee" aria-label="Trading fee"/>
+      <label className="trade-execution-when">Broker execution date &amp; time
+        <input name="executedAt" type="datetime-local" aria-label="Broker execution date and time"/>
+        <small>Optional. Leave blank for now, or enter the actual local time shown by your broker.</small>
+      </label>
       <label className="partial-fill"><input name="partial" type="checkbox"/><span>I only completed part of this trade</span></label>
     </>}
     <button className="button primary" disabled={busy}>{busy ? "Recording…" : needsPrice ? "Mark trade completed" : "Mark reviewed"}</button>

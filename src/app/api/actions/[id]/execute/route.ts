@@ -10,7 +10,8 @@ const schema = z.object({
   price: positive.optional(),
   quantity: positive.optional(),
   fee: nonNegative.optional(),
-  partial: z.boolean().optional()
+  partial: z.boolean().optional(),
+  executedAt:z.string().datetime({offset:true}).optional()
 });
 
 export async function POST(request:Request,context:{params:Promise<{id:string}>}){
@@ -34,7 +35,10 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       SELLING_DISABLED:"Sell recommendations are disabled in your trade preferences.",
       FRACTIONAL_SHARES_DISABLED:"Your broker is set to whole shares only. Enter a whole-share quantity or recalculate.",
       BELOW_MINIMUM_TRADE:"This execution is below your configured minimum trade size.",
-      STRATEGY_NOT_ACTIVE:"Resume this strategy before completing an action."
+      STRATEGY_NOT_ACTIVE:"Resume this strategy before completing an action.",
+      INVALID_EXECUTION_TIMESTAMP:"Enter the real trade date and time, including your local timezone.",
+      EXECUTION_BEFORE_ACTION:"This trade predates the calculated instruction. Add it as a historical transaction instead.",
+      EXECUTION_OUT_OF_ORDER:"A more recent ledger transaction is already recorded. Use historical transaction import/reconciliation to correct the timeline."
     };
     return Response.json({error:messages[code]??"Could not complete this action."},{status:400});
   }
