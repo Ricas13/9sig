@@ -19,6 +19,7 @@ describe("all required exposures must be valid for a selected market",()=>{
  it("blocks buying the available UK equity when its essential TMF duration leg is unsupported",()=>{
    const found=assessLinkedMarkets("FIXED_ALLOCATION",config,partial,[gb],"2026-10-09");
    expect(found.available).toBe(false);
+   expect(found.eligibleAccountIndices).toEqual([]);
    expect(found.missingExposures).toContain("LONG_TREASURY_3X_LONG");
  });
  it("does not combine two incomplete accounts into one apparently valid strategy",()=>{
@@ -29,6 +30,7 @@ describe("all required exposures must be valid for a selected market",()=>{
  it("allows a complete US implementation even when a separately linked ISA lacks instruments",()=>{
    const assessment=assessLinkedMarkets("FIXED_ALLOCATION",config,[...partial,...us],[gb,u],"2026-10-09");
    expect(assessment.available).toBe(true);
+   expect(assessment.eligibleAccountIndices).toEqual([1]);
    expect(assessment.supportedMarkets).toContain("US / TAXABLE (USD)");
  });
  it("does not trust outdated or unverified legs",()=>{

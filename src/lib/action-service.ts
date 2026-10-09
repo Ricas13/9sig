@@ -169,6 +169,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
     :await sql.unsafe("SELECT COALESCE(sum(l.cash_amount),0) AS amount FROM ledger_events l WHERE l.strategy_instance_id=$1 AND l.event_type='CONTRIBUTION' AND l.occurred_at>$2 AND NOT EXISTS (SELECT 1 FROM ledger_events c WHERE c.correction_of_event_id=l.id)",[strategyInstanceId,lastReview]);
   const contributionsSinceReview=new Decimal(String(contributionRows[0]?.amount??0)).plus(new Decimal(scenario?.contributionDelta??0));
   const engine=getStrategyEngine(calculationEngineKey);
+  const fullyEligibleAccountIds=new Set<string>();
   // Do not start a partial implementation. The next leg alone may map (e.g. SPY3 in a
   // UK ISA), while another mandatory leg has no faithful equivalent (TMF duration).
   // Only complete verified implementations are eligible for action instructions.
@@ -179,6 +180,8 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
         country:String(account.country),wrapper:String(account.wrapper),
         currency:String(account.currency),broker:account.broker_name?String(account.broker_name):null
       })),new Date().toISOString().slice(0,10));
+    for(const accountIndex of market.eligibleAccountIndices)
+      fullyEligibleAccountIds.add(String(accounts[accountIndex].id));
     if(!market.available){
       dataStatus="MISSING";
       dataMessage="This strategy cannot be implemented in your linked accounts with the currently verified trading lines. "+
@@ -199,7 +202,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
   if(proposal.economicExposure&&["BUY","SELL","REBALANCE"].includes(proposal.actionType)){
     if(proposal.actionType==="SELL"){
       const heldExposure=[...exposurePositions]
-        .filter((p)=>p.economicExposure===proposal.economicExposure&&p.tradingLineId)
+        .filter((p)=>p.economicExposure===proposal.economicExposure&&p.tradingLineId&&fullyEligibleAccountIds.has(p.accountId))
         .sort((a,b)=>b.value.cmp(a.value))[0];
       if(heldExposure?.tradingLineId){
         tradingLineId=heldExposure.tradingLineId;
@@ -210,6 +213,7 @@ async function buildActionCalculation(strategyInstanceId:string,scenario?:Calcul
     if(!tradingLineId){
       const leverage=exposureLeverage(proposal.economicExposure,proposal.leverage);
       const rankedAccounts=accounts
+        .filter(account=>fullyEligibleAccountIds.has(String(account.id)))
         .map((account)=>{
           const accountId=String(account.id);
           const position=accountPositions.get(accountId);
