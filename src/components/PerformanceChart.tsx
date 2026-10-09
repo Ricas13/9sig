@@ -84,7 +84,7 @@ export function PerformanceChart({
   return <div className="performance-chart">
     <div className="chart-toolbar">
       <div className="timeframes" aria-label="Chart timeframe">{frames.map((f)=><button type="button" key={f} className={"timeframe "+(frame===f?"active":"")} aria-pressed={frame===f} onClick={()=>setFrame(f)}>{f}</button>)}</div>
-      {frame==="CUSTOM"&&<div className="chart-date-range"><label>From <input aria-label="Chart custom start date" type="date" max={customEnd||latestDate} value={customStart} onChange={event=>setCustomStart(event.target.value)}/></label><label>To <input aria-label="Chart custom end date" type="date" min={customStart||undefined} max={latestDate} value={customEnd} onChange={event=>setCustomEnd(event.target.value)}/></label></div>}
+      {frame==="CUSTOM"&&<div className="chart-date-range"><span>From <input aria-label="Chart custom start date" type="date" max={customEnd||latestDate} value={customStart} onChange={event=>setCustomStart(event.target.value)}/></span><span>To <input aria-label="Chart custom end date" type="date" min={customStart||undefined} max={latestDate} value={customEnd} onChange={event=>setCustomEnd(event.target.value)}/></span></div>}
       <div className="series-toggles" aria-label="Chart comparisons">
         {hasActual&&<button type="button" className={"series-chip actual "+(showActual?"active":"")} aria-pressed={showActual} onClick={()=>setShowActual(!showActual)}><span/>{actualLabel}</button>}
         {hasModel&&<button type="button" className={"series-chip model "+(showModel?"active":"")} aria-pressed={showModel} onClick={()=>setShowModel(!showModel)}><span/>Strategy model</button>}
