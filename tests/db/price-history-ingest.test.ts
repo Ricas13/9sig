@@ -55,8 +55,8 @@ describe.skipIf(!url)("price history ingest", () => {
     const result = await ingestPriceHistory({ provider: provider() });
     expect(result).toMatchObject({ status: "RAN", stored: 40, rejected: 0 });
     expect(await count()).toBe(40);
-    const rows = await sql!.unsafe("SELECT licensed,provider,extract(isodow FROM trading_day)::int AS dow FROM price_history WHERE trading_line_id=$1", [lineId]);
-    expect(rows.every((r) => r.licensed === true && r.provider === "fake" && r.dow < 6)).toBe(true);
+    const rows = await sql!.unsafe("SELECT licensed,adjustment_verified,provider,extract(isodow FROM trading_day)::int AS dow FROM price_history WHERE trading_line_id=$1", [lineId]);
+    expect(rows.every((r) => r.licensed === true && r.adjustment_verified === true && r.provider === "fake" && r.dow < 6)).toBe(true);
     const newest = await sql!.unsafe("SELECT to_char(max(trading_day),'YYYY-MM-DD') AS d FROM price_history WHERE trading_line_id=$1", [lineId]);
     const expected = new Date();
     do expected.setUTCDate(expected.getUTCDate() - 1); while ([0, 6].includes(expected.getUTCDay()));

@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import type { TrustedHistoricalSeries } from "./strategy/types";
 
-export type HistoryRow = { tradingDay: string; adjustedClose: string; currency: string; provider: string; licensed: boolean };
+export type HistoryRow = { tradingDay: string; adjustedClose: string; currency: string; provider: string; licensed: boolean; adjustmentVerified: boolean };
 
 export type HistoryRules = {
   now: Date;
@@ -34,7 +34,7 @@ export function buildTrustedSeries(exposure: string, rows: readonly HistoryRow[]
       (rules.maxGapDays !== undefined && (!Number.isFinite(rules.maxGapDays) || rules.maxGapDays <= 0))) return null;
   const providers = new Set(rows.map((row) => row.provider));
   if (providers.size !== 1) return null;
-  if (rows.some((row) => !row.licensed || row.currency.toUpperCase() !== rules.currency.toUpperCase() || !realDay(row.tradingDay))) return null;
+  if (rows.some((row) => !row.licensed || !row.adjustmentVerified || row.currency.toUpperCase() !== rules.currency.toUpperCase() || !realDay(row.tradingDay))) return null;
   const sorted = [...rows].sort((a, b) => a.tradingDay.localeCompare(b.tradingDay));
   const points = [];
   for (let i = 0; i < sorted.length; i += 1) {
