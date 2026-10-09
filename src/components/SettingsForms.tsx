@@ -132,7 +132,7 @@ export function SecurityControls({enabled}:{enabled:boolean}){
 }
 
 /** A one-time deep link verifies the user controls the private Telegram chat. */
-export function TelegramForm({connected}:{connected:boolean}){
+export function TelegramForm({connected,allowed}:{connected:boolean;allowed:boolean}){
   const[linked,setLinked]=useState(connected);
   const[url,setUrl]=useState("");
   const[message,setMessage]=useState("");
@@ -149,8 +149,8 @@ export function TelegramForm({connected}:{connected:boolean}){
     setLinked(false);setUrl("");setMessage("Telegram disconnected.");
   }catch(e){setMessage(e instanceof Error?e.message:"Could not disconnect.");}finally{setBusy(false);}}
   return <div className="stack">
-    <p className="help">{linked?"Telegram is connected. Your plan controls whether alerts are delivered.":"Telegram is not connected."}</p>
-    <div className="inline">{linked?<button className="button" type="button" disabled={busy} onClick={disconnect}>Disconnect Telegram</button>:<button className="button" type="button" disabled={busy} onClick={connect}>Connect Telegram</button>}
+    <p className="help">{!allowed?"Telegram alerts are not included in your current plan.":linked?"Telegram is connected. Your plan controls whether alerts are delivered.":"Telegram is not connected."}</p>
+    <div className="inline">{linked?<button className="button" type="button" disabled={busy} onClick={disconnect}>Disconnect Telegram</button>:<button className="button" type="button" disabled={busy||!allowed} onClick={connect}>Connect Telegram</button>}
       {url&&<a className="button primary" href={url} target="_blank" rel="noopener noreferrer">Open Telegram bot</a>}</div>
     {message&&<p className="help" role="status">{message}</p>}
   </div>;

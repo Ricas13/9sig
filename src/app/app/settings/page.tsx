@@ -2,6 +2,7 @@ import { requirePageUser } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { BillingButtons,DiscordForm,TelegramForm,PrivacyControls,SecurityControls } from "@/components/SettingsForms";
 import { isMfaEnabled } from "@/lib/mfa";
+import { loadEntitlements } from "@/lib/entitlement-service";
 import { purchasesAllowedFor } from "@/domain/native-app";
 import { StorePurchase } from "@/components/StorePurchase";
 import { manageSubscriptionUrl,platformFromUserAgent,productsForPlatform,storeName } from "@/domain/store-products";
@@ -9,7 +10,7 @@ import { headers } from "next/headers";
 
 export default async function SettingsPage(){
   const user=await requirePageUser();
-  const mfaEnabled=await isMfaEnabled(user.id);
+  const [mfaEnabled,entitlements]=await Promise.all([isMfaEnabled(user.id),loadEntitlements(user.id)]);
   const userAgent=(await headers()).get("user-agent");
   const canPurchase=purchasesAllowedFor(userAgent);
   const platform=platformFromUserAgent(userAgent);
@@ -64,7 +65,7 @@ export default async function SettingsPage(){
       <section className="glass form-card">
         <div className="eyebrow">Notifications</div><h3>Telegram</h3>
         <p className="help">Connect privately to the Wealtharr bot with a one-time 15-minute link. You never need to enter your Telegram chat ID.</p>
-        <TelegramForm connected={telegramConnected}/>
+        <TelegramForm connected={telegramConnected} allowed={entitlements.notificationChannels.has("TELEGRAM")}/>
       </section>
     </div>
     <section id="security" className="card privacy-card"><div className="eyebrow">Security</div><h3>Two-step sign-in</h3><SecurityControls enabled={mfaEnabled}/></section>
