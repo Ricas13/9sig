@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useId, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { rebaseIndexedWindow } from "@/domain/chart-window";
 
 type Point={
   date:string;
@@ -76,6 +77,10 @@ export function PerformanceChart({
     return data.filter(point=>(frame!=="CUSTOM"||(!customStart||point.date>=customStart)&&(!customEnd||point.date<=customEnd))&&
       (frame==="CUSTOM"||!min||point.date>=min));
   },[data,frame,latestDate,customStart,customEnd]);
+  // Period returns must start at 100 *within the selected window*, not inherit the
+  // strategy's lifetime baseline. A comparison without the first-date quote is
+  // withheld instead of rebasing on a later date and fabricating a fair start.
+  const chartData=useMemo(()=>indexed?rebaseIndexedWindow(filtered):filtered,[filtered,indexed]);
   const filteredMarkers=useMemo(()=>{
     const dates=new Set(filtered.map(point=>point.date));
     return markers.filter(marker=>dates.has(marker.date));
@@ -102,12 +107,12 @@ export function PerformanceChart({
         })}
       </div>
     </div>
-    {indexed&&<p className="help">Flow-adjusted index (100 = starting value). Only dates with real observations are shown; this is an estimate, not exact time-weighted performance.</p>}
+    {indexed&&<p className="help">Flow-adjusted index, rebased to 100 at the first observed date in this selected period. Comparison lines need a quote on that same date. This is an estimate, not exact time-weighted performance.</p>}
     {frame==="1D"&&<p className="help">One-day comparisons use the last two dated snapshots where available. Intraday moves cannot be shown from daily values.</p>}
     {!filtered.length&&<p className="help">No verified values in this date range.</p>}
     {filteredMarkers.length>0&&<div className="chart-markers" aria-label="Chart event markers"><span className="chart-marker-key contribution">+ Contributions</span><span className="chart-marker-key review">R Reviews</span></div>}
     <div className="chart-wrap" role="img" aria-label="Interactive portfolio performance chart"><ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={filtered} margin={{top:22,right:8,left:0,bottom:0}} accessibilityLayer>
+      <AreaChart data={chartData} margin={{top:22,right:8,left:0,bottom:0}} accessibilityLayer>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--chart-actual)" stopOpacity={.28}/><stop offset="100%" stopColor="var(--chart-actual)" stopOpacity={0}/></linearGradient>
         </defs>
