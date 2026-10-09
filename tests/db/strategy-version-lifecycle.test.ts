@@ -86,7 +86,7 @@ describe.skipIf(!url)("strategy version lifecycle",()=>{
     const id=await draft("1.05","2031-01-15");
     const edit=await patch({action:"UPDATE_DRAFT",versionId:id,releaseNotes:"Reviewed text changed"});
     expect(edit.status).toBe(200);
-    const attestations=await sql!.unsafe("SELECT id FROM strategy_version_attestations WHERE strategy_version_id=$1",[id]);
+    const attestations=await sql!.unsafe("SELECT strategy_version_id FROM strategy_version_attestations WHERE strategy_version_id=$1",[id]);
     expect(attestations).toHaveLength(0);
     const rejected=await patch({action:"PUBLISH",versionId:id});
     expect(rejected.status).toBe(409);
