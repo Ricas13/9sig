@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+import { REVIEW_FREQUENCY_MONTHS } from "../schedule";
 import type { EngineContext, ProposedAction, StrategyEngine } from "./types";
 
 type Allocation = { exposure: string; weight: string | number; leverage?: string | number };
@@ -25,7 +26,7 @@ export const fixedAllocationEngine: StrategyEngine = {
     const threshold = new Decimal(String(config.rebalanceThreshold ?? "0.05"));
     if (!threshold.isFinite() || threshold.lt(0) || threshold.gt(1)) throw new Error("INVALID_FIXED_ALLOCATION_THRESHOLD");
     const frequency = String(config.reviewFrequency ?? "QUARTERLY");
-    if (!["MONTHLY","QUARTERLY","ANNUAL"].includes(frequency)) throw new Error("INVALID_FIXED_ALLOCATION_REVIEW_FREQUENCY");
+    if (!Object.hasOwn(REVIEW_FREQUENCY_MONTHS,frequency)) throw new Error("INVALID_FIXED_ALLOCATION_REVIEW_FREQUENCY");
   },
   calculate(ctx: EngineContext): ProposedAction {
     if (ctx.dataHealth.status !== "CURRENT") {
