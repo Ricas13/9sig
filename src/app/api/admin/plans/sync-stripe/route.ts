@@ -5,6 +5,7 @@ import {sql} from "@/lib/db";
 import {requireAdmin} from "@/lib/session";
 import {assertSameOrigin,consumeRateLimit} from "@/lib/security";
 import {authFailure} from "@/lib/api-auth";
+import {ensureSettings} from "@/lib/settings";
 
 export const dynamic="force-dynamic";
 const schema=z.object({
@@ -20,6 +21,9 @@ export async function POST(request:Request){
     const admin=await requireAdmin();
     await consumeRateLimit("admin-stripe-prices:"+admin.id,12,60*60);
     const parsed=schema.parse(await request.json());
+    // Encrypted settings configured in Master Admin are loaded into the effective process
+    // environment; Docker-level credentials remain the fallback, not a requirement.
+    await ensureSettings(true);
     const secret=process.env.STRIPE_SECRET_KEY;
     if(!secret||!/^((sk|rk)_(test|live)_)/.test(secret))
       return Response.json({error:"Configure Stripe credentials in Master Admin first."},{status:503,headers});

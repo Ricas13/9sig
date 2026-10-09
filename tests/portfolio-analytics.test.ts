@@ -28,6 +28,11 @@ describe("portfolio analytics are cash-flow aware and fail closed",()=>{
   expect(()=>normaliseValuations([{date:"2026-01-01",value:"100"},{date:"2026-01-01",value:"200"}])).toThrow();
   expect(()=>normaliseValuations([{date:"2026-01-01",value:"NaN"}])).toThrow();
   expect(()=>normaliseValuations([{date:"2026-01-01",value:"-4"}])).toThrow();
+  // Date.parse normalises impossible dates; a price at "Feb 30" must never be accepted.
+  expect(()=>normaliseValuations([{date:"2026-02-30",value:"100"}])).toThrow("INVALID_VALUATION_SERIES");
+  expect(()=>normaliseValuations([{date:"2026-13-01",value:"100"}])).toThrow("INVALID_VALUATION_SERIES");
+  expect(()=>summarizeObservedPerformance([{date:"2026-01-01",value:"100"}],
+    [{date:"2026-02-30",amount:"20"}])).toThrow("INVALID_EXTERNAL_FLOW");
   expect(()=>summarizeObservedPerformance([{date:"2026-01-01",value:"100"}],[{date:"2026-01-02",amount:"oops"}])).toThrow();
  });
  it("does not invent intraday session losses from distant sparse valuations",()=>{

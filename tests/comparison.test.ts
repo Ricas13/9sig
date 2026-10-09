@@ -44,6 +44,12 @@ describe("same-cash-flow comparison",()=>{
       flows:[{date:"2026-01-06",amount:"500"}]
     })).toEqual([]);
   });
+  it("rejects bad benchmark observations rather than silently filtering them out",()=>{
+    expect(()=>simulateSameCashFlows({
+      index:[{date:"2026-01-05",value:"100"},{date:"2026-01-06",value:"-50"},{date:"2026-01-07",value:"110"}],
+      anchorDate:"2026-01-05",anchorValue:"1000",flows:[]
+    })).toThrow("INVALID_BENCHMARK_SERIES");
+  });
   it("handles withdrawals as negative external cash flows",()=>{
     const result=simulateSameCashFlows({
       index:[{date:"2026-01-01",value:"100"},{date:"2026-01-15",value:"100"},{date:"2026-02-01",value:"100"}],

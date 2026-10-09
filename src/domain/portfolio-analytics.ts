@@ -13,13 +13,19 @@ export type AnalyticsSummary = {
   lastObservedSessionPnl: string | null; longestGapDays: number;
 };
 
+function validCalendarDate(value:string):boolean {
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+  const date=new Date(value+"T00:00:00Z");
+  return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value;
+}
+
 /** Reject broken or duplicated observations rather than rank investment accounts using incorrect values. */
 export function normaliseValuations(values: Valuation[]): Valuation[] {
   const sorted=[...values].sort((a,b)=>a.date.localeCompare(b.date));
   const seen=new Set<string>();
   return sorted.map(point=>{
     const amount=new Decimal(point.value);
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(point.date) || !Number.isFinite(Date.parse(point.date+"T00:00:00Z")) ||
+    if(!validCalendarDate(point.date) ||
       seen.has(point.date) || !amount.isFinite() || amount.lt(0))throw new Error("INVALID_VALUATION_SERIES");
     seen.add(point.date);
     return {date:point.date,value:amount.toString()};
@@ -28,7 +34,7 @@ export function normaliseValuations(values: Valuation[]): Valuation[] {
 
 function sumFlows(flows:DatedFlow[], after:string, through:string){
   return flows.reduce((sum,flow)=>{
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(flow.date))throw new Error("INVALID_EXTERNAL_FLOW");
+    if(!validCalendarDate(flow.date))throw new Error("INVALID_EXTERNAL_FLOW");
     const amount=new Decimal(flow.amount);
     if(!amount.isFinite())throw new Error("INVALID_EXTERNAL_FLOW");
     return flow.date>after&&flow.date<=through?sum.plus(amount):sum;
