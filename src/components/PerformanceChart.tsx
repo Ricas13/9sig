@@ -11,11 +11,12 @@ type Point={
 };
 type Marker={date:string;type:"CONTRIBUTION"|"REVIEW";label:string};
 type ComparisonSeries={key:string;label:string;defaultVisible?:boolean};
-const frames=["1D","1W","1M","3M","6M","YTD","1Y","3Y","5Y","ALL","CUSTOM"];
+const frames=["1M","3M","6M","YTD","1Y","3Y","5Y","MAX"];
+const fullFrames=["1D","1W","1M","3M","6M","YTD","1Y","3Y","5Y","ALL","CUSTOM"];
 const comparisonColors=["var(--chart-comparison-1)","var(--chart-comparison-2)","var(--chart-comparison-3)","var(--chart-comparison-4)","var(--chart-comparison-5)","var(--chart-comparison-6)"];
 
 function cutoff(frame:string,lastDate:string) {
-  if(frame==="ALL"||frame==="CUSTOM")return null;
+  if(frame==="ALL"||frame==="MAX"||frame==="CUSTOM")return null;
   const latest=new Date(lastDate+"T12:00:00Z");
   if(frame==="YTD")return new Date(Date.UTC(latest.getUTCFullYear(),0,1));
   if(frame==="1D"||frame==="1W"){
@@ -32,13 +33,14 @@ function compact(value:number){
 }
 
 export function PerformanceChart({
-  data,markers=[],comparisons=[],actualLabel="Your portfolio",indexed=false
+  data,markers=[],comparisons=[],actualLabel="Your portfolio",indexed=false,fullControls=false
 }:{
   data:Point[];
   markers?:Marker[];
   comparisons?:ComparisonSeries[];
   actualLabel?:string;
   indexed?:boolean;
+  fullControls?:boolean;
 }) {
   const gradientId=("actual-"+useId()).replaceAll(":","");
   const hasActual=data.some((point)=>point.actual!=null);
@@ -50,7 +52,7 @@ export function PerformanceChart({
       :hasLegacyBenchmark?[{key:"legacy-benchmark",label:"Benchmark",defaultVisible:!hasActual&&!hasModel}]:[],
     [comparisons,hasLegacyBenchmark,hasActual,hasModel]
   );
-  const [frame,setFrame]=useState("ALL");
+  const [frame,setFrame]=useState(fullControls?"ALL":"MAX");
   const [customStart,setCustomStart]=useState("");
   const [customEnd,setCustomEnd]=useState("");
   const latestDate=useMemo(()=>[...data].sort((a,b)=>a.date.localeCompare(b.date)).at(-1)?.date??"",[data]);
@@ -83,7 +85,7 @@ export function PerformanceChart({
 
   return <div className="performance-chart">
     <div className="chart-toolbar">
-      <div className="timeframes" aria-label="Chart timeframe">{frames.map((f)=><button type="button" key={f} className={"timeframe "+(frame===f?"active":"")} aria-pressed={frame===f} onClick={()=>setFrame(f)}>{f}</button>)}</div>
+      <div className="timeframes" aria-label="Chart timeframe">{(fullControls?fullFrames:frames).map((f)=><button type="button" key={f} className={"timeframe "+(frame===f?"active":"")} aria-pressed={frame===f} onClick={()=>setFrame(f)}>{f}</button>)}</div>
       {frame==="CUSTOM"&&<div className="chart-date-range"><span>From <input aria-label="Chart custom start date" type="date" max={customEnd||latestDate} value={customStart} onChange={event=>setCustomStart(event.target.value)}/></span><span>To <input aria-label="Chart custom end date" type="date" min={customStart||undefined} max={latestDate} value={customEnd} onChange={event=>setCustomEnd(event.target.value)}/></span></div>}
       <div className="series-toggles" aria-label="Chart comparisons">
         {hasActual&&<button type="button" className={"series-chip actual "+(showActual?"active":"")} aria-pressed={showActual} onClick={()=>setShowActual(!showActual)}><span/>{actualLabel}</button>}

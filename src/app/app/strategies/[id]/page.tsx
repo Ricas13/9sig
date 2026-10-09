@@ -343,7 +343,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         <div className="kpi"><span>Last observed session P/L</span><strong>{trackSummary?.lastObservedSessionPnl!=null?money(Number(trackSummary.lastObservedSessionPnl),String(s.currency)):"—"}</strong></div>
       </div>
       {performanceOverview.length>=2?<div className="chart-card">
-        <PerformanceChart data={performanceOverview} comparisons={benchmark.comparisons} indexed actualLabel={String(s.strategy_name)}/>
+        <PerformanceChart data={performanceOverview} comparisons={benchmark.comparisons} indexed fullControls actualLabel={String(s.strategy_name)}/>
         {benchmark.missing.length>0&&<p className="help comparison-warning">VTI / SPY / QQQ still missing verified, same-currency total-return history for: {benchmark.missing.join(", ")}. Unavailable benchmarks are not estimated.</p>}
       </div>:<p className="help">We need two reliable dated portfolio valuations before we can calculate returns or drawdowns. Past broker performance is not guessed when you resume a strategy.</p>}
       {trackSummary&&<p className="help">Best observed session: {signedPct(trackSummary.bestObservedSessionPct)} · Worst observed session: {signedPct(trackSummary.worstObservedSessionPct)} · Current observed drawdown: {signedPct(trackSummary.currentDrawdownPct)}. Sparse data may miss intraday declines.</p>}
@@ -383,7 +383,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         <div className="quick-drawer-content">
           <section className="chart-card explore-chart">
             <div className="section-head"><div><h2>Performance</h2><p>Your account versus the same cash flows applied to the strategy model and benchmark.</p></div></div>
-            <PerformanceChart data={chartData} markers={chartMarkers} comparisons={comparisonSeries.map(({key,label,defaultVisible})=>({key,label,defaultVisible}))}/>
+            <PerformanceChart data={chartData} markers={chartMarkers} comparisons={comparisonSeries.map(({key,label,defaultVisible})=>({key,label,defaultVisible}))} fullControls/>
             <p className="help">Contributions and withdrawals are applied across comparison series so adding money is not mistaken for investment performance.</p>
             {comparisonWarnings.map((warning)=><p className="help comparison-warning" key={warning}>{warning}</p>)}
             <div className="tracking-boundary"><span>Tracked by {process.env.NEXT_PUBLIC_BRAND_NAME?.trim()||"Wealtharr"} since {new Date(s.started_at).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}.</span>{s.onboarding_mode==="RESUME"&&<span>Performance before that date is not reconstructed from incomplete history.</span>}</div>

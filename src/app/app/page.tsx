@@ -151,7 +151,7 @@ export default async function OverviewPage(){
         <div className="kpi"><span>Last observed session P/L</span><strong>{combinedSummary?.lastObservedSessionPnl!=null&&combined?money(Number(combinedSummary.lastObservedSessionPnl),combined.currency):"—"}</strong></div>
       </div>
       {overallChart.length>=2?<div className="chart-card">
-        <PerformanceChart data={overallChart} comparisons={overallComparisons} actualLabel="All strategies" indexed/>
+        <PerformanceChart data={overallChart} comparisons={overallComparisons} actualLabel="All strategies" indexed fullControls/>
         {benchmark?.missing.length?<p className="help comparison-warning">Unavailable benchmarks: {benchmark.missing.join(", ")}. Comparisons require independently verified total-return data in the portfolio currency, including historical FX where needed.</p>:null}
         <p className="help">Each line starts at 100 on the common tracking dates. Returns are estimated from recorded account snapshots; actual intraday drawdowns may differ.</p>
       </div>:<p className="help">The combined comparison needs at least two dates with complete valuations for every active strategy in the same currency. Nothing is estimated across missing dates or currencies.</p>}
