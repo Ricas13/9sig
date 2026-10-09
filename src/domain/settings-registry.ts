@@ -48,6 +48,7 @@ export const SETTINGS: readonly SettingDefinition[] = [
   { key: "MARKET_DATA_PROVIDER", label: "Market data provider", group: "Market data", kind: "select", options: ["http", "mock"], help: "http uses the service below. mock only works outside production." },
   { key: "MARKET_DATA_HTTP_BASE_URL", label: "Market data service address", group: "Market data", kind: "url", help: "Base https address of a service licensed for your commercial use." },
   { key: "MARKET_DATA_HTTP_TOKEN", label: "Market data token", group: "Market data", kind: "secret", help: "Bearer token for the market data service." },
+  bool("MARKET_DATA_HISTORY_ADJUSTED_LICENSED", "Store adjusted daily history", "Market data", "Turn on only when your market data service returns split- and dividend-adjusted daily closes from its historical endpoint and its licence allows storing them. Needed for momentum research strategies; off by default."),
   { key: "MARKET_MAX_QUOTE_MOVE", label: "Largest believable price move", group: "Market data", kind: "number", min: 0.05, max: 5, help: "0.5 means a quote more than 50% away from the previous one is rejected as a likely data error." },
 
   { key: "AUTH_GOOGLE_ID", label: "Google client ID", group: "Sign-in providers", kind: "text", help: "From Google Cloud Console. Redirect URI: <public address>/api/auth/callback/google" },

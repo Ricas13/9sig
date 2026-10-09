@@ -33,3 +33,20 @@ describe("trusted history", () => {
     expect(buildTrustedSeries("GOLD", [], rules)).toBeNull();
   });
 });
+
+import { acceptHistoryObservation } from "../src/domain/trusted-history";
+describe("history observations from a provider", () => {
+  const good = { price: "101.5", currency: "GBP", observedAt: new Date("2026-10-08T21:00:00Z"), granularity: "DAILY_BAR", priceKind: "CLOSE" };
+  it("accepts only a daily CLOSE dated that day in the line's currency", () => {
+    expect(acceptHistoryObservation(good, "2026-10-08", "GBP")).toBe(true);
+    expect(acceptHistoryObservation({ ...good, currency: "gbp" }, "2026-10-08", "GBP")).toBe(true);
+    expect(acceptHistoryObservation(null, "2026-10-08", "GBP")).toBe(false);
+    expect(acceptHistoryObservation({ ...good, priceKind: "LAST" }, "2026-10-08", "GBP")).toBe(false);
+    expect(acceptHistoryObservation({ ...good, granularity: "MINUTE_BAR" }, "2026-10-08", "GBP")).toBe(false);
+    expect(acceptHistoryObservation({ ...good, granularity: undefined }, "2026-10-08", "GBP")).toBe(false);
+    expect(acceptHistoryObservation({ ...good, currency: "USD" }, "2026-10-08", "GBP")).toBe(false);
+    expect(acceptHistoryObservation(good, "2026-10-09", "GBP")).toBe(false); // previous session returned for a holiday
+    expect(acceptHistoryObservation({ ...good, price: "0" }, "2026-10-08", "GBP")).toBe(false);
+    expect(acceptHistoryObservation({ ...good, price: "x" }, "2026-10-08", "GBP")).toBe(false);
+  });
+});
