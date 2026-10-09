@@ -25,4 +25,14 @@ describe("review scheduling", () => {
     });
     expect(due.toISOString()).toBe("2026-02-27T16:00:00.000Z");
   });
+
+  it("supports semi-annual and threshold-only cadences and refuses unknown ones", () => {
+    const base = { lastReviewAt: new Date("2026-01-15T12:00:00Z"), timeZone: "UTC", cutoffLocal: "16:00" };
+    expect(nextReviewDueAt({ ...base, frequency: "SEMIANNUAL" }).toISOString()).toBe("2026-07-15T16:00:00.000Z");
+    expect(nextReviewDueAt({ ...base, frequency: "ANNUAL" }).toISOString()).toBe("2027-01-15T16:00:00.000Z");
+    // Threshold-only: due again the same business day, so every check compares drift with the threshold.
+    expect(nextReviewDueAt({ ...base, frequency: "THRESHOLD_ONLY" }).toISOString()).toBe("2026-01-15T16:00:00.000Z");
+    expect(() => nextReviewDueAt({ ...base, frequency: "FORTNIGHTLY" })).toThrow("UNSUPPORTED_REVIEW_FREQUENCY");
+    expect(() => nextReviewDueAt({ ...base, frequency: "toString" })).toThrow("UNSUPPORTED_REVIEW_FREQUENCY");
+  });
 });

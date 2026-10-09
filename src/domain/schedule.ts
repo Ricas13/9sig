@@ -99,6 +99,19 @@ export function localDateInZone(instant: Date, timeZone: string) {
   return get("year") + "-" + get("month") + "-" + get("day");
 }
 
+/**
+ * Months between reviews. THRESHOLD_ONLY is due at every check (0 months): the engine then compares drift
+ * with the configured threshold and holds when inside it. An unknown value fails closed rather than
+ * silently becoming quarterly.
+ */
+export const REVIEW_FREQUENCY_MONTHS: Record<string, number> = {
+  THRESHOLD_ONLY: 0,
+  MONTHLY: 1,
+  QUARTERLY: 3,
+  SEMIANNUAL: 6,
+  ANNUAL: 12
+};
+
 export function nextReviewDueAt(input: {
   lastReviewAt: Date;
   frequency: string;
@@ -107,7 +120,8 @@ export function nextReviewDueAt(input: {
   holidays?: string[];
   convention?: "PREVIOUS" | "NEXT";
 }) {
-  const months = input.frequency === "MONTHLY" ? 1 : input.frequency === "ANNUAL" ? 12 : 3;
+  if (!Object.hasOwn(REVIEW_FREQUENCY_MONTHS, input.frequency)) throw new Error("UNSUPPORTED_REVIEW_FREQUENCY");
+  const months = REVIEW_FREQUENCY_MONTHS[input.frequency];
   const lastLocalDate = localDateInZone(input.lastReviewAt, input.timeZone);
   const nominalDate = addMonthsIso(lastLocalDate, months);
   const businessDate = rollBusinessDay(
