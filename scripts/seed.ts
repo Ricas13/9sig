@@ -38,7 +38,7 @@ async function main(){
 
     for(const item of definitions){
       const [key,name,family,description,engine,proprietary,enabled]=item;
-      const defQuery="INSERT INTO strategy_definitions (key,name,family,description,engine,proprietary,enabled,supported_regions,supported_wrappers) VALUES ($1,$2,$3,$4,$5,$6,$7,'[]'::jsonb,'[]'::jsonb) ON CONFLICT (key) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,engine=EXCLUDED.engine,proprietary=EXCLUDED.proprietary,enabled=strategy_definitions.enabled,updated_at=now() RETURNING id";
+      const defQuery="INSERT INTO strategy_definitions (key,name,family,description,engine,proprietary,enabled,supported_regions,supported_wrappers) VALUES ($1,$2,$3,$4,$5,$6,$7,'[]'::jsonb,'[]'::jsonb) ON CONFLICT (key) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,engine=EXCLUDED.engine,proprietary=EXCLUDED.proprietary,enabled=strategy_definitions.enabled,supported_regions=EXCLUDED.supported_regions,supported_wrappers=EXCLUDED.supported_wrappers,updated_at=now() RETURNING id";
       const rows=await sql.unsafe(defQuery,[key,name,family,description,engine,proprietary,enabled]);
       const id=rows[0].id;
 
