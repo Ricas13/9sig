@@ -70,6 +70,14 @@ export function assessStrategyMarket(
   engine: string, config: Record<string, unknown>, candidates: VerifiedCandidate[],
   choice: MarketChoice, asOf: string
 ): MarketAssessment {
+  // A missing or malformed risk/defensive leg must never be silently filtered out.
+  // Otherwise the remaining mapped legs could incorrectly pass market eligibility.
+  if (engine === "MOMENTUM_ROTATION" &&
+      (!Array.isArray(config.riskAssets) || config.riskAssets.length === 0 ||
+       config.riskAssets.some((asset) => typeof asset !== "string" || !asset.trim()) ||
+       typeof config.defensiveAsset !== "string" || !config.defensiveAsset.trim())) {
+    return { available: false, positions: [], missingExposures: ["Unverified strategy rules"], supportedMarkets: [] };
+  }
   const required = requiredPositions(engine, config);
   if (!required.length || (engine === "FIXED_ALLOCATION" &&
       required.length !== (Array.isArray(config.allocations) ? config.allocations.length : 0))) {
