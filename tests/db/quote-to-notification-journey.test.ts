@@ -127,5 +127,28 @@ describe.skipIf(!url)("quote -> action -> notification",()=>{
     expect(row.metadata.executedAt).toBe(actual);
   });
 
+  it("never executes a stale calculated trade after a newer deposit changes the ledger",async()=>{
+    const {executeAction}=await import("@/lib/action-service");
+    const instance=(await sql!.unsafe("SELECT strategy_version_id FROM strategy_instances WHERE id=$1",[instanceId]))[0];
+    const rows=await sql!.unsafe(
+      "INSERT INTO actions (strategy_instance_id,account_id,strategy_version_id,fingerprint,action_type,status,title,instruction,amount,currency,trading_line_id,explanation,next_state,confidence) "+
+      "VALUES ($1,$2,$3,$4,'BUY','CALCULATED','Stale action','A prior buy',100,'GBP',$5,'[]'::jsonb,'{}'::jsonb,'HIGH') RETURNING id",
+      [instanceId,accountId,instance.strategy_version_id,"stale-ledger-"+run,lineId]
+    );
+    const id=String(rows[0].id);
+    await sql!.unsafe("UPDATE actions SET updated_at=now()-interval '10 minutes' WHERE id=$1",[id]);
+    await sql!.unsafe(
+      "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,provenance) "+
+      "VALUES ($1,$2,now(),'CONTRIBUTION','GBP',250,'USER_CONFIRMED')",
+      [instanceId,accountId]
+    );
+    await expect(executeAction(userId,id,{price:"100",quantity:"1",fee:"0"}))
+      .rejects.toThrow("ACTION_STALE_LEDGER_MUTATION");
+    const ledger=await sql!.unsafe("SELECT id FROM ledger_events WHERE strategy_instance_id=$1 AND metadata->>'actionId'=$2",[instanceId,id]);
+    expect(ledger).toHaveLength(0);
+    const state=(await sql!.unsafe("SELECT status FROM actions WHERE id=$1",[id]))[0];
+    expect(state.status).toBe("CALCULATED");
+  });
+
 
 });

@@ -705,6 +705,15 @@ export async function executeAction(
     if(!action)throw new Error("ACTION_NOT_FOUND");
     if(!["CALCULATED","NOTIFIED","ACKNOWLEDGED"].includes(String(action.status)))throw new Error("ACTION_NOT_EXECUTABLE");
 
+    // A deposit, withdrawal, corrected trade or imported fill can invalidate an old
+    // instruction if asynchronous recalculation failed. Never let an executable
+    // action outlive the financial ledger snapshot it was calculated against.
+    const newerLedger=await tx.unsafe(
+      "SELECT id FROM ledger_events WHERE strategy_instance_id=$1 AND created_at>$2 ORDER BY created_at DESC LIMIT 1",
+      [strategy.id,action.updated_at]
+    );
+    if(newerLedger[0])throw new Error("ACTION_STALE_LEDGER_MUTATION");
+
     const actionType=String(action.action_type);
     if(["DATA_REQUIRED","NO_ACTION"].includes(actionType))throw new Error("ACTION_NOT_EXECUTABLE");
     if(actionType==="REBALANCE")throw new Error("REBALANCE_TRADES_REQUIRED");

@@ -27,6 +27,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
     const code=error instanceof Error?error.message:"FAILED";
     const messages:Record<string,string>={
       EXECUTION_DETAILS_REQUIRED:"Confirm the execution price before marking this trade complete.",
+      ACTION_STALE_LEDGER_MUTATION:"Your portfolio changed after this instruction was calculated. Refresh and recalculate before recording a trade or completing the review.",
       REBALANCE_TRADES_REQUIRED:"Record the individual rebalance trades before completing this action.",
       EXECUTION_NOTIONAL_MISMATCH:"The actual fill differs too much from the calculated action. Recalculate before confirming it.",
       INSUFFICIENT_CASH:"This execution would use more cash than the strategy ledger currently has.",
