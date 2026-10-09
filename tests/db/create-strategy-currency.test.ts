@@ -8,6 +8,14 @@ const sql=url?postgres(url,{max:1,prepare:false}):null;
 describe.skipIf(!url)("strategy creation normalises currency",()=>{
   const run=Math.random().toString(36).slice(2,10);
   const users:string[]=[];
+  const createdInstruments:string[]=[];
+  async function installVerifiedLine(){
+    const instrument=await sql!.unsafe("INSERT INTO instruments (name,economic_exposure,leverage,direction,fund_currency) VALUES ($1,'NASDAQ_100_3X_LONG',3,'LONG','GBP') RETURNING id",["Currency test "+run]);
+    const instrumentId=String(instrument[0].id);
+    createdInstruments.push(instrumentId);
+    const line=await sql!.unsafe("INSERT INTO trading_lines (instrument_id,ticker,exchange,currency,exchange_timezone,effective_from) VALUES ($1,$2,'LSE','GBP','Europe/London','2026-01-01') RETURNING id",[instrumentId,"C"+run.toUpperCase()]);
+    await sql!.unsafe("INSERT INTO regional_instrument_mappings (economic_exposure,leverage,direction,country,wrapper,trading_line_id,fidelity,effective_from,enabled) VALUES ('NASDAQ_100_3X_LONG',3,'LONG','GB','ISA',$1,'EXACT','2026-01-01',true)",[line[0].id]);
+  }
   async function user(label:string){
     const rows=await sql!.unsafe("INSERT INTO users (email,password_hash) VALUES ($1,'x') RETURNING id",[`cc-${label}-${run}@example.test`]);
     const id=String(rows[0].id);
@@ -21,10 +29,16 @@ describe.skipIf(!url)("strategy creation normalises currency",()=>{
   afterAll(async()=>{
     if(!sql)return;
     await sql.unsafe("DELETE FROM users WHERE id=ANY($1::uuid[])",[users]);
+    if(createdInstruments.length){
+      await sql.unsafe("DELETE FROM regional_instrument_mappings WHERE trading_line_id IN (SELECT id FROM trading_lines WHERE instrument_id=ANY($1::uuid[]))",[createdInstruments]);
+      await sql.unsafe("DELETE FROM trading_lines WHERE instrument_id=ANY($1::uuid[])",[createdInstruments]);
+      await sql.unsafe("DELETE FROM instruments WHERE id=ANY($1::uuid[])",[createdInstruments]);
+    }
     await sql.end();
   });
 
   it("stores a lower-case currency as upper-case on the account and the opening cash entry",async()=>{
+    await installVerifiedLine();
     const id=await user("lower");
     const strategyId=await createStrategy(id,"GB",input("gbp"));
     const account=await sql!.unsafe("SELECT a.currency FROM strategy_instances i JOIN accounts a ON a.id=i.account_id WHERE i.id=$1",[strategyId]);

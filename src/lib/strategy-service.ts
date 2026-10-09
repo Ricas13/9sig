@@ -6,6 +6,8 @@ import { effectiveAllocations } from "@/domain/strategy/fixed-allocation";
 import { parseInputSchema, validateInstanceSettings } from "@/domain/strategy/config";
 import { serializeExecutionConstraints } from "@/domain/execution";
 import { normalizeContributionPlan } from "@/domain/contribution-plan";
+import { assessStrategyMarket, StrategyMarketUnavailableError } from "@/domain/strategy/market-eligibility";
+import { VERIFIED_MARKET_MAPPINGS_SQL, verifiedCandidates } from "@/lib/verified-market-mappings";
 
 export type CreateStrategyInput = {
   strategyKey: string;
@@ -103,6 +105,15 @@ export async function createStrategy(userId: string, country: string, rawInput: 
     const wrappers=Array.isArray(definition.supported_wrappers)?definition.supported_wrappers.map(String):[];
     if(regions.length&&!regions.includes(country))throw new Error("STRATEGY_NOT_SUPPORTED_IN_REGION");
     if(wrappers.length&&!wrappers.includes(input.wrapper))throw new Error("STRATEGY_NOT_SUPPORTED_FOR_WRAPPER");
+
+    // A named strategy can only be enabled when every leg has an exact, unambiguous,
+    // country/wrapper/currency/broker-eligible instrument. Never guess an ETF substitute.
+    const marketChoice={country,wrapper:input.wrapper,currency:input.currency,broker:input.broker??null};
+    const market=assessStrategyMarket(String(definition.engine_key),
+      (definition.config??{}) as Record<string,unknown>,
+      verifiedCandidates(await tx.unsafe(VERIFIED_MARKET_MAPPINGS_SQL)),
+      marketChoice,new Date().toISOString().slice(0,10));
+    if(!market.available)throw new StrategyMarketUnavailableError(market,marketChoice);
 
     const inputSchema=parseInputSchema(
       Array.isArray(definition.input_schema)&&definition.input_schema.length?definition.input_schema:definition.required_inputs
