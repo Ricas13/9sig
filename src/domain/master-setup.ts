@@ -36,7 +36,7 @@ export function masterSetupSignals(input: MasterSetupInputs): SetupSignal[] {
     {id:"instruments",title:"Regional instruments",status:input.approvedMappings>0?"requires-verification":"needs-setup",
       detail:"Verify each market, wrapper, broker, exact exposure and purchasing eligibility.",href:"/admin/instruments"},
     {id:"notifications",title:"Notification delivery",status:status(input.notifications&&input.email),
-      detail:"Configure email and messaging integrations; retry and inspect deliveries.",href:"/admin/operations"},
+      detail:"Configure email, Discord and Telegram; register the Telegram webhook and inspect delivery retries.",href:"/admin/settings#settings-messaging-telegram-"},
     {id:"workers",title:"Automated monitoring",status:status(recent(input.lastCronAt,2)),
       detail:"Verify successful hourly scheduler runs and recalculated portfolio actions.",href:"/admin/operations"},
     {id:"backup",title:"Backup and restore",status:input.backupExpected&&recent(input.backupAt,36)?"requires-verification":"needs-setup",
