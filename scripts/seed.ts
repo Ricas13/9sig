@@ -1,3 +1,4 @@
+import { RESEARCH_STRATEGIES } from "../src/domain/strategy/research-catalog";
 import postgres from "postgres";
 
 async function main(){
@@ -23,7 +24,7 @@ async function main(){
       ["9sig","9Sig","SIGNAL_VALUE_TARGET","Rules-based value target strategy","VALUE_TARGET",true,true],
       ["hfea","HFEA","FIXED_ALLOCATION","Leveraged fixed-allocation strategy","FIXED_ALLOCATION",false,false],
       ["golden-butterfly","Golden Butterfly","FIXED_ALLOCATION","Diversified fixed-allocation strategy","FIXED_ALLOCATION",false,false],
-      ["dual-momentum","Dual Momentum","MOMENTUM","Momentum rotation strategy","MOMENTUM",false,false]
+      ["dual-momentum","Dual Momentum","MOMENTUM","Momentum rotation strategy","MOMENTUM_ROTATION",false,false]
     ] as const;
 
     for(const item of definitions){
@@ -32,12 +33,11 @@ async function main(){
       const rows=await sql.unsafe(defQuery,[key,name,family,description,engine,proprietary,enabled]);
       const id=rows[0].id;
 
-      if(engine==="MOMENTUM")continue;
+      if(engine==="MOMENTUM_ROTATION")continue;
 
       let config:object={};
       if(key==="9sig")config={targetExposure:"NASDAQ_100_3X_LONG",initialTargetRatio:"0.60",targetRate:"0.09",contributionTargetRatio:"0.50",maxCashUse:"0.90",tolerance:"0.01",reviewFrequency:"QUARTERLY",reviewCutoffLocal:"16:00",businessDayConvention:"PREVIOUS",marketHolidays:[]};
-      if(key==="hfea")config={allocations:[{exposure:"US_EQUITY_3X_LONG",weight:"0.55"},{exposure:"LONG_TREASURY_3X_LONG",weight:"0.45"}],rebalanceThreshold:"0.05",reviewFrequency:"QUARTERLY"};
-      if(key==="golden-butterfly")config={allocations:[{exposure:"US_LARGE_CAP",weight:"0.20"},{exposure:"US_SMALL_CAP_VALUE",weight:"0.20"},{exposure:"LONG_TREASURY",weight:"0.20"},{exposure:"SHORT_TREASURY",weight:"0.20"},{exposure:"GOLD",weight:"0.20"}],rebalanceThreshold:"0.05",reviewFrequency:"ANNUAL"};
+      if(key==="hfea"||key==="golden-butterfly"){const preset=RESEARCH_STRATEGIES.find((p)=>p.key===key);if(!preset?.config)throw new Error("Missing reference configuration for "+key);config=preset.config;}
 
       const lifecycle=key==="9sig"?"PUBLISHED":"DRAFT";
       await sql.unsafe(

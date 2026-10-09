@@ -1,5 +1,7 @@
 # Wealtharr — production-readiness code audit and fix roadmap
 
+> **Historical document.** It describes the repository as audited on 2026-10-08, before most items were fixed. The current status of every item, with evidence, is in [`STATUS.md`](STATUS.md).
+
 **Audit date:** 2026-10-08. **Scope:** targeted static review of PR #4 head `89edd01b287d30cbbf6caab9bd416e64e0f2fa59`, critical finance, auth, billing, admin, market data, scheduling, notification, Docker and SEO paths; GitHub Actions CI run #833. This is **not** a penetration test, validated market-data integration, live Stripe exercise or a claim that the full repository is defect-free.
 
 ## CI finding
@@ -111,4 +113,4 @@
 | **4. Reliable operations and Oracle** | OPS-01/02/03/04 and SEC-01 | Staging load/restart test, MFA, monitoring alerts, encrypted restore, prod-configuration check |
 | **5. Controlled commercial launch** | Verified data agreement, legal/privacy/support, SEO & brand clearance | Signed operator acceptance and documented go/no-go |
 
-**Release rule:** PR #4 remains Draft and unmerged until step 0 passes and all P0 defects are fixed, with independent validation of launch strategies and recorded staging acceptance. A green CI alone does not satisfy steps 2–5.
+**Release rule (as written at the time; PR #4 has since been merged, see STATUS.md):** PR #4 remained Draft and unmerged until step 0 passes and all P0 defects are fixed, with independent validation of launch strategies and recorded staging acceptance. A green CI alone does not satisfy steps 2–5.

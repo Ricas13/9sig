@@ -6,7 +6,7 @@
 export type StrategyProfile = {
   key: string;
   name: string;
-  engine: "FIXED_ALLOCATION" | "VALUE_TARGET" | "MOMENTUM" | "CUSTOM_PENDING";
+  engine: "FIXED_ALLOCATION" | "VALUE_TARGET" | "MOMENTUM_ROTATION" | "CUSTOM_PENDING";
   launchState: "DRAFT_REQUIRES_VERIFICATION";
   config?: Record<string, unknown>;
   rules: string;
@@ -66,23 +66,23 @@ export const RESEARCH_STRATEGIES: readonly StrategyProfile[] = [
     research:["https://www.bogleheads.org/wiki/Asset_allocation"],risks:["High equity drawdown potential"]
   },
   {
-    key:"dual-momentum",name:"Global Dual Momentum",engine:"MOMENTUM",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    key:"dual-momentum",name:"Global Dual Momentum",engine:"MOMENTUM_ROTATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
     rules:"Compare specified equity assets over a versioned 12-month lookback; select the relative winner only if its absolute return exceeds the explicitly configured defensive hurdle, otherwise hold defensive assets. Review monthly. Exact universes, signals, lookback, end-of-month convention and defensive asset MUST be explicit.",
     research:["https://www.optimalmomentum.com/global-equities-momentum/"],risks:["Whipsaws","Look-ahead bias","Missing historical data must block trades"]
   },
   {
-    key:"gtaa-ivy",name:"GTAA / Ivy",engine:"MOMENTUM",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    key:"gtaa-ivy",name:"GTAA / Ivy",engine:"MOMENTUM_ROTATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
     rules:"Define the exact Faber-style 10-month moving-average timing universe and cash rules, then evaluate monthly. Variants are separate immutable strategy versions.",
     research:["https://mebfaber.com/2007/06/"],
     risks:["Return series and dividend adjustments","No universal GTAA specification"]
   },
   {
-    key:"paa",name:"Protective Asset Allocation",engine:"MOMENTUM",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    key:"paa",name:"Protective Asset Allocation",engine:"MOMENTUM_ROTATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
     rules:"Requires exact published PAA risk and protection universes, momentum metrics, breadth rules and protection allocation; not safely represented by generic relative momentum.",
     research:["https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2759734"],risks:["Complex regime/breadth calculations"]
   },
   {
-    key:"vaa",name:"Vigilant Asset Allocation",engine:"MOMENTUM",launchState:"DRAFT_REQUIRES_VERIFICATION",
+    key:"vaa",name:"Vigilant Asset Allocation",engine:"MOMENTUM_ROTATION",launchState:"DRAFT_REQUIRES_VERIFICATION",
     rules:"Requires exact VAA offensive/defensive universes and multi-horizon momentum scoring; distinct from PAA.",
     research:["https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3002624"],risks:["Whipsaw","Trading-calendar precision"]
   },
