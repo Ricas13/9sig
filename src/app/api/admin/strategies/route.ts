@@ -172,6 +172,10 @@ export async function PATCH(request:Request){
           [p.effectiveFrom??current.effective_from,p.effectiveTo===undefined?current.effective_to:p.effectiveTo,engineKey,p.upgradePolicy??current.upgrade_policy,JSON.stringify(inputSchema),JSON.stringify(config),p.disclosure??current.disclosure,p.releaseNotes??current.release_notes,p.versionId]
         );
         if(!updated[0])throw new LifecycleConflict("This version is no longer a draft.",409);
+        // An attestation covers exactly the reviewed rules, disclosures and release
+        // metadata. Editing ANY draft field invalidates the sign-off. This runs under
+        // the same definition+version locks as PUBLISH so no race can reuse stale approval.
+        await tx.unsafe("DELETE FROM strategy_version_attestations WHERE strategy_version_id=$1",[p.versionId]);
         await tx.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id) VALUES ($1,'strategy-version.draft-updated','strategy_version',$2)",[admin.id,p.versionId]);
         return "DRAFT";
       }
