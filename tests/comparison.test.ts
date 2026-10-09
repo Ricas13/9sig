@@ -16,6 +16,7 @@ describe("same-cash-flow comparison",()=>{
     const result=simulateSameCashFlows({
       index:[
         {date:"2026-01-01",value:"100"},
+        {date:"2026-01-15",value:"100"},
         {date:"2026-02-01",value:"100"},
         {date:"2026-03-01",value:"110"}
       ],
@@ -23,7 +24,7 @@ describe("same-cash-flow comparison",()=>{
       anchorValue:"1000",
       flows:[{date:"2026-01-15",amount:"500"}]
     });
-    expect(result.map(p=>p.value.toFixed(2))).toEqual(["1000.00","1500.00","1650.00"]);
+    expect(result.map(p=>p.value.toFixed(2))).toEqual(["1000.00","1500.00","1500.00","1650.00"]);
   });
 
   it("refuses comparisons when the benchmark lacks an exact opening date",()=>{
@@ -45,7 +46,7 @@ describe("same-cash-flow comparison",()=>{
   });
   it("handles withdrawals as negative external cash flows",()=>{
     const result=simulateSameCashFlows({
-      index:[{date:"2026-01-01",value:"100"},{date:"2026-02-01",value:"100"}],
+      index:[{date:"2026-01-01",value:"100"},{date:"2026-01-15",value:"100"},{date:"2026-02-01",value:"100"}],
       anchorDate:"2026-01-01",
       anchorValue:"1000",
       flows:[{date:"2026-01-15",amount:"-200"}]
