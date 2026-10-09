@@ -33,6 +33,7 @@ export async function POST(request:Request){
   }catch{return Response.json({error:"The public application URL must be HTTPS."},{status:400,headers:privateHeaders});}
   const stripe=new Stripe(key,{timeout:10000,maxNetworkRetries:0});
   let created:string|null=null;
+  let secretSaved=false;
   try{
    const existing=await stripe.webhookEndpoints.list({limit:100});
    if(existing.has_more)
@@ -48,11 +49,12 @@ export async function POST(request:Request){
    if(!secret||!secret.startsWith("whsec_"))throw new Error("MISSING_STRIPE_WEBHOOK_SECRET");
    const stored=await saveSettings(admin.id,[{key:"STRIPE_WEBHOOK_SECRET",value:secret}]);
    if(!stored.ok)throw new Error("CANNOT_SAVE_STRIPE_SECRET");
-   await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'integration.stripe-webhook-connected','stripe_endpoint',$2,$3::jsonb)",[admin.id,endpoint.id,JSON.stringify({urlPath:target.pathname,subscriptionEventCount:SUBSCRIPTION_EVENTS.length})]);
+   secretSaved=true;
+   await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'integration.stripe-webhook-connected','stripe_endpoint',$2,$3::jsonb)",[admin.id,endpoint.id,JSON.stringify({urlPath:target.pathname,subscriptionEventCount:SUBSCRIPTION_EVENTS.length})]).catch(()=>{});
    return Response.json({ok:true,endpointId:endpoint.id},{headers:privateHeaders});
   }catch{
    // If the signing secret could not be persisted, avoid leaving an unusable remote endpoint.
-   if(created){try{await stripe.webhookEndpoints.del(created);}catch{/* Operator can find orphan by URL */}}
+   if(created&&!secretSaved){try{await stripe.webhookEndpoints.del(created);}catch{/* Operator can find orphan by URL */}}
    return Response.json({error:"Stripe webhook registration failed. Check API key permissions and the endpoint list in Stripe."},{status:503,headers:privateHeaders});
   }
  }catch(error){
