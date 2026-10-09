@@ -21,6 +21,8 @@ export const EXPOSURES: readonly ExposureDefinition[] = [
   def("US_LARGE_CAP_VALUE", "EQUITY", "US large-cap value factor equities"),
   def("US_SMALL_CAP_BLEND", "EQUITY", "US small-cap diversified blend equities"),
   def("US_TOTAL_EQUITY", "EQUITY", "US total market equities including small and mid cap"),
+  def("TOTAL_EX_US_EQUITY", "EQUITY", "Total international equities outside the US, developed and emerging"),
+  def("US_AGGREGATE_BONDS", "BOND", "US investment-grade aggregate bonds, including Treasuries, mortgage and corporate bonds"),
   def("DEVELOPED_EX_US_LARGE_CAP", "EQUITY", "Developed-market large-cap equity outside the United States"),
   def("EMERGING_MARKETS_EQUITY", "EQUITY", "Emerging-market equity"),
   def("US_REITS", "EQUITY", "US listed real-estate investment trusts"),

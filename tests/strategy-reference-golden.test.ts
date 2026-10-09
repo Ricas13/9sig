@@ -59,7 +59,8 @@ describe("independently worked portfolio allocation golden cases",()=>{
   expect(fresh("core-four")).toEqual(["4800.00","2400.00","2000.00","800.00"]);
   expect(fresh("swensen")).toEqual(["3000.00","1500.00","500.00","2000.00","1500.00","1500.00"]);
   expect(allocation("swensen").map(x=>x.exposure)).toContain("US_TIPS");
-  expect(allocation("core-four").map(x=>x.exposure)).not.toContain("AGGREGATE_BONDS");
+  expect(allocation("core-four").map(x=>x.exposure)).toContain("US_AGGREGATE_BONDS");
+  expect(allocation("core-four").map(x=>x.exposure)).not.toContain("US_INTERMEDIATE_TREASURY");
  });
  it("60/40 and Buffett 90/10 are different code-locked rebalancing models",()=>{
   expect(fresh("60-40")).toEqual(["6000.00","4000.00"]);

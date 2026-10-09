@@ -14,14 +14,14 @@ These are **code-defined research versions** only. Seeding installs disabled dra
 
 Reference: https://portfoliocharts.com/portfolios/coffeehouse-portfolio/ (Bill Schultheis model). Platform convention: annual calendar review; other schedules require reviewed versions.
 
-## Rick Ferri Classic Core Four — Portfolio Charts reference
+## Four-fund US asset-class reference — Rick Ferri source, licence not cleared
 
-- 48% US large cap
-- 24% developed ex-US large cap
-- 20% US intermediate Treasuries
+- 48% total US equities (including small/mid cap)
+- 24% total international equities outside the US (including emerging markets)
+- 20% US investment-grade aggregate bonds (Treasuries, corporate credit and mortgage-backed bonds)
 - 8% US REITs
 
-Reference: https://portfoliocharts.com/portfolios/core-four-portfolio/. Several Core Four variants use different fixed-income funds; notably a US aggregate bond fund is **not** assumed interchangeable with intermediate Treasuries.
+**Primary author description:** https://core-4.com/classic-core-4-portfolio/. The 80/20 research split is a platform-fixed allocation variant, not a universally mandated allocation. The owner's website at https://core-4.com/ specifically notes that **Core-4 is a registered trademark and for-profit licensing is available**. This draft may NOT be advertised or sold under the trademark before legal/licensing clearance. Portfolio Charts uses a different narrowed underlying representation; this reference deliberately follows the author's broader fund universe.
 
 ## Swensen six-asset individual-investor reference
 

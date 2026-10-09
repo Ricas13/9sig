@@ -33,7 +33,7 @@ async function main(){
       ["all-weather","All Weather (reference)","FIXED_ALLOCATION","Published unlevered reference approximation","FIXED_ALLOCATION",false,false],
       ["buffett-90-10","Buffett 90/10 Portfolio","FIXED_ALLOCATION","Fixed 90/10 reference model","FIXED_ALLOCATION",false,false],
       ["coffeehouse","Coffeehouse Portfolio — US seven-fund reference","FIXED_ALLOCATION","Research-only seven-asset profile","FIXED_ALLOCATION",false,false],
-      ["core-four","Core Four — classic US reference","FIXED_ALLOCATION","Research-only four-asset profile","FIXED_ALLOCATION",false,false],
+      ["core-four","Four-Fund Stocks/Bonds/REIT Reference","FIXED_ALLOCATION","Research-only four-asset profile; source name requires brand licensing","FIXED_ALLOCATION",false,false],
       ["swensen","Swensen Lazy Portfolio — US reference","FIXED_ALLOCATION","Research-only six-asset profile","FIXED_ALLOCATION",false,false],
       ["gtaa-ivy","GTAA / Ivy","MOMENTUM","Research pending","MOMENTUM_ROTATION",false,false],
       ["paa","Protective Asset Allocation","MOMENTUM","Research pending","MOMENTUM_ROTATION",false,false],
