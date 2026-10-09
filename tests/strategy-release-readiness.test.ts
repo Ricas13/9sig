@@ -40,7 +40,7 @@ describe("Master Admin strategy readiness cannot invent approvals",()=>{
     .toBe("Published: independent evidence missing");
  });
  it("research profiles without complete canonical code remain visibly blocked",()=>{
-  const research=RESEARCH_STRATEGIES.find(p=>p.key==="coffeehouse")!;
+  const research=RESEARCH_STRATEGIES.find(p=>p.key==="merriman-ultimate")!;
   expect(researchGate(research,undefined,[equities,treasuries],"2026-10-09").state)
    .toBe("Research method incomplete");
   expect(strategyReadiness([],[],"2026-10-09")).toHaveLength(RESEARCH_STRATEGIES.length);
