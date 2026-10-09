@@ -357,7 +357,7 @@ export default async function StrategyPage({params}:{params:Promise<{id:string}>
         <strong>{money(Number(order.amount),firstAllocation.currency)}</strong>
       </div>)}
       {Number(firstAllocation.cashReserve)>0&&<div className="initial-order">
-        <div><strong>Cash reserve</strong><small>Retained under this strategy's published rules</small></div>
+        <div><strong>Cash reserve</strong><small>Retained under this strategy&apos;s published rules</small></div>
         <strong>{money(Number(firstAllocation.cashReserve),firstAllocation.currency)}</strong>
       </div>}</div>
       <p className="help">Amounts are before dealing fees and subject to market moves. After trading, record the real timestamp, quantity, execution price and fees so your portfolio and next review are accurate.</p>
