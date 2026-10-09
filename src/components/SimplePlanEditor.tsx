@@ -1,5 +1,5 @@
 "use client";
-import {useState} from "react";
+import {useState,type FormEvent} from "react";
 import {useRouter} from "next/navigation";
 
 type Entitlements={features:string[];notificationChannels:string[]};
@@ -54,7 +54,7 @@ export function SimplePlanEditor({initialPlans,strategies}:{initialPlans:Config[
    return {...old,availableStrategyKeys:[...set]};});
  }
  const restricted=form.availableStrategyKeys.length>0;
- async function save(e:React.FormEvent<HTMLFormElement>){
+ async function save(e:FormEvent<HTMLFormElement>){
   e.preventDefault();setBusy(true);setMessage("");
   try{
     const result=await fetch("/api/admin/plans",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(form)});
@@ -78,8 +78,8 @@ export function SimplePlanEditor({initialPlans,strategies}:{initialPlans:Config[
    <div className="field"><label htmlFor="admin-plan-slug">Plan ID</label><input id="admin-plan-slug" value={form.slug} readOnly={selection!=="new"} required pattern="[a-z][a-z0-9-]*" onChange={e=>change("slug",e.target.value.toLowerCase())}/></div>
    <div className="field"><label htmlFor="admin-plan-name">Display name</label><input id="admin-plan-name" value={form.displayName} required onChange={e=>change("displayName",e.target.value)}/></div>
    <div className="field full"><label htmlFor="admin-plan-description">Description</label><input id="admin-plan-description" value={form.description} onChange={e=>change("description",e.target.value)}/></div>
-   <div className="field"><label htmlFor="admin-plan-monthly">Default monthly (£)</label><input id="admin-plan-monthly" type="number" min="0" step=".01" value={form.monthlyPriceMinor/100} onChange={e=>change("monthlyPriceMinor",Math.round(Number(e.target.value)*100))}/></div>
-   <div className="field"><label htmlFor="admin-plan-annual">Default annual (£)</label><input id="admin-plan-annual" type="number" min="0" step=".01" value={form.annualPriceMinor/100} onChange={e=>change("annualPriceMinor",Math.round(Number(e.target.value)*100))}/></div>
+   <div className="field"><label htmlFor="admin-plan-monthly">Default monthly ({form.currency})</label><input id="admin-plan-monthly" type="number" min="0" step=".01" value={form.monthlyPriceMinor/100} onChange={e=>change("monthlyPriceMinor",Math.round(Number(e.target.value)*100))}/></div>
+   <div className="field"><label htmlFor="admin-plan-annual">Default annual ({form.currency})</label><input id="admin-plan-annual" type="number" min="0" step=".01" value={form.annualPriceMinor/100} onChange={e=>change("annualPriceMinor",Math.round(Number(e.target.value)*100))}/></div>
    <div className="field"><label htmlFor="admin-plan-currency">Default currency</label><select id="admin-plan-currency" value={form.currency} onChange={e=>change("currency",e.target.value)}>{["GBP","USD","EUR"].map(c=><option key={c}>{c}</option>)}</select></div>
    <div className="field"><label htmlFor="admin-plan-currencies">Billing currencies</label><input id="admin-plan-currencies" value={form.supportedBillingCurrencies.join(", ")} onChange={e=>change("supportedBillingCurrencies",e.target.value.toUpperCase().split(",").map(s=>s.trim()).filter(Boolean))}/></div>
    <div className="field"><label htmlFor="admin-plan-limit">Maximum active strategies (blank = unlimited)</label><input id="admin-plan-limit" type="number" min="1" value={form.maxActiveStrategies??""} onChange={e=>change("maxActiveStrategies",e.target.value?Number(e.target.value):null)}/></div>
