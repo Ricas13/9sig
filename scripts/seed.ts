@@ -58,6 +58,10 @@ async function main(){
     }
 
     await sql.unsafe("INSERT INTO benchmarks (key,name,economic_exposure,description) VALUES ('global-equity','Global Equity','GLOBAL_EQUITY','Broad global equity benchmark') ON CONFLICT (key) DO NOTHING");
+    // Names only, never fake index history. Market comparisons require licensed total-return series.
+    for(const [ticker,name] of [["vti","Vanguard Total Stock Market ETF"],["spy","SPDR S&P 500 ETF Trust"],["qqq","Invesco QQQ Trust"]]){
+      await sql.unsafe("INSERT INTO benchmarks (key,name,economic_exposure,description) VALUES ($1,$2,$3,'Requires licensed total-return and FX-normalised history') ON CONFLICT (key) DO NOTHING",[ticker,name,"BENCHMARK_"+ticker.toUpperCase()]);
+    }
     console.log("Seed complete");
   }finally{
     await sql.end();
