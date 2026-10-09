@@ -10,7 +10,7 @@ import { paidCheckoutBlockers } from "@/domain/commercial-launch";
 import { purchasesAllowedFor } from "@/domain/native-app";
 
 const schema = z.object({
-  planSlug: z.enum(["investor", "pro"]),
+  planSlug: z.string().regex(/^[a-z][a-z0-9-]{0,59}$/).refine(slug=>slug!=="free"),
   cadence: z.enum(["monthly", "annual"]),
   currency: z.string().length(3).optional()
 });
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     const currency = (input.currency ?? user.baseCurrency).toUpperCase();
     const cadence = input.cadence.toUpperCase();
     const priceRows = await sql.unsafe(
-      "SELECT p.id,pp.stripe_price_id,pp.amount_minor,pp.currency FROM plans p JOIN plan_prices pp ON pp.plan_id=p.id WHERE p.slug=$1 AND p.archived=false AND p.visible=true AND pp.currency=$2 AND pp.cadence=$3 AND pp.active=true LIMIT 1",
+      "SELECT p.id,pp.stripe_price_id,pp.amount_minor,pp.currency FROM plans p JOIN plan_prices pp ON pp.plan_id=p.id WHERE p.slug=$1 AND p.slug<>\'free\' AND p.archived=false AND p.visible=true AND pp.currency=$2 AND pp.cadence=$3 AND pp.active=true AND pp.amount_minor>0 LIMIT 1",
       [input.planSlug, currency, cadence]
     );
     const price = priceRows[0];
