@@ -113,6 +113,11 @@ export function assessStrategyMarket(
   if (!choice.country?.trim() || !choice.wrapper?.trim() || !/^[A-Za-z]{3}$/.test(choice.currency ?? "")) {
     return {available:false,positions:[],missingExposures:["Invalid account market"],supportedMarkets:[]};
   }
+  // Whitespace-only and malformed broker names must not accidentally match
+  // a verified generic or broker-specific trading universe.
+  if (choice.broker != null && !choice.broker.trim()) {
+    return {available:false,positions:[],missingExposures:["Invalid account broker"],supportedMarkets:[]};
+  }
   const selected = resolvePositions(required, candidates, choice, asOf);
   const supported = new Set<string>();
   const choices = new Map<string, MarketChoice>();
