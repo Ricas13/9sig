@@ -73,6 +73,16 @@ describe("curated strategy market eligibility",()=>{
       expect(result.positions).toEqual([]);
     }
   });
+  it("does not allow an operator mapping to legitimise an unregistered exposure",()=>{
+    const config={targetExposure:"UNREVIEWED_SYNTHETIC_ASSET",targetLeverage:"3"};
+    const candidate=m("UNREVIEWED_SYNTHETIC_ASSET","FAKE");
+    const result=assessStrategyMarket("VALUE_TARGET",config,[candidate],
+      {country:"US",wrapper:"TAXABLE",currency:"USD"},asOf);
+    expect(result.available).toBe(false);
+    expect(result.positions).toEqual([]);
+    expect(result.supportedMarkets).toEqual([]);
+    expect(result.missingExposures).toEqual(["Unregistered strategy exposure"]);
+  });
   it("rejects two distinct exposures mapped to the same trading line",()=>{
     const conflicting=[us[0],{...us[1],tradingLineId:us[0].tradingLineId}];
     const result=assessStrategyMarket("FIXED_ALLOCATION",hfea,conflicting,
