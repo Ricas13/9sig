@@ -80,6 +80,19 @@ jobs:
           docker build --tag wealtharr-ci:${{ github.sha }} .
           test "$(docker inspect --format '{{.Config.User}}' wealtharr-ci:${{ github.sha }})" = node
           docker run --rm --entrypoint node wealtharr-ci:${{ github.sha }} -e "for (const p of ['next','tsx','postgres']) require.resolve(p); for (const p of ['vitest','eslint','drizzle-kit']) { try { require.resolve(p); process.exit(1); } catch (e) { if (e.code !== 'MODULE_NOT_FOUND') throw e; } }"
+      - name: Smoke-test production runtime and migration tooling
+        run: |
+          docker run --rm --network host --env DATABASE_URL wealtharr-ci:${{ github.sha }} npm run db:migrate
+          docker run --detach --name wealtharr-runtime-smoke --network host \
+            --env DATABASE_URL --env AUTH_SECRET --env AUTH_TRUST_HOST \
+            --env APP_ENCRYPTION_KEY --env CRON_SECRET --env NEXT_PUBLIC_APP_URL \
+            --env EMAIL_PROVIDER --env MARKET_DATA_PROVIDER wealtharr-ci:${{ github.sha }}
+          trap 'docker logs wealtharr-runtime-smoke; docker rm -f wealtharr-runtime-smoke' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health; then exit 0; fi
+            sleep 2
+          done
+          exit 1
       - name: Install browser for responsive smoke tests
         run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
