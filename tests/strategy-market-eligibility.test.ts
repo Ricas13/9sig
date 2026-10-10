@@ -115,6 +115,19 @@ describe("curated strategy market eligibility",()=>{
       expect(result.missingExposures).toEqual(["Unverified strategy rules"]);
     }
   });
+  it("rejects missing account currency or market coordinates rather than bypassing FX matching",()=>{
+    for(const choice of [
+      {country:"US",wrapper:"TAXABLE",currency:""},
+      {country:"US",wrapper:"TAXABLE",currency:"US"},
+      {country:"",wrapper:"TAXABLE",currency:"USD"},
+      {country:"US",wrapper:"",currency:"USD"}
+    ]){
+      const result=assessStrategyMarket("FIXED_ALLOCATION",hfea,us,choice,asOf);
+      expect(result.available,JSON.stringify(choice)).toBe(false);
+      expect(result.positions).toEqual([]);
+      expect(result.supportedMarkets).toEqual([]);
+    }
+  });
   it("does not mark an undefined strategy engine or incomplete allocation config available",()=>{
     expect(assessStrategyMarket("CUSTOM",{},us,{country:"US",wrapper:"TAXABLE",currency:"USD"},asOf).available).toBe(false);
     expect(assessStrategyMarket("FIXED_ALLOCATION",{allocations:[{weight:"1"}]},us,{country:"US",wrapper:"TAXABLE",currency:"USD"},asOf).available).toBe(false);
