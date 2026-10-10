@@ -104,6 +104,17 @@ describe("curated strategy market eligibility",()=>{
     expect(result.supportedMarkets).toEqual([]);
     expect(result.missingExposures).toEqual(["Unverified strategy rules"]);
   });
+  it("fails closed on corrupt strategy leverage without interrupting the eligibility check",()=>{
+    const choice={country:"US",wrapper:"TAXABLE",currency:"USD"};
+    for(const bad of ["NaN","Infinity","0","-3","not-a-number"]){
+      const result=assessStrategyMarket("VALUE_TARGET",
+        {targetExposure:"US_EQUITY_3X_LONG",targetLeverage:bad},us,choice,asOf);
+      expect(result.available,bad).toBe(false);
+      expect(result.positions).toEqual([]);
+      expect(result.supportedMarkets).toEqual([]);
+      expect(result.missingExposures).toEqual(["Unverified strategy rules"]);
+    }
+  });
   it("does not mark an undefined strategy engine or incomplete allocation config available",()=>{
     expect(assessStrategyMarket("CUSTOM",{},us,{country:"US",wrapper:"TAXABLE",currency:"USD"},asOf).available).toBe(false);
     expect(assessStrategyMarket("FIXED_ALLOCATION",{allocations:[{weight:"1"}]},us,{country:"US",wrapper:"TAXABLE",currency:"USD"},asOf).available).toBe(false);
