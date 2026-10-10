@@ -28,6 +28,7 @@ export const EXPOSURES: readonly ExposureDefinition[] = [
   def("US_REITS", "EQUITY", "US listed real-estate investment trusts"),
   def("US_SMALL_CAP_VALUE", "EQUITY", "US small-capitalisation value equities"),
   def("US_EQUITY_3X_LONG", "EQUITY", "US large-cap equities with 3x daily-reset leverage", 3),
+  def("NASDAQ_100_3X_LONG", "EQUITY", "Nasdaq-100 equities with 3x daily-reset leverage", 3),
   def("AGGREGATE_BONDS", "BOND", "Broad investment-grade bond market"),
   def("LONG_TREASURY", "BOND", "Long-duration government bonds"),
   def("INTERMEDIATE_TREASURY", "BOND", "Intermediate-duration government bonds"),
