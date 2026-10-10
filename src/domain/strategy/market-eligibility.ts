@@ -108,6 +108,11 @@ export function assessStrategyMarket(
       required.length !== (Array.isArray(config.allocations) ? config.allocations.length : 0))) {
     return { available: false, positions: [], missingExposures: ["Unverified strategy rules"], supportedMarkets: [] };
   }
+  // Never advertise a market from malformed or missing account coordinates.
+  // A missing currency could otherwise allow resolveMapping to skip its FX guard.
+  if (!choice.country?.trim() || !choice.wrapper?.trim() || !/^[A-Za-z]{3}$/.test(choice.currency ?? "")) {
+    return {available:false,positions:[],missingExposures:["Invalid account market"],supportedMarkets:[]};
+  }
   const selected = resolvePositions(required, candidates, choice, asOf);
   const supported = new Set<string>();
   const choices = new Map<string, MarketChoice>();
