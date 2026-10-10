@@ -62,7 +62,8 @@ function resolvePositions(required: RequiredPosition[], candidates: VerifiedCand
   // Different intended economic exposures must not collapse onto the same
   // instrument. Otherwise the rebalance engine may count one holding twice.
   const lineIds = positions.map(position => position.tradingLineId);
-  if (new Set(lineIds).size !== lineIds.length) {
+  const listedSymbols = positions.map(position => [position.exchange.toUpperCase(), position.ticker.toUpperCase(), position.currency.toUpperCase()].join("|"));
+  if (new Set(lineIds).size !== lineIds.length || new Set(listedSymbols).size !== listedSymbols.length) {
     return { positions: [], missingExposures: ["Conflicting trading line mappings"] };
   }
   return { positions, missingExposures };
