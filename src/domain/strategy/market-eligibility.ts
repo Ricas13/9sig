@@ -94,7 +94,11 @@ export function assessStrategyMarket(
       return {available:false,positions:[],missingExposures:["Unverified strategy rules"],supportedMarkets:[]};
     }
   }
-  const required = requiredPositions(engine, config);
+  // Corrupt configuration must make a strategy unavailable, not throw while
+  // calculating a user's action or enumerating supported markets.
+  let required:RequiredPosition[];
+  try { required = requiredPositions(engine, config); }
+  catch { return {available:false,positions:[],missingExposures:["Unverified strategy rules"],supportedMarkets:[]}; }
   // Operator-entered mappings do not authorise unknown economic exposures.
   // Only registered, code-reviewed exposures may reach an eligible market.
   if (required.some(position => !isRegisteredExposure(position.economicExposure))) {
