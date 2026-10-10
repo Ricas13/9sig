@@ -1,5 +1,5 @@
 import { exposureLeverage, resolveMapping, type MappingCandidate } from "../instruments";
-import { getExposure } from "./exposures";
+import { getExposure, isRegisteredExposure } from "./exposures";
 
 export type VerifiedCandidate = MappingCandidate & { ticker: string; exchange: string };
 export type RequiredPosition = { economicExposure: string; leverage: string; direction: "LONG" };
@@ -95,6 +95,11 @@ export function assessStrategyMarket(
     }
   }
   const required = requiredPositions(engine, config);
+  // Operator-entered mappings do not authorise unknown economic exposures.
+  // Only registered, code-reviewed exposures may reach an eligible market.
+  if (required.some(position => !isRegisteredExposure(position.economicExposure))) {
+    return { available: false, positions: [], missingExposures: ["Unregistered strategy exposure"], supportedMarkets: [] };
+  }
   if (!required.length || (engine === "FIXED_ALLOCATION" &&
       required.length !== (Array.isArray(config.allocations) ? config.allocations.length : 0))) {
     return { available: false, positions: [], missingExposures: ["Unverified strategy rules"], supportedMarkets: [] };
