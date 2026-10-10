@@ -10,6 +10,7 @@ import { assessStrategyMarket, StrategyMarketUnavailableError } from "@/domain/s
 import { VERIFIED_MARKET_MAPPINGS_SQL, verifiedCandidates } from "@/lib/verified-market-mappings";
 
 export type CreateStrategyInput = {
+  requestKey?: string;
   strategyKey: string;
   name: string;
   wrapper: string;
@@ -70,9 +71,27 @@ export async function createStrategy(userId: string, country: string, rawInput: 
   const currency = rawInput.currency.trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) throw new Error("INVALID_CURRENCY");
   const input = { ...rawInput, currency };
+  if (input.requestKey && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.requestKey))
+    throw new Error("INVALID_REQUEST_KEY");
+  const { requestKey, ...requestInput } = input;
+  const requestPayload = JSON.stringify({ country, timezone: timezone ?? null, input: requestInput });
   return sql.begin(async (tx) => {
     const locked = await tx.unsafe("SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL FOR UPDATE",[userId]);
     if (!locked[0]) throw new Error("UNAUTHENTICATED");
+
+    // The user lock serializes concurrent retries before any account or ledger write.
+    // Replay precedes current plan limits: a successful request must still be recoverable
+    // after its newly created strategy fills the last available plan slot.
+    if (requestKey) {
+      const previous = await tx.unsafe(
+        "SELECT strategy_instance_id,request_payload=$3::jsonb AS matches FROM strategy_creation_requests WHERE user_id=$1 AND request_key=$2",
+        [userId,requestKey,requestPayload]
+      );
+      if (previous[0]) {
+        if (!previous[0].matches) throw new Error("STRATEGY_REQUEST_CONFLICT");
+        return String(previous[0].strategy_instance_id);
+      }
+    }
 
     let planRows = await tx.unsafe(
       "SELECT p.slug,p.max_active_strategies,p.entitlements,p.available_strategy_keys FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.user_id=$1 AND s.status IN ('FREE','ACTIVE','TRIALING','PAST_DUE') LIMIT 1",
@@ -148,6 +167,10 @@ export async function createStrategy(userId: string, country: string, rawInput: 
 
     const startingCash = new Decimal(input.startingCash ?? "0");
     if (!startingCash.isFinite() || startingCash.lt(0)) throw new Error("INVALID_STARTING_CASH");
+    if (startingCash.decimalPlaces()>8 || startingCash.gte("10000000000000000")) throw new Error("INVALID_STARTING_CASH");
+    // A resumed account receives its actual cash in the opening snapshot. An
+    // advance contribution would block that snapshot or count the cash twice.
+    if (input.onboardingMode==="RESUME" && startingCash.gt(0)) throw new Error("RESUME_CASH_REQUIRES_SNAPSHOT");
     if (startingCash.gt(0)) {
       await tx.unsafe(
         "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,provenance,confidence,metadata) VALUES ($1,$2,now(),'CONTRIBUTION',$3,$4,'USER_ENTERED','VERIFIED',$5::jsonb)",
@@ -157,6 +180,10 @@ export async function createStrategy(userId: string, country: string, rawInput: 
     await tx.unsafe(
       "INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id,metadata) VALUES ($1,'strategy.created','strategy_instance',$2,$3::jsonb)",
       [userId,id,JSON.stringify({strategyKey:input.strategyKey,onboardingMode:input.onboardingMode,plan:snapshot.planSlug,versionId:String(definition.version_id)})]
+    );
+    if (requestKey) await tx.unsafe(
+      "INSERT INTO strategy_creation_requests (user_id,request_key,request_payload,strategy_instance_id) VALUES ($1,$2,$3::jsonb,$4)",
+      [userId,requestKey,requestPayload,id]
     );
     return id;
   });

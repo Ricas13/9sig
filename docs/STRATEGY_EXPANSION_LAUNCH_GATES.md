@@ -19,7 +19,8 @@ Reference strategy records are in `src/domain/strategy/research-catalog.ts`. Sou
 - [ ] Independently validate PAA against author golden cases and exact monthly close conventions
 - [ ] Verify full VAA variants against independent golden cases, wire trusted monthly series and execution/rebalance lifecycle
 - [x] Require each stored historical bar to be explicitly reported by the licensed provider as corporate-action-adjusted; reject ordinary CLOSE bars, malformed dates and future-dated observations
-- [ ] Integrate licensed historical prices into EngineContext, verify *actual* dividend/split adjustment methodology and trading calendars, and independently backtest momentum signal engines with no look-ahead
+- [x] Wire trusted historical series into EngineContext with fail-closed provenance and coverage checks
+- [ ] Verify actual licensed-provider dividend/split methodology and trading calendars, and independently backtest momentum signal engines with no look-ahead
 - [x] Confirm author-published basic 3Sig/6Sig quarterly growth targets and leverage levels
 - [ ] Verify full source-specific 3Sig/6Sig trade adjustment, reserve and reset procedures; do not guess
 - [x] Remove customer-defined weights and custom strategies; only source-checked, immutable built-in variants are supported
@@ -27,7 +28,8 @@ Reference strategy records are in `src/domain/strategy/research-catalog.ts`. Sou
 - [ ] Provide audited source citations, immutable release evidence and signed reviewer approval for each named strategy variant before enabling it commercially
 - [ ] Run independent golden-case regression tests against primary source examples
 - [x] Fail-closed admin publication gate prevents research-only momentum engines from becoming customer-visible
-- [ ] Add per-strategy verified release attestations, source-specific golden tests and customer acceptance before broadening the publishable-engine allowlist
+- [x] Add per-version release attestations and immutable evidence through migrations 0025/0029
+- [ ] Complete independent source-specific golden verification and customer acceptance before broadening the publishable-engine allowlist
 - [ ] Publish strategy-specific disclosures including leverage and volatility decay
 - [x] Fail closed on equally ranked conflicting regional trading-line mappings
 - [ ] Verify economic exposure, currency, wrapper eligibility, fractional trading and *actual purchasability* by region and broker; never automatically substitute a similar ticker
@@ -62,7 +64,7 @@ The product must normally track licensed current/historical prices itself. Manua
 ### Limited manual-only contingency (not a production-ready feature)
 
 - [x] Oracle Docker self-host profile with private Postgres and basic scheduler.
-- [x] Add explicit `MARKET_DATA_MODE=MANUAL` to commercial configuration preflight; external quote licensing is **not** mandatory for genuinely user-supplied values.
+- [x] Commercial configuration preflight requires the configured HTTP provider and verified licensing; manual mode does not satisfy the paid-launch gate.
 - [ ] Make *all* relevant user journeys work without a quote provider: secure timestamped price input, validation, stale-price/review controls, and provenance in charts, calculations and notifications.
 - [ ] Add end-to-end manual-data tests for each strategy, including missing prices and account discrepancies.
 - [ ] Implement off-host encrypted backups and test recovery, admin worker controls/observability, secret management and provider connectivity tests for Oracle Docker.

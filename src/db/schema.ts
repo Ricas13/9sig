@@ -195,6 +195,14 @@ export const strategyVersionMigrations = pgTable("strategy_version_migrations", 
   migratedAt: timestamp("migrated_at", { withTimezone: true }).notNull().defaultNow()
 }, (t) => [index("strategy_version_migration_instance_idx").on(t.strategyInstanceId, t.migratedAt)]);
 
+export const strategyCreationRequests = pgTable("strategy_creation_requests", {
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  requestKey: uuid("request_key").notNull(),
+  requestPayload: jsonb("request_payload").notNull(),
+  strategyInstanceId: uuid("strategy_instance_id").notNull().references(() => strategyInstances.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+}, (t) => [primaryKey({ columns: [t.userId, t.requestKey] })]);
+
 export const strategyStates = pgTable("strategy_states", {
   strategyInstanceId: uuid("strategy_instance_id").primaryKey().references(() => strategyInstances.id, { onDelete: "cascade" }),
   strategyVersionId: uuid("strategy_version_id").notNull().references(() => strategyVersions.id),
@@ -347,6 +355,7 @@ export const actions = pgTable("actions", {
   reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   supersededByActionId: uuid("superseded_by_action_id"),
+  calculatedAt: timestamp("calculated_at", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 }, (t) => [

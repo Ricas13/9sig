@@ -607,7 +607,7 @@ export async function calculateAction(strategyInstanceId:string){
         "UPDATE actions SET account_id=$1,strategy_version_id=$2,action_type=$3,status=$4,title=$5,instruction=$6,amount=$7,currency=$8,trading_line_id=$9,explanation=$10::jsonb,next_state=$11::jsonb,confidence=$12,due_at=$13,"+
         "acknowledged_at=CASE WHEN $4='CALCULATED' THEN NULL ELSE acknowledged_at END,"+
         "cancelled_at=CASE WHEN $4='CALCULATED' THEN NULL ELSE cancelled_at END,"+
-        "superseded_by_action_id=CASE WHEN $4='CALCULATED' THEN NULL ELSE superseded_by_action_id END,updated_at=now() WHERE id=$14",
+        "superseded_by_action_id=CASE WHEN $4='CALCULATED' THEN NULL ELSE superseded_by_action_id END,calculated_at=clock_timestamp(),updated_at=now() WHERE id=$14",
         [executionAccountId,instance.strategy_version_id,proposal.actionType,disposition.status,proposal.title,proposal.instruction,proposal.amount?.toString()??null,proposal.currency??null,tradingLineId,JSON.stringify(proposal.explanation),JSON.stringify(nextState),proposal.confidence,proposal.dueAt??null,actionId]
       );
       shouldNotify=disposition.shouldNotify;
@@ -709,8 +709,8 @@ export async function executeAction(
     // instruction if asynchronous recalculation failed. Never let an executable
     // action outlive the financial ledger snapshot it was calculated against.
     const newerLedger=await tx.unsafe(
-      "SELECT id FROM ledger_events WHERE strategy_instance_id=$1 AND created_at>$2 ORDER BY created_at DESC LIMIT 1",
-      [strategy.id,action.updated_at]
+      "SELECT id FROM ledger_events WHERE strategy_instance_id=$1 AND created_at>(SELECT calculated_at FROM actions WHERE id=$2) ORDER BY created_at DESC LIMIT 1",
+      [strategy.id,actionId]
     );
     if(newerLedger[0])throw new Error("ACTION_STALE_LEDGER_MUTATION");
 

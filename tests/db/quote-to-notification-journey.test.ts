@@ -136,7 +136,7 @@ describe.skipIf(!url)("quote -> action -> notification",()=>{
       [instanceId,accountId,instance.strategy_version_id,"stale-ledger-"+run,lineId]
     );
     const id=String(rows[0].id);
-    await sql!.unsafe("UPDATE actions SET updated_at=now()-interval '10 minutes' WHERE id=$1",[id]);
+    await sql!.unsafe("UPDATE actions SET calculated_at=now()-interval '10 minutes',updated_at=now()-interval '10 minutes' WHERE id=$1",[id]);
     await sql!.unsafe(
       "INSERT INTO ledger_events (strategy_instance_id,account_id,occurred_at,event_type,currency,cash_amount,provenance) "+
       "VALUES ($1,$2,now(),'CONTRIBUTION','GBP',250,'USER_CONFIRMED')",
@@ -144,10 +144,15 @@ describe.skipIf(!url)("quote -> action -> notification",()=>{
     );
     await expect(executeAction(userId,id,{price:"100",quantity:"1",fee:"0"}))
       .rejects.toThrow("ACTION_STALE_LEDGER_MUTATION");
+    // Acknowledgement happens after the deposit but cannot refresh the financial
+    // snapshot. This used to bypass the guard because it compared updated_at.
+    await sql!.unsafe("UPDATE actions SET status='ACKNOWLEDGED',acknowledged_at=clock_timestamp(),updated_at=clock_timestamp() WHERE id=$1",[id]);
+    await expect(executeAction(userId,id,{price:"100",quantity:"1",fee:"0"}))
+      .rejects.toThrow("ACTION_STALE_LEDGER_MUTATION");
     const ledger=await sql!.unsafe("SELECT id FROM ledger_events WHERE strategy_instance_id=$1 AND metadata->>'actionId'=$2",[instanceId,id]);
     expect(ledger).toHaveLength(0);
     const state=(await sql!.unsafe("SELECT status FROM actions WHERE id=$1",[id]))[0];
-    expect(state.status).toBe("CALCULATED");
+    expect(state.status).toBe("ACKNOWLEDGED");
   });
 
 

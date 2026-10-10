@@ -209,12 +209,26 @@ test("Pro customer can resume an existing strategy across multiple accounts",asy
   await expect(accountToCapture).toBeVisible();
   await expect(accountToCapture.getByRole("option",{name:/Pension account · SIPP/})).toHaveCount(1);
 
+  // Hold refreshed server props until both saves finish. The form must advance
+  // from its successful response, even over a slow connection.
+  let releaseRefresh!:()=>void;
+  const refreshGate=new Promise<void>((resolve)=>{releaseRefresh=resolve;});
+  await page.route("**/app/strategies/**",async(route)=>{
+    if(route.request().method()==="GET"&&route.request().headers().rsc==="1")await refreshGate;
+    await route.continue();
+  });
+  try{
   await page.getByLabel("Current cash balance").fill("5000");
   await page.getByRole("button",{name:"Save this account"}).click();
   await expect(page.getByText(/Next: Pension account/)).toBeVisible();
 
   await page.getByLabel("Current cash balance").fill("2000");
+  const secondSave=page.waitForResponse((response)=>response.url().endsWith("/opening-snapshot")&&response.request().method()==="POST");
   await page.getByRole("button",{name:"Save this account"}).click();
+  expect((await secondSave).status()).toBe(200);
+  }finally{
+    releaseRefresh();
+  }
   await expect(page.getByRole("heading",{name:"Tell us what you own today."})).not.toBeVisible();
   await expect(page.getByText(/2 accounts/)).toBeVisible();
 });

@@ -1,5 +1,6 @@
 import { afterAll,describe,expect,it } from "vitest";
 import postgres from "postgres";
+import { randomUUID } from "node:crypto";
 import { createStrategy } from "@/lib/strategy-service";
 
 const url=process.env.DATABASE_URL;
@@ -68,5 +69,42 @@ describe.skipIf(!url)("strategy creation normalises currency",()=>{
     await expect(createStrategy(id,"GB",input("1$3"))).rejects.toThrow("INVALID_CURRENCY");
     const created=await sql!.unsafe("SELECT count(*)::int AS n FROM strategy_instances WHERE user_id=$1",[id]);
     expect(created[0].n).toBe(0);
+  });
+
+  it("serializes simultaneous onboarding retries into one account and one deposit",async()=>{
+    const id=await user("retry");
+    const request={...input("GBP"),requestKey:randomUUID()};
+    const results=await Promise.all(Array.from({length:4},()=>createStrategy(id,"GB",request)));
+    expect(new Set(results).size).toBe(1);
+    const counts=(await sql!.unsafe(
+      "SELECT (SELECT count(*)::int FROM accounts WHERE user_id=$1) AS accounts,"+
+      "(SELECT count(*)::int FROM strategy_instances WHERE user_id=$1) AS strategies,"+
+      "(SELECT count(*)::int FROM ledger_events WHERE strategy_instance_id=$2) AS deposits,"+
+      "(SELECT sum(cash_amount)::text FROM ledger_events WHERE strategy_instance_id=$2) AS cash",
+      [id,results[0]]
+    ))[0];
+    expect(counts).toMatchObject({accounts:1,strategies:1,deposits:1,cash:"100.00000000"});
+    await expect(createStrategy(id,"GB",{...request,startingCash:"200"})).rejects.toThrow("STRATEGY_REQUEST_CONFLICT");
+    // A response lost at the final free-plan slot can still be recovered.
+    await sql!.unsafe("UPDATE subscriptions SET plan_id=(SELECT id FROM plans WHERE slug='free'),status='FREE' WHERE user_id=$1",[id]);
+    expect(await createStrategy(id,"GB",request)).toBe(results[0]);
+  });
+
+  it("scopes request keys to the owner and rolls back failed attempts",async()=>{
+    const request={...input("GBP"),requestKey:randomUUID()};
+    const first=await user("owner-a"),second=await user("owner-b");
+    await expect(createStrategy(first,"GB",{...request,startingCash:"-1"})).rejects.toThrow("INVALID_STARTING_CASH");
+    expect(await sql!.unsafe("SELECT 1 FROM strategy_creation_requests WHERE user_id=$1",[first])).toHaveLength(0);
+    const a=await createStrategy(first,"GB",request);
+    const b=await createStrategy(second,"GB",request);
+    expect(a).not.toBe(b);
+    expect((await sql!.unsafe("SELECT count(*)::int AS n FROM accounts WHERE user_id=$1",[first]))[0].n).toBe(1);
+  });
+
+  it("does not seed resumed cash ahead of its opening snapshot or round starting cash",async()=>{
+    const id=await user("resume-cash");
+    await expect(createStrategy(id,"GB",{...input("GBP"),onboardingMode:"RESUME"})).rejects.toThrow("RESUME_CASH_REQUIRES_SNAPSHOT");
+    await expect(createStrategy(id,"GB",{...input("GBP"),startingCash:"0.000000001"})).rejects.toThrow("INVALID_STARTING_CASH");
+    expect((await sql!.unsafe("SELECT count(*)::int AS n FROM accounts WHERE user_id=$1",[id]))[0].n).toBe(0);
   });
 });

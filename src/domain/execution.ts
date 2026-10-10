@@ -165,6 +165,14 @@ export function validateExecution(input: ExecutionInput): ValidatedExecution {
   if (!quantity.isFinite() || quantity.lte(0)) throw new Error("INVALID_QUANTITY");
 
   const grossNotional = quantity.mul(price);
+  // PostgreSQL otherwise silently rounds these fields, making the recorded
+  // cash differ from the broker fill that passed the balance check. Preserve
+  // the same exact-storage contract as historical broker imports.
+  if (quantity.decimalPlaces()>12 || price.decimalPlaces()>10 || fee.decimalPlaces()>8 || grossNotional.decimalPlaces()>8)
+    throw new Error("EXECUTION_PRECISION_UNSUPPORTED");
+  if (quantity.gte("1000000000000000000") || price.gte("100000000000000") ||
+      fee.gte("10000000000000000") || grossNotional.gte("10000000000000000"))
+    throw new Error("EXECUTION_AMOUNT_TOO_LARGE");
   const deviation = grossNotional.minus(proposed).abs().div(proposed);
   if (input.allowPartial) {
     if (grossNotional.gt(proposed.mul(new Decimal(1).plus(maxDeviation)))) throw new Error("EXECUTION_NOTIONAL_MISMATCH");

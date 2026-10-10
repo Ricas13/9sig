@@ -58,9 +58,9 @@ export async function PUT(request:Request){
     // A free-form PUT request must not bypass publisher, market and attestation checks.
     await sql.unsafe(
       "INSERT INTO strategy_definitions (key,name,family,description,engine,enabled,proprietary,default_benchmark_key,supported_regions,supported_wrappers,required_inputs)"+
-      " VALUES ($1,$2,$3,$4,$5,false,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb)"+
+      " VALUES ($1,$2,$3,$4,$5,false,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb)"+
       " ON CONFLICT (key) DO UPDATE SET name=EXCLUDED.name,family=EXCLUDED.family,description=EXCLUDED.description,proprietary=EXCLUDED.proprietary,default_benchmark_key=EXCLUDED.default_benchmark_key,supported_regions=EXCLUDED.supported_regions,supported_wrappers=EXCLUDED.supported_wrappers,updated_at=now()",
-      [p.key,p.name,p.family,p.description,p.engine,p.enabled,p.proprietary,p.defaultBenchmarkKey??null,JSON.stringify(p.supportedRegions),JSON.stringify(p.supportedWrappers),JSON.stringify(p.requiredInputs)]
+      [p.key,p.name,p.family,p.description,p.engine,p.proprietary,p.defaultBenchmarkKey??null,JSON.stringify(p.supportedRegions),JSON.stringify(p.supportedWrappers),JSON.stringify(p.requiredInputs)]
     );
     await sql.unsafe("INSERT INTO audit_events (actor_user_id,action,entity_type,entity_id) VALUES ($1,'strategy-definition.upsert','strategy_definition',$2)",[admin.id,p.key]);
     return Response.json({ok:true});

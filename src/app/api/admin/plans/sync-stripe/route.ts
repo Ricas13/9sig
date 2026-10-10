@@ -6,6 +6,7 @@ import {requireAdmin} from "@/lib/session";
 import {assertSameOrigin,consumeRateLimit} from "@/lib/security";
 import {authFailure} from "@/lib/api-auth";
 import {ensureSettings} from "@/lib/settings";
+import {isSinglePeriodPrice} from "@/domain/billing-price";
 
 export const dynamic="force-dynamic";
 const schema=z.object({
@@ -40,7 +41,7 @@ export async function POST(request:Request){
     if(existingId){
       try{
         const remote=await stripe.prices.retrieve(existingId);
-        if(remote.active&&remote.currency.toUpperCase()===parsed.currency&&
+        if(remote.active&&isSinglePeriodPrice(remote)&&remote.currency.toUpperCase()===parsed.currency&&
           remote.unit_amount===Number(row.amount_minor)&&remote.recurring?.interval===interval)
           return Response.json({ok:true,priceId:existingId,created:false},{headers});
       }catch{/* A stale or invalid ID does not enable checkout. Create a new verified price below. */}

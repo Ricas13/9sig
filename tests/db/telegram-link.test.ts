@@ -1,6 +1,6 @@
 import {afterAll,beforeAll,describe,expect,it,vi} from "vitest";
 import postgres from "postgres";
-import {randomBytes,createHash} from "node:crypto";
+import {randomBytes} from "node:crypto";
 import {decryptSecret} from "@/lib/crypto";
 import {hashTelegramLinkToken} from "@/domain/telegram";
 const send=vi.hoisted(()=>({calls:[] as Array<{method:string;payload:Record<string,unknown>}>}));

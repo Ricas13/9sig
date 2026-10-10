@@ -55,11 +55,11 @@ The checked items in that file are unchanged and accurate. Unchecked items:
 |---|---|
 | Verify remaining primary-source rules and calendar conventions | Open (Track R: `docs/strategy-specs/`) |
 | Validate PAA, VAA against author golden cases; wire trusted monthly series | Open (needs Phase 3 data) |
-| Licensed historical prices in `EngineContext`, corporate actions, calendars, no-look-ahead backtests | Open (Phase 3). `trustedHistory` is still never populated |
+| Licensed historical prices in `EngineContext`, corporate actions, calendars, no-look-ahead backtests | `loadTrustedHistory` is wired into action calculation and covered by database tests. Real adjusted-data validation, calendars and independent backtests remain open |
 | Full 3Sig/6Sig procedures | Open: not guessed, left as research |
-| Advanced custom strategy editor | Open (Phase 7) |
+| Advanced custom strategy editor | Out of scope: customers and administrators cannot author arbitrary financial algorithms |
 | Golden-case regression against primary-source examples | Open for every strategy except what `tests/value-target.test.ts` and `tests/fixed-allocation.test.ts` cover with self-computed values; independent expected values are still needed |
-| Per-version release attestations; widen the publishable allowlist | Open (Phase 4). The allowlist is still per engine |
+| Per-version release attestations; widen the publishable allowlist | Attestations exist (0025) and draft edits revoke them (0029); canonical rule checks supplement the engine allowlist. Independent human certification and widening support remain open |
 | Strategy-specific disclosures (leverage, volatility decay) | Fixed for the leveraged catalogue entry (HFEA): the catalogue carries a leverage disclosure that the seed stores, with a test that any leveraged strategy has one. Wording still needs legal review |
 | Verify exposure, currency, wrapper, fractional trading and purchasability by region and broker | Open (Phase 2). No instrument mappings are seeded |
 | Commercial data and licensing rights | Needs people |
@@ -95,7 +95,7 @@ Sign-in with Google and Apple; installable mobile web app and Android/iOS shell;
 - Ordered-legs rebalance planner: `src/domain/strategy/rebalance-plan.ts`, hand-computed golden tests. The fixed-allocation engine now shows the whole plan as "Full plan, step n" rows; it still proposes only the first step and recalculates from the actual fill.
 - Customer-defined weights have been removed in PR #25: every published named strategy uses a code-reviewed immutable allocation and review method.
 - Semi-annual and threshold-only schedules (merged earlier).
-- Still open: spec-card sign-off (docs/strategy-specs), wiring the planner into the engine, input_schema entries for weights on the three-fund/60-40/80-20 versions.
+- The planner is wired into the fixed-allocation engine. Spec-card sign-off remains open. Three-fund/60-40/80-20 weights are code-defined; user weight inputs are deliberately unsupported.
 
 ## Strategy catalogue, price history ingest
 - The hourly momentum history importer is off until Admin enables licensed adjusted storage. Every daily CLOSE must also contain an explicit `corporateActionsAdjusted:true` provider field; migration 0028 makes legacy rows ineligible until revalidated.
