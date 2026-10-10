@@ -128,6 +128,13 @@ describe("curated strategy market eligibility",()=>{
       expect(result.supportedMarkets).toEqual([]);
     }
   });
+  it("rejects a blank broker identifier rather than silently falling back to generic mappings",()=>{
+    const result=assessStrategyMarket("FIXED_ALLOCATION",hfea,us,
+      {country:"US",wrapper:"TAXABLE",currency:"USD",broker:"   "},asOf);
+    expect(result.available).toBe(false);
+    expect(result.positions).toEqual([]);
+    expect(result.missingExposures).toEqual(["Invalid account broker"]);
+  });
   it("does not mark an undefined strategy engine or incomplete allocation config available",()=>{
     expect(assessStrategyMarket("CUSTOM",{},us,{country:"US",wrapper:"TAXABLE",currency:"USD"},asOf).available).toBe(false);
     expect(assessStrategyMarket("FIXED_ALLOCATION",{allocations:[{weight:"1"}]},us,{country:"US",wrapper:"TAXABLE",currency:"USD"},asOf).available).toBe(false);
