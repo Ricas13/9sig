@@ -79,6 +79,15 @@ export function assessStrategyMarket(
        new Set([...config.riskAssets, config.defensiveAsset]).size !== config.riskAssets.length + 1)) {
     return { available: false, positions: [], missingExposures: ["Unverified strategy rules"], supportedMarkets: [] };
   }
+  // Repeated allocation sleeves can resolve to the same trading line, causing
+  // double-counted holdings and ambiguous execution. Reject before resolving.
+  if (engine === "FIXED_ALLOCATION" && Array.isArray(config.allocations)) {
+    const exposures = config.allocations.map((row: unknown) =>
+      row && typeof row === "object" && "exposure" in row ? (row as {exposure?:unknown}).exposure : undefined);
+    if (new Set(exposures).size !== exposures.length) {
+      return {available:false,positions:[],missingExposures:["Unverified strategy rules"],supportedMarkets:[]};
+    }
+  }
   const required = requiredPositions(engine, config);
   if (!required.length || (engine === "FIXED_ALLOCATION" &&
       required.length !== (Array.isArray(config.allocations) ? config.allocations.length : 0))) {
