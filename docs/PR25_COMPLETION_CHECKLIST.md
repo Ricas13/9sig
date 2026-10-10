@@ -95,6 +95,16 @@ not discover unlinked purchases, independently query store-provider accounts,
 or certify real Stripe connectivity. Signed webhook delivery and operational
 alerts remain required, especially while a backlog is present.
 
+### Notification time budgets
+
+Delivery drains now check the deadline inside each claimed batch. Unattempted
+rows return immediately to `PENDING` without consuming an attempt. A partially
+processed short batch reports an unfinished backlog. An already-started provider
+request may finish after the deadline (provider timeout is ten seconds); this is
+a bound on starting work, not cancellation of an in-flight delivery. The direct
+admin drain has a 30-second budget. A deterministic database regression verifies
+one slow send, release of remaining claims, and successful retry without loss.
+
 ## External gates (no completion evidence yet)
 
 Licensed market/FX/adjusted history and actual samples; real Stripe test-mode lifecycle;

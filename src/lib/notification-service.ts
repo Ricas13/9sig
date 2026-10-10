@@ -43,7 +43,7 @@ export async function createPendingDeliveries(limit=200){
 }
 
 export async function processPendingDeliveries(limit=50){
-  return (await processDeliveryBatch(limit)).sent;
+  return (await processDeliveryBatch(limit,Date.now()+30_000)).sent;
 }
 
 // Sends everything that is due, in batches, until nothing is left or the time budget is spent.
@@ -53,15 +53,16 @@ export async function processDeliveryBacklog(options:{budgetMs:number;batch?:num
   let sent=0;
   let claimed=0;
   while(Date.now()<deadline){
-    const result=await processDeliveryBatch(batch);
+    const result=await processDeliveryBatch(batch,deadline);
     sent+=result.sent;
     claimed+=result.claimed;
+    if(result.deferred)return {sent,claimed,exhausted:false};
     if(result.claimed<batch)return {sent,claimed,exhausted:true};
   }
   return {sent,claimed,exhausted:false};
 }
 
-async function processDeliveryBatch(limit:number){
+async function processDeliveryBatch(limit:number,deadline:number){
   const deliveries=await sql.unsafe(
     "WITH picked AS ("+
     " SELECT id FROM notification_deliveries"+
@@ -80,7 +81,18 @@ async function processDeliveryBatch(limit:number){
   let sent=0;
   const claimed=deliveries.length;
   const entitlementCache=new Map<string,Set<string>>();
-  for(const d of deliveries){
+  for(let index=0;index<deliveries.length;index++){
+    if(Date.now()>=deadline){
+      // No provider call was made for these claims. Return them immediately
+      // instead of holding them for ten minutes or consuming their retry budget.
+      await sql.unsafe(
+        "UPDATE notification_deliveries SET status='PENDING',attempt_count=GREATEST(attempt_count-1,0),next_attempt_at=now(),updated_at=now() "+
+        "WHERE id=ANY($1::uuid[]) AND status='SENDING'",
+        [deliveries.slice(index).map(row=>String(row.id))]
+      );
+      return {sent,claimed,deferred:deliveries.length-index};
+    }
+    const d=deliveries[index];
     if(d.user_deleted_at){
       await sql.unsafe(
         "UPDATE notification_deliveries SET status='CANCELLED',last_error_code='ACCOUNT_DELETED',updated_at=now() WHERE id=$1 AND status='SENDING'",
@@ -177,5 +189,5 @@ async function processDeliveryBatch(limit:number){
       }
     }
   }
-  return {sent,claimed};
+  return {sent,claimed,deferred:0};
 }
