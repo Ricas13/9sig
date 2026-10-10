@@ -73,6 +73,15 @@ describe("curated strategy market eligibility",()=>{
       expect(result.positions).toEqual([]);
     }
   });
+  it("rejects two distinct exposures mapped to the same trading line",()=>{
+    const conflicting=[us[0],{...us[1],tradingLineId:us[0].tradingLineId}];
+    const result=assessStrategyMarket("FIXED_ALLOCATION",hfea,conflicting,
+      {country:"US",wrapper:"TAXABLE",currency:"USD"},asOf);
+    expect(result.available).toBe(false);
+    expect(result.positions).toEqual([]);
+    expect(result.missingExposures).toContain("Conflicting trading line mappings");
+    expect(result.supportedMarkets).toEqual([]);
+  });
   it("rejects duplicate fixed-allocation sleeves rather than double-counting one trading line",()=>{
     const config={allocations:[
       {exposure:"US_EQUITY_3X_LONG",weight:"0.55"},
