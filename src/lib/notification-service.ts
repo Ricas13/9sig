@@ -4,6 +4,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { getEmailProvider } from "@/lib/email";
 import { loadEntitlements } from "@/lib/entitlement-service";
 import { DELIVERY_MAX_ATTEMPTS,retryDelaySeconds } from "@/domain/delivery-retry";
+import { telegramCall } from "@/lib/telegram";
 
 export async function createDeliveriesForNotification(notificationId: string) {
   const rows=await sql.unsafe("SELECT n.id,n.user_id,n.action_id FROM notifications n WHERE n.id=$1 LIMIT 1",[notificationId]);
@@ -13,14 +14,25 @@ export async function createDeliveriesForNotification(notificationId: string) {
   // user who never connected a webhook would only retry to exhaustion and dead-letter.
   const endpoints=await sql.unsafe("SELECT channel FROM notification_endpoints WHERE user_id=$1 AND enabled=true",[n.user_id]);
   const connected=new Set(endpoints.map((row)=>String(row.channel)));
-  for(const channel of entitlements.notificationChannels){
-    if(channel==="IN_APP")continue;
-    if(channel==="DISCORD"&&!connected.has("DISCORD"))continue;
-    const dedupe=String(notificationId)+":"+channel;
-    await sql.unsafe("INSERT INTO notification_deliveries (notification_id,channel,dedupe_key) VALUES ($1,$2,$3) ON CONFLICT (dedupe_key) DO NOTHING",[notificationId,channel,dedupe]);
-  }
-  // Processed, even when no channel applied (in-app only): it must never be selected again.
-  await sql.unsafe("UPDATE notifications SET deliveries_created_at=now() WHERE id=$1 AND deliveries_created_at IS NULL",[notificationId]);
+  // The owning account may be deleted after the initial lookup but before queue insertion.
+  // Hold a short row lock while creating children and marking the notification handled: this
+  // prevents a concurrent account/notification cascade from producing an FK failure and
+  // serialises overlapping workers. All inserts and the processed marker commit together.
+  await sql.begin(async tx=>{
+    const live=await tx.unsafe("SELECT id FROM notifications WHERE id=$1 FOR UPDATE",[notificationId]);
+    if(!live[0])return;
+    for(const channel of entitlements.notificationChannels){
+      if(channel==="IN_APP")continue;
+      if((channel==="DISCORD"||channel==="TELEGRAM")&&!connected.has(channel))continue;
+      const dedupe=String(notificationId)+":"+channel;
+      await tx.unsafe(
+        "INSERT INTO notification_deliveries (notification_id,channel,dedupe_key) VALUES ($1,$2,$3) ON CONFLICT (dedupe_key) DO NOTHING",
+        [notificationId,channel,dedupe]
+      );
+    }
+    // Even in-app-only notices must be marked handled to avoid an infinite worker backlog.
+    await tx.unsafe("UPDATE notifications SET deliveries_created_at=now() WHERE id=$1 AND deliveries_created_at IS NULL",[notificationId]);
+  });
 }
 
 // Creates deliveries for notifications that have not been through the worker yet, oldest first.
@@ -31,7 +43,7 @@ export async function createPendingDeliveries(limit=200){
 }
 
 export async function processPendingDeliveries(limit=50){
-  return (await processDeliveryBatch(limit)).sent;
+  return (await processDeliveryBatch(limit,Date.now()+30_000)).sent;
 }
 
 // Sends everything that is due, in batches, until nothing is left or the time budget is spent.
@@ -41,15 +53,16 @@ export async function processDeliveryBacklog(options:{budgetMs:number;batch?:num
   let sent=0;
   let claimed=0;
   while(Date.now()<deadline){
-    const result=await processDeliveryBatch(batch);
+    const result=await processDeliveryBatch(batch,deadline);
     sent+=result.sent;
     claimed+=result.claimed;
+    if(result.deferred)return {sent,claimed,exhausted:false};
     if(result.claimed<batch)return {sent,claimed,exhausted:true};
   }
   return {sent,claimed,exhausted:false};
 }
 
-async function processDeliveryBatch(limit:number){
+async function processDeliveryBatch(limit:number,deadline:number){
   const deliveries=await sql.unsafe(
     "WITH picked AS ("+
     " SELECT id FROM notification_deliveries"+
@@ -68,7 +81,18 @@ async function processDeliveryBatch(limit:number){
   let sent=0;
   const claimed=deliveries.length;
   const entitlementCache=new Map<string,Set<string>>();
-  for(const d of deliveries){
+  for(let index=0;index<deliveries.length;index++){
+    if(Date.now()>=deadline){
+      // No provider call was made for these claims. Return them immediately
+      // instead of holding them for ten minutes or consuming their retry budget.
+      await sql.unsafe(
+        "UPDATE notification_deliveries SET status='PENDING',attempt_count=GREATEST(attempt_count-1,0),next_attempt_at=now(),updated_at=now() "+
+        "WHERE id=ANY($1::uuid[]) AND status='SENDING'",
+        [deliveries.slice(index).map(row=>String(row.id))]
+      );
+      return {sent,claimed,deferred:deliveries.length-index};
+    }
+    const d=deliveries[index];
     if(d.user_deleted_at){
       await sql.unsafe(
         "UPDATE notification_deliveries SET status='CANCELLED',last_error_code='ACCOUNT_DELETED',updated_at=now() WHERE id=$1 AND status='SENDING'",
@@ -109,6 +133,18 @@ async function processDeliveryBatch(limit:number){
     try{
       if(d.channel==="EMAIL"){
         ok=await getEmailProvider().send({to:String(d.email),subject:String(d.title),text:String(d.body)});
+      }else if(d.channel==="TELEGRAM"){
+        const endpoints=await sql.unsafe("SELECT encrypted_destination FROM notification_endpoints WHERE user_id=$1 AND channel='TELEGRAM' AND enabled=true LIMIT 1",[d.user_id]);
+        if(!endpoints[0]){
+          await sql.unsafe("UPDATE notification_deliveries SET status='CANCELLED',last_error_code='NO_ENDPOINT',updated_at=now() WHERE id=$1 AND status='SENDING'",[d.id]);
+          continue;
+        }
+        const result=await telegramCall("sendMessage",{
+          chat_id:decryptSecret(String(endpoints[0].encrypted_destination)),
+          text:String(d.title)+"\n"+String(d.body)
+        });
+        ok=result.ok;
+        retryAfterSeconds=result.retryAfterSeconds??null;
       }else if(d.channel==="DISCORD"){
         const endpoints=await sql.unsafe("SELECT encrypted_destination FROM notification_endpoints WHERE user_id=$1 AND channel='DISCORD' AND enabled=true LIMIT 1",[d.user_id]);
         if(!endpoints[0]){
@@ -153,5 +189,5 @@ async function processDeliveryBatch(limit:number){
       }
     }
   }
-  return {sent,claimed};
+  return {sent,claimed,deferred:0};
 }

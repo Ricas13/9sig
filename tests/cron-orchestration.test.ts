@@ -16,7 +16,8 @@ const h=vi.hoisted(()=>({
   deletions:{completed:0,stalled:0},
   pendingDeliveries:0,
   backlog:{sent:0,claimed:0,exhausted:true},
-  aggregatesRan:0
+  aggregatesRan:0,
+  billing:{configured:true,checked:0,failed:0,deferred:0,hasMore:false}
 }));
 
 vi.mock("@/lib/db",()=>{
@@ -52,6 +53,7 @@ vi.mock("@/lib/aggregate-service",()=>({rebuildAnonymousAggregates:async()=>{h.a
 vi.mock("@/lib/market-data-worker",()=>({refreshMarketData:async()=>h.market}));
 vi.mock("@/lib/entitlement-service",()=>({enforceStrategyEntitlements:async()=>({paused:0})}));
 vi.mock("@/lib/account-deletion",()=>({finishPendingAccountDeletions:async()=>h.deletions}));
+vi.mock("@/lib/billing-reconciliation",()=>({reconcileStripeSubscriptions:async()=>h.billing}));
 
 const call=async(authorization?:string)=>{
   const {GET}=await import("@/app/api/cron/actions/route");
@@ -70,7 +72,8 @@ describe("hourly worker orchestration",()=>{
     delete process.env.CRON_TIME_BUDGET_MS;delete process.env.CRON_MAX_INSTANCES;delete process.env.CRON_CONCURRENCY;
     Object.assign(h,{leaseHeld:false,instances:[],totalActive:0,owners:[],aggregatesRecent:false,calculated:[],calcDelayMs:0,queries:[],finishedLease:null,
       market:{provider:"mock",configured:true,refreshed:0,failed:0,skipped:0},deletions:{completed:0,stalled:0},pendingDeliveries:0,
-      backlog:{sent:0,claimed:0,exhausted:true},aggregatesRan:0});
+      backlog:{sent:0,claimed:0,exhausted:true},aggregatesRan:0,
+      billing:{configured:true,checked:0,failed:0,deferred:0,hasMore:false}});
   });
 
   it("refuses calls without the bearer secret and does no work",async()=>{
@@ -142,6 +145,15 @@ describe("hourly worker orchestration",()=>{
     h.aggregatesRecent=false;
     await call(ok);
     expect(h.aggregatesRan).toBe(1);
+  });
+
+  it("reports missed-webhook recovery failures and deferred subscriptions as degraded",async()=>{
+    h.billing.failed=1;
+    expect((await call(ok)).json).toMatchObject({ok:false,billing:{failed:1}});
+    h.billing.failed=0;h.billing.deferred=1;
+    expect((await call(ok)).json.ok).toBe(false);
+    h.billing.deferred=0;h.billing.hasMore=true;
+    expect((await call(ok)).json.ok).toBe(false);
   });
 
   it("records a failed run on the lease when something throws",async()=>{

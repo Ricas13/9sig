@@ -8,9 +8,10 @@ import { hasLiveStripeSubscription, isTerminalLocalStatus } from "@/domain/subsc
 import { authFailure } from "@/lib/api-auth";
 import { paidCheckoutBlockers } from "@/domain/commercial-launch";
 import { purchasesAllowedFor } from "@/domain/native-app";
+import { isSinglePeriodPrice } from "@/domain/billing-price";
 
 const schema = z.object({
-  planSlug: z.enum(["investor", "pro"]),
+  planSlug: z.string().regex(/^[a-z][a-z0-9-]{0,59}$/).refine(slug=>slug!=="free"),
   cadence: z.enum(["monthly", "annual"]),
   currency: z.string().length(3).optional()
 });
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
     const currency = (input.currency ?? user.baseCurrency).toUpperCase();
     const cadence = input.cadence.toUpperCase();
     const priceRows = await sql.unsafe(
-      "SELECT p.id,pp.stripe_price_id,pp.amount_minor,pp.currency FROM plans p JOIN plan_prices pp ON pp.plan_id=p.id WHERE p.slug=$1 AND p.archived=false AND p.visible=true AND pp.currency=$2 AND pp.cadence=$3 AND pp.active=true LIMIT 1",
+      "SELECT p.id,pp.stripe_price_id,pp.amount_minor,pp.currency FROM plans p JOIN plan_prices pp ON pp.plan_id=p.id WHERE p.slug=$1 AND p.slug<>\'free\' AND p.archived=false AND p.visible=true AND pp.currency=$2 AND pp.cadence=$3 AND pp.active=true AND pp.amount_minor>0 LIMIT 1",
       [input.planSlug, currency, cadence]
     );
     const price = priceRows[0];
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
     // charge. A mismatched admin Stripe ID must never silently bill a user.
     const stripePrice=await stripe.prices.retrieve(String(price.stripe_price_id));
     const interval=input.cadence==="annual"?"year":"month";
-    if(!stripePrice.active||stripePrice.currency.toUpperCase()!==currency||
+    if(!stripePrice.active||!isSinglePeriodPrice(stripePrice)||stripePrice.currency.toUpperCase()!==currency||
        stripePrice.unit_amount!==Number(price.amount_minor)||
        stripePrice.recurring?.interval!==interval||stripePrice.type!=="recurring"){
       return Response.json({error:"Billing configuration mismatch. Checkout is disabled until an administrator corrects this price."},{status:503});
