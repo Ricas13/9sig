@@ -11,8 +11,13 @@ have passed. The completion checklist records remaining blockers.
 The existing Traefik installation must have `websecure`, certificate resolver
 `le`, and external Docker network `media_net`. DNS for `wealtharr.vpn4u.cc`
 must point to the host. Use Docker Compose supporting `!reset` (2.24.4+).
+Before starting the app, restrict the staging hostname to the intended reviewers
+using the existing VPN or a Traefik IP allowlist. Verify access is denied from
+outside that boundary. HTTPS, disabled checkout and `noindex` do not make a
+publicly routed application private.
 
 ```sh
+set -eu
 git clone https://github.com/Ricas13/wealtharr.git
 cd wealtharr
 git fetch origin
