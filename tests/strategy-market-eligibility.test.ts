@@ -73,6 +73,18 @@ describe("curated strategy market eligibility",()=>{
       expect(result.positions).toEqual([]);
     }
   });
+  it("rejects duplicate fixed-allocation sleeves rather than double-counting one trading line",()=>{
+    const config={allocations:[
+      {exposure:"US_EQUITY_3X_LONG",weight:"0.55"},
+      {exposure:"US_EQUITY_3X_LONG",weight:"0.45"}
+    ]};
+    const result=assessStrategyMarket("FIXED_ALLOCATION",config,us,
+      {country:"US",wrapper:"TAXABLE",currency:"USD"},asOf);
+    expect(result.available).toBe(false);
+    expect(result.positions).toEqual([]);
+    expect(result.supportedMarkets).toEqual([]);
+    expect(result.missingExposures).toEqual(["Unverified strategy rules"]);
+  });
   it("does not mark an undefined strategy engine or incomplete allocation config available",()=>{
     expect(assessStrategyMarket("CUSTOM",{},us,{country:"US",wrapper:"TAXABLE",currency:"USD"},asOf).available).toBe(false);
     expect(assessStrategyMarket("FIXED_ALLOCATION",{allocations:[{weight:"1"}]},us,{country:"US",wrapper:"TAXABLE",currency:"USD"},asOf).available).toBe(false);
