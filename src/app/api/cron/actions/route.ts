@@ -9,6 +9,7 @@ import { finishPendingAccountDeletions } from "@/lib/account-deletion";
 import { runBounded } from "@/lib/work-pool";
 import { ensureSettings } from "@/lib/settings";
 import { runOpsCheck } from "@/lib/ops-monitor";
+import { reconcileStripeSubscriptions } from "@/lib/billing-reconciliation";
 
 function authorized(request: Request) {
   return Boolean(process.env.CRON_SECRET) && request.headers.get("authorization") === "Bearer " + process.env.CRON_SECRET;
@@ -63,6 +64,8 @@ export async function GET(request: Request) {
   try {
     // Finish account deletions that stalled (for example Stripe was unreachable when requested).
     const accountDeletions = await finishPendingAccountDeletions().catch(() => ({ completed: 0, stalled: -1 }));
+
+    const billing=await reconcileStripeSubscriptions({deadline:phaseEnds(0.1)});
 
     const marketData = await refreshMarketData({ deadline: phaseEnds(0.3), concurrency: 5 });
     // Research-only history for momentum strategies; a failure here must never block the real run.
@@ -120,10 +123,10 @@ export async function GET(request: Request) {
     const marketDataRequired = (process.env.MARKET_DATA_MODE ?? "PROVIDER").toUpperCase() !== "MANUAL";
     const marketDegraded = marketDataRequired && (!marketData.configured || marketData.failed > 0 || marketData.skipped > 0);
     const deferred = { entitlements: entitlementPool.deferred, calculations: calculationDeferred, deliveriesBacklog: !delivery.exhausted };
-    const backlog = deferred.entitlements > 0 || deferred.calculations > 0 || deferred.deliveriesBacklog;
-    const ok = calculationFailures === 0 && entitlementFailures === 0 && !marketDegraded && accountDeletions.stalled === 0 && !backlog;
+    const backlog = deferred.entitlements > 0 || deferred.calculations > 0 || deferred.deliveriesBacklog || billing.deferred>0 || billing.hasMore;
+    const ok = calculationFailures === 0 && entitlementFailures === 0 && billing.failed===0 && !marketDegraded && accountDeletions.stalled === 0 && !backlog;
     const summary = {
-      ok, status: ok ? "healthy" : "degraded", durationMs: Date.now() - startedAt, accountDeletions, marketData,
+      ok, status: ok ? "healthy" : "degraded", durationMs: Date.now() - startedAt, accountDeletions, marketData, billing,
       entitlementPaused, entitlementFailures, calculated, calculationFailures, deferred,
       deliveriesCreated, delivered: delivery.sent, aggregates
     };

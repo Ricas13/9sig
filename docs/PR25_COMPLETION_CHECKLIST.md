@@ -14,12 +14,12 @@ This checklist records evidence, not certification. Unchecked work remains open.
 | Decimal amounts and quantity persistence | `execution.ts`, ledger routes, SQL numeric columns | Precision boundary tests and persisted ledger reconciliation | Audit pending |
 | Performance and honest same-cashflow benchmarks | `workspace-analytics.ts`, `portfolio-analytics.ts`, `comparison.ts` | Flow timing, gaps, corrections, currencies, adjusted data | Audit pending |
 | Admin configuration and encrypted integrations | Admin routes, settings registry/service, setup | Admin permissions/MFA, persistence, no secret readback | Audit pending |
-| Billing lifecycle and paid launch gates | Checkout, Stripe webhook, entitlements | Ownership, retries, ordering, expiry and price history DB tests | Audit pending; real Stripe test pending |
+| Billing lifecycle and paid launch gates | Checkout, Stripe webhook, entitlements | Ownership, retries, ordering, expiry and price history DB tests | Shared canonical-state recovery added for missed updates on linked Stripe subscriptions; real Stripe test pending |
 | Market data and notification recovery | Market/history worker, notification service, Telegram | Freshness, corporate actions, dedupe/retry, provider safety | Audit pending; actual providers pending |
 | Security and reliability | Authentication/session, API routes, worker, migrations | Tenancy matrix, route sweep, MFA, SSRF, audit, bounded jobs | Audit pending |
 | Migration and seed integrity | All migrations and `scripts/seed.ts` | Disposable DB: migrate twice, seed; repeat seed preservation | Passed locally through 0031, including seed preservation tests |
 | Full local verification | `package.json` | npm ci, lint, typecheck, test, build, browser, production audit | Pending |
-| Production Docker image and Oracle configuration | Dockerfile, Compose files, CI | Application image build, backup image, Compose validation | Added application build/non-root/production-dependency checks; awaiting CI; local Docker unavailable |
+| Production Docker image and Oracle configuration | Dockerfile, Compose files, CI | Application image build, backup image, Compose validation | Passed CI #1045 at ab66e94, including actual runtime startup and container migrations; latest work requires another CI run |
 | Staging runbook and recovery | Master Admin and rollout runbooks | Exact tested revision, bootstrap, migrations, health, backup/rollback | Pending; no host access established |
 | Final review and merge | Final diff, GitHub checks | Exact-head green CI and no unresolved engineering blocker | Pending; keep PR open until satisfied |
 
@@ -32,6 +32,13 @@ This checklist records evidence, not certification. Unchecked work remains open.
   occur on an available Docker host/CI and must not be reported as locally completed.
 
 ## Verification and fixes recorded 10 October 2026
+
+- [CI #1045](https://github.com/Ricas13/wealtharr/actions/runs/38044105082)
+  passed at `ab66e94e0352b4cfa1791d295701917e2517b28f`: 122 files/990
+  unit and database tests, 116 browser tests with six pre-existing project skips,
+  unchanged Linux visual baselines, application/backup images, real non-root
+  container startup and migration tooling, Compose validation, and zero production
+  dependency findings. This is the verified checkpoint before billing recovery.
 
 - Full unit/database suite: 121 files, 989 tests passed on a fresh database after isolating database
   files from each other. Tests still exercise concurrent financial requests.
@@ -61,10 +68,32 @@ This checklist records evidence, not certification. Unchecked work remains open.
 ### Outstanding engineering review
 
 Do not merge on the strength of the checks above alone. Finish the complete diff
-audit, all-profile lifecycle acceptance, missed billing webhook/reconciliation
-policy, notification freshness and worker bound review, and exact-head Linux
+audit, all-profile lifecycle acceptance, notification freshness and worker bound
+review, and exact-head Linux
 CI including the production Docker image. Verify actual private staging when
 host access is available. Source/provider/legal approvals remain external gates.
+
+### Billing recovery policy
+
+Local verification after this increment: lint, TypeScript, repeat migration
+through 0032, and the full 122-file/997-test suite passed. Exact-head CI remains
+required before treating this increment as verified for deployment.
+
+The scheduler now checks linked website subscriptions against current Stripe
+state, using the same local customer ownership and historical price mapping as
+the signed webhook handler. It processes up to 100 subscriptions per run with
+two requests in flight, an eight-second request timeout and a phase deadline.
+Oldest unchecked accounts are selected first; failed attempts rotate and retry
+after one hour. Failures, deferred work and a larger queue degrade worker health.
+Provider outages do not imply cancellation, and the established `PAST_DUE`
+access policy is preserved. Confirmed ended subscriptions return to the free
+plan and enforce its strategy limits. The recovery job never charges or cancels
+remote subscriptions and never replaces App Store entitlements.
+
+This recovers missed updates for subscriptions already linked locally. It does
+not discover unlinked purchases, independently query store-provider accounts,
+or certify real Stripe connectivity. Signed webhook delivery and operational
+alerts remain required, especially while a backlog is present.
 
 ## External gates (no completion evidence yet)
 

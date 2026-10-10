@@ -100,6 +100,8 @@ export const subscriptions = pgTable("subscriptions", {
   stripeSubscriptionId: text("stripe_subscription_id").unique(),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  billingCheckedAt: timestamp("billing_checked_at", { withTimezone: true }),
+  billingCheckError: text("billing_check_error"),
   ...timestamps
 });
 

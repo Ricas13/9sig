@@ -1,7 +1,7 @@
 import {describe,it,expect} from "vitest";
 import {readFileSync} from "node:fs";
 const source=readFileSync("src/app/api/admin/plans/sync-stripe/route.ts","utf8");
-const webhook=readFileSync("src/app/api/stripe/webhook/route.ts","utf8");
+const webhook=readFileSync("src/lib/stripe-subscription-state.ts","utf8");
 const migration=readFileSync("db/migrations/0027_stripe_price_history.sql","utf8");
 describe("Master Admin Stripe price sync and existing subscriber safety",()=>{
  it("loads encrypted web-configured Stripe credentials before checking for a key",()=>{
