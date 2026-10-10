@@ -92,6 +92,15 @@ describe("curated strategy market eligibility",()=>{
     expect(result.missingExposures).toContain("Conflicting trading line mappings");
     expect(result.supportedMarkets).toEqual([]);
   });
+  it("rejects distinct records that alias the same exchange-listed security",()=>{
+    const conflicting=[us[0],{...us[1],ticker:"upro",exchange:"nyse",tradingLineId:"another-line"}];
+    const result=assessStrategyMarket("FIXED_ALLOCATION",hfea,conflicting,
+      {country:"US",wrapper:"TAXABLE",currency:"USD"},asOf);
+    expect(result.available).toBe(false);
+    expect(result.positions).toEqual([]);
+    expect(result.supportedMarkets).toEqual([]);
+    expect(result.missingExposures).toContain("Conflicting trading line mappings");
+  });
   it("rejects duplicate fixed-allocation sleeves rather than double-counting one trading line",()=>{
     const config={allocations:[
       {exposure:"US_EQUITY_3X_LONG",weight:"0.55"},
